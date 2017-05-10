@@ -367,42 +367,47 @@ def process_doc(doc, *analysers, **args):
     return info
 
 
-def parse_args(argv):
-    parser = argparser.argumentParser()
+def parse_args():
+    parser = argparse.ArgumentParser(description = 'Runs the pipeline of boxer in a predefined format of documents')
     parser.add_argument('dir_path', help = 'the path to the data files')
-    parser.add_argument('max_docs', type = int, help = 'maximum number of documents read')
-    
+    parser.add_argument('out_file', help = 'output file name')
+    parser.add_argument('-b', '--break_output', type = int, help='if specified, break the output into BREAK_OUTPUT number of files')
+    parser.add_argument('-max','--max_docs', type = int, help = 'maximum number of documents to read')
+    parser.add_argument('-e', '--expand_boxer_predicates',action='store_true', help = 'expand Boxer predicates, simplifying its heavy notation')
+    args = parser.parse_args()
     return parser
 
 if __name__ == '__main__':
-    if(len(argv) < 4):
-        print 'This method receives a directory from where to read the query files, an output file and the maximum number of entries'
-        exit()
+    args = parse_args()
     #boxer = BoxerWebAPI()
     boxer = BoxerLocalAPI(TokenizerLocalAPI(), CandCLocalAPI())
     depTree = DependencyTreeLocalAPI()
     doc_list = []
-    base_dir = argv[1]
+    base_dir = args.dir_path
     file_paths = listdir(base_dir)
-    length = min(int(argv[3]), len(file_paths))
+    length = min(int(argv[3]), len(file_paths)) if args.max_docs else len(file_paths)
 
     out_count = 0
-    doc_per_out = 5
-    out_split = argv[2].split('.')
-    out_format = '%s_%%s.%s' %(('.'.join(out_split[:-1]), out_split[-1]) if len(out_split) > 1 else (out_split, 'txt'))
+    
+    if args.break_output:
+        out_split = argv[2].split('.')
+        out_format = '%s_{0}.%s' %(('.'.join(out_split[:-1]), out_split[-1]) if len(out_split) > 1 else (out_split, 'txt'))
 
     for count, file_path in enumerate(file_paths[0:length]): #enumerate is used only to set count
         with open(path.join(base_dir, file_path), 'r') as raw_text:
             info = process_doc(raw_text, boxer, depTree)
             doc_list.append(info)
-        print "%6.2f%%" % (100*float(count+1)/length,)
-        if (count+1) % doc_per_out == 0:
+        print "%6.2f%%" % (100*float(count+1)/length,) #print progress
+        if args._break_output and (count+1) % args._break_output == 0: #save to files
             with open(out_format %out_count, 'w') as out:
                 json.dump(doc_list, out)
             out_count += 1
             doc_list = []
-    if length % doc_per_out != 0:
-            with open(out_format %out_count, 'w') as out:
-                json.dump(doc_list, out)
-    # with open(argv[2], 'w') as out:
-    #     json.dump(doc_list, out)
+
+    if args._break_output:
+        if length % args._break_output != 0:
+                with open(out_format %out_count, 'w') as out:
+                    json.dump(doc_list, out)
+    else:
+        with open(args.out_file, 'w') as out:
+             json.dump(doc_list, out)
