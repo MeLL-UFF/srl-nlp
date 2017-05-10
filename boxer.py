@@ -252,42 +252,22 @@ class CandCLocalAPI(Process):
                 print >> stderr, 'Parser error: {0}'.format(err)
         return out.decode('utf-8').encode("utf-8")
 
-class BoxerLocalAPI(Process):
-    def __init__(self, tokenizer, ccg_parser, path_to_bin = config.get('semantic_local', 'boxer'),*params):
-        if len(params) == 0:
-            params = ('--stdin', '--semantics', 'fol')
-        self.name        = 'Boxer'
-        self.path_to_bin = path_to_bin
-        self.ccg_parser  = ccg_parser
-        self.tokenizer   = tokenizer
-        self.params      = params
-
-    def parsed2FOL(self, parsed):
-        out, err = self._process(parsed)
-        if err:
-            # Boxer throws a silly error every time (a bug), we want to ignore it
-            if not "No source location" in err:
-                print >> stderr, 'Boxer error: {0}'.format(err)
-        return out.decode('utf-8').encode("utf-8")
-
+class Boxer:
     def sentence2FOL(self, sentence):
-        tokenized = self.tokenizer.tokenize(sentence)
-        parsed    = self.ccg_parser.parse(tokenized)
-        #print 't:', tokenized
-        #print 'c&c:', parsed
-        #raw_input()
-        boxed =  self.parsed2FOL(parsed)
+        parsed    = self._parse_sentence(sentence)
+        boxed =  self._parsed2FOLstring(parsed)
         #print boxed
         #return lines that do not start with '%%%', nor 'id' and are not empty
         return filter(lambda x: not (x.startswith('id') or x.startswith('%%%')) and len(x) > 0, boxed.split("\n"))
 
-    #TODO
-    def FOL2LF(self, fol_list, expand_predicates = True):
+    def FOL2LF(self, fol_list, expand_predicates):
         # print fol_list
         # raw_input()
+        if expand_predicates == None:
+            expand_predicates = self.expand_predicates
         fols = [FOL(fol) for fol in fol_list]
         for fol in fols: fol.skolemize(removeForAlls = False)
-        parse = lambda x: BoxerLocalAPI.expandFOLpredicates(x).str_lf() if expand_predicates else x.str_lf()
+        parse = lambda x: Boxer.expandFOLpredicates(x).str_lf() if expand_predicates else x.str_lf()
         out = '\n'.join(map(parse, fols))
         # print out
         # raw_input()
@@ -308,16 +288,43 @@ class BoxerLocalAPI(Process):
     def sentence2LF(self, sentence):
         return self.FOL2LF(self.sentence2FOL(sentence))
 
-class BoxerWebAPI:
+
+class BoxerLocalAPI(Process, Boxer):
+    def __init__(self, tokenizer, ccg_parser, expand_predicates, path_to_bin = config.get('semantic_local', 'boxer'), *params):
+        if len(params) == 0:
+            params = ('--stdin', '--semantics', 'fol')
+        self.name        = 'Boxer'
+        self.path_to_bin = path_to_bin
+        self.ccg_parser  = ccg_parser
+        self.tokenizer   = tokenizer
+        self.params      = params
+
+    def _parsed2FOLstring(self, parsed):
+        out, err = self._process(parsed)
+        if err:
+            # Boxer throws a silly error every time (a bug), we want to ignore it
+            if not "No source location" in err:
+                print >> stderr, 'Boxer error: {0}'.format(err)
+        return out.decode('utf-8').encode("utf-8")
+
+    def _parse_sentence(self, sentence):
+        tokenized = self.tokenizer.tokenize(sentence)
+        parsed    = self.ccg_parser.parse(tokenized)
+        #print 't:', tokenized
+        #print 'c&c:', parsed
+        #raw_input()
+        return parsed
+
+class BoxerWebAPI(Boxer):
     def __init__(self, url = config.get('semantic_soap', 'boxer')):
         self.url = url
         self.name = 'boxer'
 
-    def sentence2FOL(self, sentence):
-        out =  post(self.url, data = sentence).text.strip()#, headers=headers)
-        #return lines that do not start with '%%%'
-        return filter(lambda x: not x.startswith('%%%'), out.split("\n"))
+    def _parse_sentence(self, sentence):
+        return sentence
 
+    def _parsed2FOLstring(self, parsed):
+        return  post(self.url, data = sentence).text.strip()#, headers=headers)
 
 class DependencyTreeLocalAPI:
     def __init__(self, model = config.get('syntatic_local', 'spacy_model')):
@@ -368,24 +375,24 @@ def process_doc(doc, *analysers, **args):
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description = 'Runs the pipeline of boxer in a predefined format of documents')
+    parser = argparse.ArgumentParser(description = 'Runs the pipeline in a predefined format of documents')
     parser.add_argument('dir_path', help = 'the path to the data files')
     parser.add_argument('out_file', help = 'output file name')
     parser.add_argument('-b', '--break_output', type = int, help='if specified, break the output into BREAK_OUTPUT number of files')
     parser.add_argument('-max','--max_docs', type = int, help = 'maximum number of documents to read')
-    parser.add_argument('-e', '--expand_boxer_predicates',action='store_true', help = 'expand Boxer predicates, simplifying its heavy notation')
+    parser.add_argument('-e', '--expand_boxer_predicates', action='store_true', help = 'expand Boxer predicates, simplifying its heavy notation')
     args = parser.parse_args()
-    return parser
+    return args
 
 if __name__ == '__main__':
     args = parse_args()
     #boxer = BoxerWebAPI()
-    boxer = BoxerLocalAPI(TokenizerLocalAPI(), CandCLocalAPI())
+    boxer = BoxerLocalAPI(TokenizerLocalAPI(), CandCLocalAPI(), expand_predicates = args.expand_boxer_predicates)
     depTree = DependencyTreeLocalAPI()
     doc_list = []
     base_dir = args.dir_path
     file_paths = listdir(base_dir)
-    length = min(int(argv[3]), len(file_paths)) if args.max_docs else len(file_paths)
+    length = min(int(args.max_docs), len(file_paths)) if args.max_docs != None else len(file_paths)
 
     out_count = 0
     
