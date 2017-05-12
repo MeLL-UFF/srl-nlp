@@ -60,8 +60,19 @@ class CandCLocalAPI(Process):
 
 
 class BoxerAbstract:
+    '''Do not initialize this class. Use BoxerLocalAPI or BoxerWebAPI instead.
+    '''
+    _expansion_patterns = {
+        r'^n\d(.*)': lambda x: ['NOUM', x],
+        r'^a\d(.*)': lambda x: ['ADJECTIVE', x],
+        r'^v\d(.*)': lambda x: ['VERB', x],
+        r'^geonam\d(.*)': lambda x: ['GEONAME', x]
+
+    }
     def __init__():
+        'abstract class, do not use this method'
         assert True, 'You should not initialize this class'
+
     def sentence2FOL(self, sentence):
         parsed    = self._parse_sentence(sentence)
         boxed =  self._parsed2FOLstring(parsed)
@@ -74,23 +85,52 @@ class BoxerAbstract:
         # raw_input()
         fols = [FOL(fol) for fol in fol_list]
         for fol in fols: fol.skolemize(removeForAlls = False)
-        parse = lambda x: BoxerAbstract.expandFOLpredicates(x).str_lf() if expand_predicates else x.str_lf()
+        parse = lambda x: BoxerAbstract._expandFOLpredicates(x).str_lf() if expand_predicates else x.str_lf()
         out = '\n'.join(map(parse, fols))
         # print out
         # raw_input()
         return out
 
     @staticmethod
-    def expandFOLpredicates(fol):
-        # frontier = [fol]
-        # while len(frontier) > 0:
-        #     if fol[0] == FOL.AND or fol[0] == FOL.OR:
-        #         children = fol[2:]
-        #         for pos, child in enumerate(children)
-        #             expanded = self.expand_FOLpredicate(child[0])
-        #             if len(expanded)> 1:
-        #                 pass #TODO
+    def _expandFOLpredicates(fol, concatenator = FOL.AND):
+        if fol == None:
+            return None
+        chain = [concatenator]+ fol.info
+        BoxerAbstract._expandFOLpredicates_aux(chain, concatenator)
+        fol.info = chain[1]
         return fol
+
+    @staticmethod
+    def _expandFOLpredicates_aux(fol, concatenator):
+        for pos,child in enumerate(fol[1:]):
+            if fol[0] in [FOL.AND, FOL.OR, FOL.ALL, FOL.EXISTS]:
+                BoxerAbstract._expandFOLpredicates_aux(child, fol)
+            else:
+                expansion = BoxerAbstract._expandFOLpredicate(child)
+                if expansion:
+                    if len(expansion) > 1:
+                        replacement = [concatenator] #FOL.AND
+                        chain_curr = replacement
+                        for term in expansion[:-1]:
+                            if len(chain_curr) >= 2:
+                                chain_curr.append([concatenator])
+                                chain_curr = chain_curr[-1]
+                            chain_curr.append(term)
+                        chain_curr.append(expansion[-1])
+                        fol[pos+1] = replacement
+                    else:
+                        fol[pos+1] = expansion[0]
+        return fol
+                        
+    @staticmethod
+    def _expandFOLpredicate(fol):
+        predicate = fol[0]
+        args = fol[1:]
+        for pattern, parser in BoxerAbstract._expansion_patterns.iteritems():
+            matching = regex.match(pattern, predicate)
+            if matching:
+                return [[p]+args for p in parser(*matching.groups())]
+        return None
 
     def sentence2LF(self, sentence, expand_predicates = None):
         if expand_predicates == None:
@@ -146,7 +186,7 @@ class DependencyTreeLocalAPI:
         tree = self.parser(sentence.decode('utf-8'))
         out = []
         ids = dict([(w,'depTree%d' %(count+i)) for i, w in enumerate(tree)])
-        self.count += len(tree)
+        self.count += len(ids)
         for w, i in ids.iteritems():
             out.append('%s(%s, \'%s\')' % (w.pos_, i, w.text))
             if w.text.startswith("@"):
@@ -191,6 +231,7 @@ def parse_args():
     parser.add_argument('-b', '--break_output', type = int, help='if specified, break the output into BREAK_OUTPUT number of files')
     parser.add_argument('-max','--max_docs', type = int, help = 'maximum number of documents to read')
     parser.add_argument('-e', '--expand_boxer_predicates', action='store_true', help = 'expand Boxer predicates, simplifying its heavy notation')
+    parser.add_argument('-q', '--quiet', action='store_true', help = 'supress progress prints')
     args = parser.parse_args()
     return args
 
@@ -214,17 +255,18 @@ if __name__ == '__main__':
         with open(path.join(base_dir, file_path), 'r') as raw_text:
             info = process_doc(raw_text, boxer, depTree)
             doc_list.append(info)
-        print "%6.2f%%" % (100*float(count+1)/length,) #print progress
         if args.break_output and (count+1) % args.break_output == 0: #save to files
             with open(out_format %out_count, 'w') as out:
                 json.dump(doc_list, out)
             out_count += 1
             doc_list = []
+        if not args.quiet: print "%6.2f%%" % (100*float(count+1)/length,) #print progress
 
     if args.break_output:
         if length % args.break_output != 0:
                 with open(out_format %out_count, 'w') as out:
                     json.dump(doc_list, out)
+                if not args.quiet: print "%6.2f%%" % (100*float(count+1)/length,) #print progress
     else:
         with open(args.out_file, 'w') as out:
              json.dump(doc_list, out)
