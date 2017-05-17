@@ -7,3 +7,8 @@ This project aims to process structured representations of texts through SRL to 
 * Python
 * Problog, ProbFoil
 
+##Installing Requirements
+* Problog, ProbFoil (through pip, recommended)
+    ```shell
+    sudo pip install problog, probfoil
+    ```
