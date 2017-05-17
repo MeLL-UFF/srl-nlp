@@ -12,6 +12,18 @@ class FOL:
         return FOL._parse_aux(FOL._split(text)) if len(text) > 0 else []
 
     @staticmethod
+    def is_operator(predicate):
+        return predicate in [FOL.AND, FOL.NOT, FOL.OR]
+
+    @staticmethod
+    def is_quantifier(predicate):
+        return predicate in [FOL.ALL, FOL.EXISTS]
+
+    @staticmethod
+    def is_special(predicate):
+        return predicate in [FOL.AND, FOL.NOT, FOL.OR, FOL.ALL, FOL.EXISTS]
+
+    @staticmethod
     def _parse_aux(queue):
         aux = []
         balance = 0
@@ -162,34 +174,38 @@ class FOL:
 
     @staticmethod
     def _str_aux(info):
-        if info == None:
+        if info == None or len(info) < 1:
             out = ''
         else:
             out = info[0]
-            if self._has_children():
-                out += '(%s)' % ','.join(map(self._str_aux, info[1:]))
-        return out
+            if len(info) > 1:
+                out += '(%s)' % ','.join(map(FOL._str_aux, info[1:]))
+        return out  
 
     @staticmethod
     def _str_lf(info, and_t = ',', or_t = ';', header = 'fol'):
-        if info == None:
+        if info == None or len(info) < 1:
             out = ''
         else:
-            if info[0] == FOL.AND:
-                out = '%s' % and_t.join(map(FOL._str_lf, info[1:]))
-            elif info[0] == FOL.OR:
-                out = '%s' % or_t.join(map(FOL._str_lf, info[1:]))
-            elif info[0] == FOL.ALL or info[0] == FOL.EXISTS:
-                out = FOL._str_lf(info[2])
-            else:
-                out = info[0]
-                if len(info) > 1:
-                    out += '(%s)' % ','.join(map(FOL._str_lf, info[1:]))
+            try:
+                if info[0] == FOL.AND:
+                    out = '%s' % and_t.join(map(FOL._str_lf, info[1:]))
+                elif info[0] == FOL.OR:
+                    out = '%s' % or_t.join(map(FOL._str_lf, info[1:]))
+                elif (info[0] == FOL.ALL or info[0] == FOL.EXISTS) and len(info) > 2:
+                    out = FOL._str_lf(info[2],and_t,or_t,header)
+                else:
+                    out = info[0]
+                    if len(info) > 1:
+                        out += '(%s)' % ','.join(map(FOL._str_lf, info[1:]))
+            except IndexError as e:
+                raise Exception('FOL ill-formed:%s', info)
         return out
 
     def str_lf(self, and_t = ',', or_t = ';', header = 'fol'):
         info = self.info[2] if self.info == header else self.info
-        return FOL._str_lf(info, and_t, or_t, header)+ '.'
+        out =  FOL._str_lf(info, and_t, or_t, header)
+        return out + '.'
 
     def __repr__(self):
         return FOL._str_aux(self.info) + '.'

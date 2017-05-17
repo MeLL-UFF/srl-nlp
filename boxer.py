@@ -1,19 +1,21 @@
-from requests import post
-from subprocess import PIPE, Popen
-from os import listdir, path
-from sys import argv,stderr
-from tempfile import TemporaryFile
-import json
-import spacy
-import regex
-import argparse
+from requests     import post
+from subprocess   import PIPE, Popen
+from os           import listdir, path
+from sys          import argv,stderr
+from tempfile     import TemporaryFile
 from ConfigParser import ConfigParser
-from fol import FOL
+from fol          import FOL
+import json, spacy
+import regex, argparse
+
 
 config = ConfigParser()
 config.read("external.conf")
 
 class Process:
+    '''Intended to be an abstract class
+    Its subclasses must have an attribute "params" of the type list
+    '''
     def _process(self, input_text, shell = False):
         with TemporaryFile() as tmp:
             tmp.write(input_text)
@@ -28,7 +30,7 @@ class Process:
 
 
 class TokenizerLocalAPI(Process):
-    def __init__(self, path_to_bin = config.get('semantic_local', 't'), *params):
+    def __init__(self, path_to_bin = config.get('syntatic_local', 't'), *params):
         if len(params) == 0:
             params = ('--stdin',)
         self.path_to_bin = path_to_bin
@@ -41,6 +43,7 @@ class TokenizerLocalAPI(Process):
         tokenized = out.decode('utf-8').encode("utf-8")
         sentences = tokenized.split('\n')
         return [sentence.split(" ") for sentence in sentences]
+
 
 class CandCLocalAPI(Process):
     def __init__(self, path_to_bin = config.get('semantic_local', 'c&c'),*params):
@@ -63,11 +66,22 @@ class BoxerAbstract:
     '''Do not initialize this class. Use BoxerLocalAPI or BoxerWebAPI instead.
     '''
     _expansion_patterns = {
-        r'^n\d(.*)': lambda x: ['NOUM', x],
-        r'^a\d(.*)': lambda x: ['ADJECTIVE', x],
-        r'^v\d(.*)': lambda x: ['VERB', x],
-        r'^geonam\d(.*)': lambda x: ['GEONAME', x]
-
+        # pattern : lambda variables...: ([predicate, term1,... termN], ...)
+        r'^n\d+C64placeholder': lambda  : (['who', []]),
+        r'^n\d+numeral':        lambda  : (['numeral',[]]),
+        r'^n\d+(.*)':           lambda x: (['noum', [x]],),
+        r'^t_X+(\d+)':          lambda x: (['raw_number', [x]],),
+        r'^c(\d+)number':       lambda x: (['number', [x]],),
+        r'^c\d+numeral':        lambda  : (['numeral',[]]),
+        r'^c\d+(.*)':           lambda x: (['cnoum', [x]],),
+        r'^a\d+(.*)':           lambda x: (['adjective', [x]],),
+        r'^v\d+A|actor':        lambda  : (['actor',[]],),
+        r'^v\d+C64placeholder': lambda  : (['action',[]],),
+        r'^v\d+(.*)':           lambda x: (['verb', [x]],),
+        r'^r\d+T|theme':        lambda  : (['theme',[]],),
+        r'^r\d+T|topic':        lambda  : (['topic',[]],),
+        r'^r\d+(.*)':           lambda x: (['relation', [x]],),
+        r'^geonam\d(.*)':       lambda x: (['geoname', [x]],)
     }
     def __init__():
         'abstract class, do not use this method'
@@ -85,6 +99,7 @@ class BoxerAbstract:
         # raw_input()
         fols = [FOL(fol) for fol in fol_list]
         for fol in fols: fol.skolemize(removeForAlls = False)
+        #print fols
         parse = lambda x: BoxerAbstract._expandFOLpredicates(x).str_lf() if expand_predicates else x.str_lf()
         out = '\n'.join(map(parse, fols))
         # print out
@@ -95,41 +110,55 @@ class BoxerAbstract:
     def _expandFOLpredicates(fol, concatenator = FOL.AND):
         if fol == None:
             return None
-        chain = [concatenator]+ fol.info
-        BoxerAbstract._expandFOLpredicates_aux(chain, concatenator)
-        fol.info = chain[1]
+        BoxerAbstract._expandFOLpredicates_aux(fol.info, concatenator)
         return fol
 
     @staticmethod
     def _expandFOLpredicates_aux(fol, concatenator):
-        for pos,child in enumerate(fol[1:]):
-            if fol[0] in [FOL.AND, FOL.OR, FOL.ALL, FOL.EXISTS]:
-                BoxerAbstract._expandFOLpredicates_aux(child, fol)
-            else:
-                expansion = BoxerAbstract._expandFOLpredicate(child)
-                if expansion:
-                    if len(expansion) > 1:
-                        replacement = [concatenator] #FOL.AND
-                        chain_curr = replacement
-                        for term in expansion[:-1]:
-                            if len(chain_curr) >= 2:
-                                chain_curr.append([concatenator])
-                                chain_curr = chain_curr[-1]
-                            chain_curr.append(term)
-                        chain_curr.append(expansion[-1])
-                        fol[pos+1] = replacement
+        #print '\n\n',fol
+        frontier = [fol]
+        while len(frontier) > 0:
+            term = frontier.pop()
+            predicate = term[0]
+            #print '\ncheck:', predicate,'\n\n'
+            if FOL.is_special(predicate):
+                #print 'is special'
+                for pos, child in enumerate(term[1:]):
+                    expansion = BoxerAbstract._expandFOLpredicate(child)
+                    if expansion:
+                        if len(expansion) > 1:
+                            replacement = [concatenator] #FOL.AND
+                            chain_curr = replacement
+                            for child_term in expansion[:-1]:
+                                if len(chain_curr) >= 2:
+                                    chain_curr.append([concatenator])
+                                    chain_curr = chain_curr[-1]
+                                chain_curr.append(child_term)
+                            chain_curr.append(expansion[-1])
+                            term[pos+1] = replacement
+                        else:
+                            term[pos+1] = expansion[0]
+
                     else:
-                        fol[pos+1] = expansion[0]
+                        frontier.append(child)
+        #print ">>",fol
         return fol
                         
     @staticmethod
     def _expandFOLpredicate(fol):
         predicate = fol[0]
         args = fol[1:]
+        #print predicate, '-', len(args), '\n\n\n'
         for pattern, parser in BoxerAbstract._expansion_patterns.iteritems():
             matching = regex.match(pattern, predicate)
             if matching:
-                return [[p]+args for p in parser(*matching.groups())]
+                out = []
+                for p,a in parser(*matching.groups()):
+                    if len(a) > 0:
+                         out.append([p]+args+[a])
+                    else:
+                        out.append([p]+args)
+                return out
         return None
 
     def sentence2LF(self, sentence, expand_predicates = None):
@@ -165,6 +194,7 @@ class BoxerLocalAPI(Process, BoxerAbstract):
         #raw_input()
         return parsed
 
+
 class BoxerWebAPI(BoxerAbstract ):
     def __init__(self, url = config.get('semantic_soap', 'boxer')):
         self.url = url
@@ -174,7 +204,8 @@ class BoxerWebAPI(BoxerAbstract ):
         return sentence
 
     def _parsed2FOLstring(self, parsed):
-        return  post(self.url, data = sentence).text.strip()#, headers=headers)
+        return  post(self.url, data = sentence).text.strip()
+
 
 class DependencyTreeLocalAPI:
     def __init__(self, model = config.get('syntatic_local', 'spacy_model')):
@@ -185,7 +216,7 @@ class DependencyTreeLocalAPI:
     def sentence2LF(self, sentence):
         tree = self.parser(sentence.decode('utf-8'))
         out = []
-        ids = dict([(w,'depTree%d' %(count+i)) for i, w in enumerate(tree)])
+        ids = dict([(w,'depTree%d' %(self.count+i)) for i, w in enumerate(tree)])
         self.count += len(ids)
         for w, i in ids.iteritems():
             out.append('%s(%s, \'%s\')' % (w.pos_, i, w.text))
@@ -223,7 +254,6 @@ def process_doc(doc, *analysers, **args):
         info[text_field]['text'] = text
     return info
 
-
 def parse_args():
     parser = argparse.ArgumentParser(description = 'Runs the pipeline in a predefined format of documents')
     parser.add_argument('dir_path', help = 'the path to the data files')
@@ -235,7 +265,7 @@ def parse_args():
     args = parser.parse_args()
     return args
 
-if __name__ == '__main__':
+def main():
     args = parse_args()
     #boxer = BoxerWebAPI()
     boxer = BoxerLocalAPI(TokenizerLocalAPI(), CandCLocalAPI(), expand_predicates = args.expand_boxer_predicates)
@@ -270,3 +300,6 @@ if __name__ == '__main__':
     else:
         with open(args.out_file, 'w') as out:
              json.dump(doc_list, out)
+
+if __name__ == '__main__':
+    main()
