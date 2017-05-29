@@ -1,0 +1,9 @@
+if [ "$#" -gt "0" ]; then
+	echo ":- consult(aleph).
+:- read_all($1).
+:- induce.
+:- halt." | yap > aleph_out.txt 2> aleph_err.txt
+	echo "Done, check aleph_out.txt and aleph_err.txt"
+else
+	echo "Dude, give me at least the name of the files to run!"
+fi
