@@ -4,11 +4,14 @@ This project aims to process structured representations of texts through SRL to 
 
 ## Requirements
 * Boxer
-* Python
-* Problog, ProbFoil
+* C&C Tools
+* Python 2
+* Problog, ProbFoil > 2.1
 
 ## Installing Requirements
 * Problog, ProbFoil (I recommend pip for this task)
     ```shell
     sudo pip install -r requirements.txt
     ```
+* Boxer and C&C Tools
+    Run script XXX __under development__ #TODO
