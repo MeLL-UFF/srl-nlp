@@ -1,0 +1,21 @@
+:- jws_set(checkpoint_reloads,         0).
+:- jws_set(rulesConsidered_saved,      0).
+:- jws_set(annEvaluatedRules_saved,    0).
+:- jws_set(acceptableRules_saved,      0).
+:- jws_set(totalRulesConsidered_saved, 6).
+:- jws_set(seeds_processed_saved,      3).
+:- jws_set(first_seed_example,        [pos,3]).
+:- jws_set(nodes_saved,                0).
+:- jws_set(restart_saved,              0).
+:- jws_set(move_saved,                 0).
+
+% Rules Learned Previously:
+
+% Rules Learned This Run:
+:- recordz(jws_theory_saved, rule([1,0,2,0.99]/1, [bf,coverage,condor(1),minAcc(0.0),maxNodes(5000),minPos(2)], (family(a1))), _).
+:- recordz(jws_theory_saved, rule([1,0,2,0.99]/2, [bf,coverage,condor(1),minAcc(0.0),maxNodes(5000),minPos(2)], (family(a2))), _).
+:- recordz(jws_theory_saved, rule([1,0,2,0.99]/3, [bf,coverage,condor(1),minAcc(0.0),maxNodes(5000),minPos(2)], (family(a3))), _).
+
+:- retract_all(aleph, atoms_left(_,_)).
+:- recordz(aleph, atoms_left(neg, [1-3]), _).
+:- recordz(aleph, atoms_left(pos, []), _).

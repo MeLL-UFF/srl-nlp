@@ -1,0 +1,34 @@
+% ----------  Singleton #1   ---------------------------------------------------
+% seed example chosen: pos1  "family(a1)"
+% pos not covered yet: 2
+% literals in bottom:  3
+% clauses constructed: 3
+% cpu time:            0.002 sec.
+% cpu time so far:     0.000 hr.
+% TotalThrownClauseSearches = 0  ThrownClauseEvals = 0  ThrownExampleEvals = 0
+% best node found:     [3,3,1,0]
+/*
+family(_).
+*/
+
+% ----------  Singleton #2   ---------------------------------------------------
+% seed example chosen: pos2  "family(a2)"
+% ***** Note: PosLeft < MinPos [1 vs. 2] so no more clauses will be learned.
+% pos not covered yet: 1
+% literals in bottom:  3
+% clauses constructed: 3
+% cpu time:            0.000 sec.
+% cpu time so far:     0.000 hr.
+% TotalThrownClauseSearches = 0  ThrownClauseEvals = 0  ThrownExampleEvals = 0
+% no node within minimal coverage of pos examples found
+
+% ----------  Singleton #3   ---------------------------------------------------
+% seed example chosen: pos3  "family(a3)"
+% pos not covered yet: 0
+% literals in bottom:  3
+% clauses constructed: 0
+% cpu time:            0.000 sec.
+% cpu time so far:     0.000 hr.
+% TotalThrownClauseSearches = 0  ThrownClauseEvals = 0  ThrownExampleEvals = 0
+% no node within minimal coverage of pos examples found
+
