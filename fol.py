@@ -1,3 +1,5 @@
+from copy import deepcopy as copy
+
 class FOL:
     NOT    = 'not'
     EXISTS = 'some'
@@ -67,9 +69,9 @@ class FOL:
         if queue[-1] == '.': queue.pop()
         return queue
 
-
-    def skolemize(self, has_header = True, removeForAlls = False, ignore=['@placeholder']):
+    def skolemize(self, has_header = True, removeForAlls = False, ignore=['@placeholder'], **kargs):
         '''This method converts the FOL to its Skolem form.
+
         has_header: defines if the first predicate should be ignored
         removesForAlls: tells if we should eliminate the universal quantifiers too
         ignore: provides a list of constants or varibles that should be left unchanged (even if their quantifiers are )
@@ -89,7 +91,6 @@ class FOL:
                     oldTerm = term
                     self.info = term
             term = term[2]
-
         frontier = [term]
         #search to replace every existential variable by a constant
         while len(frontier) > 0:
@@ -99,7 +100,6 @@ class FOL:
                     child[0] = 'c%s' %constants.index(child[0]) #TODO universal constants
             else:
                 frontier.extend(child[1:])
-
 
     def convert2PrenexForm(self, header = 'fol'):
         if self.info[0] == header:
@@ -116,7 +116,42 @@ class FOL:
             self.info = term
 
     @staticmethod
+    def _push_operand(term, op, header = 'fol'):
+        #self.convert2PrenexForm()
+        if FOL.is_quantifier(term[0]):
+            for child in(term[1:]):
+                FOL._push_operand(child, op, header)
+            return term
+        if FOL.is_operator(term[0]):
+            for child in term[1:]:
+                FOL._push_operand(child, op, header)
+            for pos, child in enumerate(term[1:]):
+                #print 'child is operator', FOL.is_operator(child[0])
+                #print 'term is OP', term[0] == op
+                #print 'grandchildren has operator', sum(map(lambda x: x[0] == FOL.AND, child[1:]))
+                if FOL.is_operator(child[0]):
+                    if(child[0] != FOL.NOT):
+                        if term[0] == child[0]:
+                            term.pop(pos+1)
+                            term.extend(child[1:])
+                            FOL._push_operand(term, op, header)
+                            continue
+                        else:
+                            if term[0] == op:
+                                term.pop(pos+1)
+                                siblings = term[1:]
+                                del(term[:]) #empty this list without losing references
+                                term.append(child[0])
+                                term.extend([[op,i] + copy(siblings) for i in child[1:]])
+                                FOL._push_operand(term, op, header)
+                                continue
+
+    def push_operand(self, op, header = 'fol'):
+        FOL._push_operand(self.info, op, header)
+
+    @staticmethod
     def _pushQuantifiers(term):
+        '''Moves all quantifiers to the begining of the formula.'''
         if len(term) < 2:
             return term
         if term[0] != FOL.ALL and term[0] != FOL.EXISTS:
@@ -134,6 +169,7 @@ class FOL:
     #tries to strip all quantifiers and operations from negation
     @staticmethod
     def _pushNegation(term):
+        '''Moves all negation to the 'leaf' terms.'''
         if len(term) < 2:
             return term
         if term[0] == FOL.NOT:
@@ -142,9 +178,12 @@ class FOL:
             term[1+pos] = FOL._pushNegation(child)
         return term
 
-
     @staticmethod
     def _negate(term):
+        '''Return the negation of a term.
+
+        Uses some simple properties (like DeMorgan) to translate the negation of a formula to the negation of its terms
+        '''
         if term[0] == FOL.NOT:
             return term[1] # not(not(x)) = x
         if term[0] == FOL.AND:
@@ -157,21 +196,6 @@ class FOL:
             return [FOL.ALL, term[1]] + map(FOL._negate, term[2:])    # not(exists(X,y)) = all(X, not(y))
         return [FOL.NOT, term]
 
-
-    @staticmethod
-    def toLF(fol, available_ids = None):
-        return ""
-
-    def _has_left_child(self):
-        return self.info != None and len(self.info) > 1 and self.info[1] != None
-
-    def _has_right_child(self):
-        return self.info != None and len(self.info) > 2 and self.info[2] != None
-
-    #TODO: it supposes that there are at most 2 variables in a term
-    def _has_children(self):
-        return self._has_left_child(self) or self._has_right_child(self)
-
     @staticmethod
     def _str_aux(info):
         if info == None or len(info) < 1:
@@ -182,30 +206,63 @@ class FOL:
                 out += '(%s)' % ','.join(map(FOL._str_aux, info[1:]))
         return out  
 
-    @staticmethod
-    def _str_lf(info, and_t = ',', or_t = ';', header = 'fol'):
-        if info == None or len(info) < 1:
-            out = ''
-        else:
-            try:
-                if info[0] == FOL.AND:
-                    out = '%s' % and_t.join(map(FOL._str_lf, info[1:]))
-                elif info[0] == FOL.OR:
-                    out = '%s' % or_t.join(map(FOL._str_lf, info[1:]))
-                elif (info[0] == FOL.ALL or info[0] == FOL.EXISTS) and len(info) > 2:
-                    out = FOL._str_lf(info[2],and_t,or_t,header)
-                else:
-                    out = info[0]
-                    if len(info) > 1:
-                        out += '(%s)' % ','.join(map(FOL._str_lf, info[1:]))
-            except IndexError as e:
-                raise Exception('FOL ill-formed:%s', info)
-        return out
-
-    def str_lf(self, and_t = ',', or_t = ';', header = 'fol'):
-        info = self.info[2] if self.info == header else self.info
-        out =  FOL._str_lf(info, and_t, or_t, header)
-        return out + '.'
-
     def __repr__(self):
         return FOL._str_aux(self.info) + '.'
+
+
+class LF:
+    def __init__(self, *args, **kargs):
+        '''Creates a new Logical Formula
+        LF(fol) -> lf
+
+        The first parameter must be the source to be usedto generate the LF.
+        If it is a FOL, you can specify the argument 'header' to eliminate the header if it is there
+        '''
+        header = kargs.get('header',None)
+        if header and args[0][0] == header:
+            fol = copy(args[0][-1])
+        else:
+            fol= copy(args[0])
+        if len(args) > 0:
+            try:
+                fol= copy(args[0])
+                fol.convert2PrenexForm()
+                fol.skolemize(**kargs)
+                fol.push_operand(FOL.OR)
+                self.info = fol.info
+            except AttributeError as e:
+                print 'Not a valid FOL'
+        else:
+            self.info = []
+
+    @staticmethod
+    def _repr_aux(term, and_t, or_t, supress_not, header):
+        try:
+            parser = lambda term: LF._repr_aux(term, and_t, or_t, supress_not, header)
+            if supress_not:
+                term = filter(lambda x: x[0] != FOL.NOT, term)
+            if term[0] == FOL.AND:
+                out = '%s' % and_t.join(map(parser, term[1:]))
+            elif term[0] == FOL.OR:
+                out = '(%s)' % or_t.join(map(parser, term[1:]))
+            elif (term[0] == FOL.ALL or term[0] == FOL.EXISTS) and len(term) > 2:
+                out = parser(term[2])
+            else:
+                out = term[0]
+                if len(term) > 1:
+                    out += '(%s)' % ','.join(map(parser, term[1:]))
+        except Exception as e:
+            print e
+            raise Exception('Ill-formed FOL:%s' %term)
+        return out
+
+
+    def __repr__(self, and_t = ',', or_t = ';', supress_not = False, header = 'fol'):
+        '''Return a str representation of the LF
+        '''
+        if self.info == None or len(self.info) < 1:
+            out = ''
+        else:
+            term = self.info
+            out = LF._repr_aux(term, and_t, or_t, supress_not, header) + '.'
+        return out

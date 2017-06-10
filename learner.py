@@ -46,13 +46,16 @@ def _doc2example(document):
 	target = []
 	return clauses, target
 
-if __name__ == '__main__':
-	file_list = ['out_0.txt']
-	doc_list = map(load, file_list)
-	all_docs = reduce(lambda x,y: x+y, doc_list)
+def main(argv):
+    file_list = ['out_0.txt']
+    doc_list = map(load, file_list)
+    all_docs = reduce(lambda x,y: x+y, doc_list)
 
-	learner= Learner()
-	for doc in docs:
-		learner.new_example(*_doc2example(doc))
-	learner.learn()
-	print learner
+    learner= Learner()
+    for doc in docs:
+        learner.new_example(*_doc2example(doc))
+    learner.learn()
+    print learner
+
+if __name__ == '__main__':
+	main(argv)

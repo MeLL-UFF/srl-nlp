@@ -1,12 +1,11 @@
 from requests     import post
 from subprocess   import PIPE, Popen
-from os           import listdir, path
-from sys          import argv,stderr
+from sys          import stderr
 from tempfile     import TemporaryFile
 from ConfigParser import ConfigParser
-from fol          import FOL
+from fol          import FOL, LF
 import json, spacy
-import regex, argparse
+import regex
 
 
 config = ConfigParser()
@@ -75,7 +74,7 @@ class BoxerAbstract:
         r'^c\d+numeral':        lambda  : (['numeral',[]]),
         r'^c\d+(.*)':           lambda x: (['cnoum', [x]],),
         r'^a\d+(.*)':           lambda x: (['adjective', [x]],),
-        r'^v\d+A|actor':        lambda  : (['actor',[]],),
+        r'^\w\d+A|actor':       lambda  : (['actor',[]],),
         r'^v\d+C64placeholder': lambda  : (['action',[]],),
         r'^v\d+(.*)':           lambda x: (['verb', [x]],),
         r'^r\d+T|theme':        lambda  : (['theme',[]],),
@@ -92,31 +91,43 @@ class BoxerAbstract:
         boxed =  self._parsed2FOLstring(parsed)
         #print boxed
         #return lines that do not start with '%%%', nor 'id' and are not empty
-        return filter(lambda x: not (x.startswith('id') or x.startswith('%%%')) and len(x) > 0, boxed.split("\n"))
+        is_relevant = lambda x: not (x.startswith('id') or x.startswith('%%%')) and len(x) > 0
+        raw_fols = filter(is_relevant, boxed.split("\n"))
+        fols = map(FOL, raw_fols)
+        return fols
 
     def FOL2LF(self, fol_list, expand_predicates):
         # print fol_list
         # raw_input()
-        fols = [FOL(fol) for fol in fol_list]
-        for fol in fols: fol.skolemize(removeForAlls = False)
-        #print fols
-        parse = lambda x: BoxerAbstract._expandFOLpredicates(x).str_lf() if expand_predicates else x.str_lf()
-        out = '\n'.join(map(parse, fols))
+        parse = lambda x: LF(BoxerAbstract._expandFOLpredicates(x)) if expand_predicates else LF(x)
+        out = map(parse, fol_list)
         # print out
         # raw_input()
         return out
 
     @staticmethod
+    def _expandFOLpredicate(fol):
+        predicate = fol[0]
+        args = fol[1:]
+        #print predicate, '-', len(args), '\n\n\n'
+        for pattern, parser in BoxerAbstract._expansion_patterns.iteritems():
+            matching = regex.match(pattern, predicate)
+            if matching:
+                out = []
+                for p,a in parser(*matching.groups()):
+                    if len(a) > 0:
+                         out.append([p]+args+[a])
+                    else:
+                        out.append([p]+args)
+                return out
+        return None
+
+    @staticmethod
     def _expandFOLpredicates(fol, concatenator = FOL.AND):
         if fol == None:
             return None
-        BoxerAbstract._expandFOLpredicates_aux(fol.info, concatenator)
-        return fol
-
-    @staticmethod
-    def _expandFOLpredicates_aux(fol, concatenator):
         #print '\n\n',fol
-        frontier = [fol]
+        frontier = [fol.info]
         while len(frontier) > 0:
             term = frontier.pop()
             predicate = term[0]
@@ -143,23 +154,6 @@ class BoxerAbstract:
                         frontier.append(child)
         #print ">>",fol
         return fol
-                        
-    @staticmethod
-    def _expandFOLpredicate(fol):
-        predicate = fol[0]
-        args = fol[1:]
-        #print predicate, '-', len(args), '\n\n\n'
-        for pattern, parser in BoxerAbstract._expansion_patterns.iteritems():
-            matching = regex.match(pattern, predicate)
-            if matching:
-                out = []
-                for p,a in parser(*matching.groups()):
-                    if len(a) > 0:
-                         out.append([p]+args+[a])
-                    else:
-                        out.append([p]+args)
-                return out
-        return None
 
     def sentence2LF(self, sentence, expand_predicates = None):
         if expand_predicates == None:
@@ -195,7 +189,7 @@ class BoxerLocalAPI(Process, BoxerAbstract):
         return parsed
 
 
-class BoxerWebAPI(BoxerAbstract ):
+class BoxerWebAPI(BoxerAbstract):
     def __init__(self, url = config.get('semantic_soap', 'boxer')):
         self.url = url
         self.name = 'boxer'
@@ -226,80 +220,4 @@ class DependencyTreeLocalAPI:
                 out.append('%s(%s, %s)' % (w.dep_, i, ids[w.head]))
             else:
                 out.append('sentence_root(%s)' %i)
-        return ", ".join(out)
-
-
-def _split_doc(doc, sep_section = '\n\n', sep_entity='\n', sep_val=':'):
-    if hasattr(doc, 'read'):
-        doc = doc.read()
-    info = doc.split(sep_section)
-    if len(info) < 5:
-        raise Exception('Error parsing document')
-    info[4] = dict(map(lambda x: x.split(sep_val,1), info[4].split(sep_entity)))
-    return {
-            'url':info[0],
-            'doc':info[1],
-            'question':info[2],
-            'answer':info[3],
-            'entities_dict':info[4],
-           }
-
-def process_doc(doc, *analysers, **args):
-    info = _split_doc(doc, **args)
-    # given a doc, generate a dict {analyser_i: analyser_i.sentence2FOL(doc)}
-    analyse = lambda doc: dict(map(lambda a: (a.name,a.sentence2LF(doc)), analysers)) 
-    for text_field in ['doc', 'question']:
-        text = info[text_field]
-        info[text_field] = analyse(info[text_field])
-        info[text_field]['text'] = text
-    return info
-
-def parse_args():
-    parser = argparse.ArgumentParser(description = 'Runs the pipeline in a predefined format of documents')
-    parser.add_argument('dir_path', help = 'the path to the data files')
-    parser.add_argument('out_file', help = 'output file name')
-    parser.add_argument('-b', '--break_output', type = int, help='if specified, break the output into BREAK_OUTPUT number of files')
-    parser.add_argument('-max','--max_docs', type = int, help = 'maximum number of documents to read')
-    parser.add_argument('-e', '--expand_boxer_predicates', action='store_true', help = 'expand Boxer predicates, simplifying its heavy notation')
-    parser.add_argument('-q', '--quiet', action='store_true', help = 'supress progress prints')
-    args = parser.parse_args()
-    return args
-
-def main():
-    args = parse_args()
-    #boxer = BoxerWebAPI()
-    boxer = BoxerLocalAPI(TokenizerLocalAPI(), CandCLocalAPI(), expand_predicates = args.expand_boxer_predicates)
-    depTree = DependencyTreeLocalAPI()
-    doc_list = []
-    base_dir = args.dir_path
-    file_paths = listdir(base_dir)
-    length = min(int(args.max_docs), len(file_paths)) if args.max_docs != None else len(file_paths)
-
-    out_count = 0
-    
-    if args.break_output:
-        out_split = argv[2].split('.')
-        out_format = '{0}_%s.{1}'.format(*(('.'.join(out_split[:-1]), out_split[-1]) if len(out_split) > 1 else (out_split, 'txt')))
-
-    for count, file_path in enumerate(file_paths[0:length]): #enumerate is used only to set count
-        with open(path.join(base_dir, file_path), 'r') as raw_text:
-            info = process_doc(raw_text, boxer, depTree)
-            doc_list.append(info)
-        if args.break_output and (count+1) % args.break_output == 0: #save to files
-            with open(out_format %out_count, 'w') as out:
-                json.dump(doc_list, out)
-            out_count += 1
-            doc_list = []
-        if not args.quiet: print "%6.2f%%" % (100*float(count+1)/length,) #print progress
-
-    if args.break_output:
-        if length % args.break_output != 0:
-                with open(out_format %out_count, 'w') as out:
-                    json.dump(doc_list, out)
-                if not args.quiet: print "%6.2f%%" % (100*float(count+1)/length,) #print progress
-    else:
-        with open(args.out_file, 'w') as out:
-             json.dump(doc_list, out)
-
-if __name__ == '__main__':
-    main()
+        return [LF(FOL(", ".join(out)))]
