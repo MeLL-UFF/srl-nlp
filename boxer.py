@@ -5,8 +5,7 @@ from tempfile     import TemporaryFile
 from ConfigParser import ConfigParser
 from fol          import FOL, LF
 import json, spacy
-import regex
-
+from regex        import match
 
 config = ConfigParser()
 config.read("external.conf")
@@ -74,7 +73,7 @@ class BoxerAbstract:
         r'^c\d+numeral':        lambda  : (['numeral',[]]),
         r'^c\d+(.*)':           lambda x: (['cnoum', [x]],),
         r'^a\d+(.*)':           lambda x: (['adjective', [x]],),
-        r'^\w\d+A|actor':       lambda  : (['actor',[]],),
+        r'^\w\d+(?:A|actor)':   lambda  : (['actor',[]],),
         r'^v\d+C64placeholder': lambda  : (['action',[]],),
         r'^v\d+(.*)':           lambda x: (['verb', [x]],),
         r'^r\d+T|theme':        lambda  : (['theme',[]],),
@@ -86,20 +85,24 @@ class BoxerAbstract:
         'abstract class, do not use this method'
         assert True, 'You should not initialize this class'
 
-    def sentence2FOL(self, sentence):
+    def sentence2FOL(self, sentence, *extra_args):
         parsed    = self._parse_sentence(sentence)
         boxed =  self._parsed2FOLstring(parsed)
         #print boxed
         #return lines that do not start with '%%%', nor 'id' and are not empty
         is_relevant = lambda x: not (x.startswith('id') or x.startswith('%%%')) and len(x) > 0
         raw_fols = filter(is_relevant, boxed.split("\n"))
-        fols = map(FOL, raw_fols)
+        fols = map(lambda x: FOL(x, *extra_args), raw_fols)
         return fols
 
-    def FOL2LF(self, fol_list, expand_predicates):
+    def FOL2LF(self, fol_list, expand_predicates, removeForAlls = True, **kargs):
         # print fol_list
         # raw_input()
-        parse = lambda x: LF(BoxerAbstract._expandFOLpredicates(x)) if expand_predicates else LF(x)
+        to_LF = lambda x: LF(x, removeForAlls=removeForAlls, header = 'fol',**kargs)
+        if expand_predicates:
+            parse = lambda x: to_LF(BoxerAbstract._expandFOLpredicates(x))
+        else:
+            parse = to_LF(x)
         out = map(parse, fol_list)
         # print out
         # raw_input()
@@ -111,7 +114,7 @@ class BoxerAbstract:
         args = fol[1:]
         #print predicate, '-', len(args), '\n\n\n'
         for pattern, parser in BoxerAbstract._expansion_patterns.iteritems():
-            matching = regex.match(pattern, predicate)
+            matching = match(pattern, predicate)
             if matching:
                 out = []
                 for p,a in parser(*matching.groups()):
@@ -155,10 +158,15 @@ class BoxerAbstract:
         #print ">>",fol
         return fol
 
-    def sentence2LF(self, sentence, expand_predicates = None):
+    def sentence2LF(self, sentence, source = None, id = None, expand_predicates = None,**kargs):
         if expand_predicates == None:
             expand_predicates = self.expand_predicates
-        return self.FOL2LF(self.sentence2FOL(sentence), expand_predicates)
+            if not (source == None or id == None):
+                fol = self.sentence2FOL(sentence, source, id)
+            else:
+                fol = self.sentence2FOL(sentence)
+                print "+"
+        return self.FOL2LF(fol, expand_predicates, **kargs)
 
 
 class BoxerLocalAPI(Process, BoxerAbstract):
@@ -207,17 +215,23 @@ class DependencyTreeLocalAPI:
         self.parser = spacy.load(model)
         self.count = 0
 
-    def sentence2LF(self, sentence):
+    def sentence2LF(self, sentence, source = None, id = None, *args, **kargs):
         tree = self.parser(sentence.decode('utf-8'))
         out = []
         ids = dict([(w,'depTree%d' %(self.count+i)) for i, w in enumerate(tree)])
         self.count += len(ids)
+        if not (source == None or id == None):
+            doc_ref = '%s, %s, ' %(source, id)
+        else:
+            doc_ref = ''
         for w, i in ids.iteritems():
-            out.append('%s(%s, \'%s\')' % (w.pos_, i, w.text))
+            out.append('%s(%s%s, \'%s\')' % (w.pos_, doc_ref, i, w.text))
             if w.text.startswith("@"):
-                out.append('ENTITY(%s)' % i)
+                out.append('ENTITY(%s%s)' % (doc_ref, i))
             if w.head != w:
-                out.append('%s(%s, %s)' % (w.dep_, i, ids[w.head]))
+                out.append('%s(%s%s, %s)' % (w.dep_, doc_ref, i, ids[w.head]))
             else:
-                out.append('sentence_root(%s)' %i)
-        return [LF(FOL(", ".join(out)))]
+                out.append('sentence_root(%s%s)' %(doc_ref, i))
+        #out = map(lambda x: x.decode('utf-8').encode("utf-8"), out)
+        out = (",".join(out)).encode("utf-8")
+        return [LF(FOL('%s(%s)' %(FOL.AND, out)))]
