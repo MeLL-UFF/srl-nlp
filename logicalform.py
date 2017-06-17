@@ -23,7 +23,7 @@ class LF:
                 #print '*', fol
                 fol.skolemize(**kargs)
                 fol.push_operand(FOL.OR)
-                self.info = fol.info
+                self.i
             except AttributeError as e:
                 raise Exception('Not a valid FOL')
             #print '&',fol

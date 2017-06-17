@@ -78,6 +78,8 @@ class FOL:
 
     @staticmethod
     def _split(text, sep = ',()', str_marker="'", include_sep = True):
+        '''Breaks the raw text into useful tokens.
+        '''
         queue = []
         token = ''
         str_flag = False
@@ -209,6 +211,17 @@ class FOL:
         return False
 
     def push_operand(self, op, aggregate = True):
+        '''
+        Move all the operands of the same kind of op to the 'leaves'.
+
+            Params:
+                term: the term to be changed, usually something like 'fol.info'
+                op: the kind of operator to be pushed: FOL.AND or FOL.OR
+                aggregate: allows the aggregation of same kind operators:
+                           and(a,and(b,c)) -> and(a,b,c)
+
+            This operation respects negation. It does not move any operator accross a nagation.
+        '''
         FOL._push_operand(self.info, op, aggregate)
 
     @staticmethod
