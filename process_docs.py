@@ -65,6 +65,7 @@ class OutAbstract:
         self.docs.append(self.process_doc(doc, id, *analysers, **args))
 
     def dump(self, file):
+        '''Saves the documents to a file'''
         pass
 
     def erase(self):
