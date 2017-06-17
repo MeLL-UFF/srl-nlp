@@ -12,20 +12,36 @@ class FOL:
 
     @staticmethod
     def parse(text, *extra_args):
+        '''Returns a tree representing the terms in the fol
+        Params:
+            text: a text in the format: '<clause>.'
+                <clause> := <id>(<clause>+)|<id>
+                <id> := [A-Za-z0-9_#]+ | '.*'
+            extra_args: terms to be added to the non-special (not qualifier or operand) predicates
+        '''
         args = map(lambda x: [str(x)], extra_args)
-        #print "@@", text
         return FOL._parse_aux(FOL._split(text), args) if len(text) > 0 else []
 
     @staticmethod
     def is_operator(predicate):
+        '''Returns True if the string predicate is an operand.
+            is_operator(str) -> boolean value
+        '''
         return predicate in [FOL.AND, FOL.NOT, FOL.OR]
 
     @staticmethod
     def is_quantifier(predicate):
+        '''Returns True if the string predicate is a quantifier.
+            is_quantifier(str) -> boolean value
+        '''
         return predicate in [FOL.ALL, FOL.EXISTS]
 
     @staticmethod
     def is_special(predicate):
+        '''Returns True if the string predicate is a quantifier or operator.
+            is_special(str) -> boolean value
+            is_special(str) := is_quantifier(str) or is_quantifier(str)
+        '''
         return predicate in [FOL.AND, FOL.NOT, FOL.OR, FOL.ALL, FOL.EXISTS]
 
     @staticmethod
@@ -130,6 +146,12 @@ class FOL:
                 frontier.extend(child[1:])
 
     def convert2PrenexForm(self, header = 'fol'):
+        '''Changes its structure to represent a FOL in Prenex Form
+
+            A FOL f is in Prenex Form when all its quantifiers are in the left most side.
+            In this implementation we also 'push' all negations to the non-special predicates.
+            We do so in order to be able to 'move' the quantifiers without changing satisfiability.
+        '''
         if self.info[0] == header:
             term = self.info[-1]
         else:
@@ -144,8 +166,18 @@ class FOL:
             self.info = term
 
     @staticmethod
-    def _push_operand(term, op):
-        #self.convert2PrenexForm()
+    def _push_operand(term, op, aggregate = True):
+        ''' Move all the operands of the same kind of op to the 'leaves'.
+
+            Params:
+                term: the term to be changed, usually something like 'fol.info'
+                op: the kind of operator to be pushed: FOL.AND or FOL.OR
+                aggregate: allows the aggregation of same kind operators:
+                           and(a,and(b,c)) -> and(a,b,c)
+
+            This operation respect negation. It does not move any operator accross a nagation.
+        '''
+        complement_op = FOL.AND if op == FOL.OR else FOL.AND
         if FOL.is_quantifier(term[0]):
             for child in(term[1:]):
                 FOL._push_operand(child, op)
@@ -153,15 +185,13 @@ class FOL:
             for child in term[1:]:
                 FOL._push_operand(child, op)
             for pos, child in enumerate(term[1:]):
-                #print 'child is operator', FOL.is_operator(child[0])
-                #print 'term is OP', term[0] == op
-                #print 'grandchildren has operator', sum(map(lambda x: x[0] == FOL.AND, child[1:]))
                 if FOL.is_operator(child[0]):
                     if(child[0] != FOL.NOT):
                         if term[0] == child[0]:
-                            term.pop(pos+1)
-                            term.extend(child[1:])
-                            FOL._push_operand(term, op)
+                            if aggregate:
+                                term.pop(pos+1)
+                                term.extend(child[1:])
+                                FOL._push_operand(term, op)
                             return False
                         else:
                             if term[0] == op:
@@ -178,8 +208,8 @@ class FOL:
                                     FOL._push_operand(term, op)
         return False
 
-    def push_operand(self, op):
-        FOL._push_operand(self.info, op)
+    def push_operand(self, op, aggregate = True):
+        FOL._push_operand(self.info, op, aggregate)
 
     @staticmethod
     def _pushQuantifiers(term, root = None):
