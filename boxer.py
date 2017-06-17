@@ -3,9 +3,10 @@ from subprocess   import PIPE, Popen
 from sys          import stderr
 from tempfile     import TemporaryFile
 from ConfigParser import ConfigParser
-from fol          import FOL, LF
-import json, spacy
+from fol          import FOL
+from logicalform  import LF
 from regex        import match
+import json, spacy
 
 config = ConfigParser()
 config.read("external.conf")
