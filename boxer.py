@@ -93,6 +93,8 @@ class BoxerAbstract:
         is_relevant = lambda x: not (x.startswith('id') or x.startswith('%%%')) and len(x) > 0
         raw_fols = filter(is_relevant, boxed.split("\n"))
         fols = map(lambda x: FOL(x, *extra_args), raw_fols)
+        for fol in fols:
+            fol.info = fol.info[-1] #remove header
         return fols
 
     def FOL2LF(self, fol_list, expand_predicates, removeForAlls = True, **kargs):
@@ -129,7 +131,7 @@ class BoxerAbstract:
     def _expandFOLpredicates(fol, concatenator = FOL.AND):
         if fol == None:
             return None
-        #print '\n\n',fol
+        #print '\n\n expanding', fol
         frontier = [fol.info]
         while len(frontier) > 0:
             term = frontier.pop()
@@ -165,7 +167,6 @@ class BoxerAbstract:
                 fol = self.sentence2FOL(sentence, source, id)
             else:
                 fol = self.sentence2FOL(sentence)
-                print "+"
         return self.FOL2LF(fol, expand_predicates, **kargs)
 
 
@@ -191,9 +192,6 @@ class BoxerLocalAPI(Process, BoxerAbstract):
     def _parse_sentence(self, sentence):
         tokenized = self.tokenizer.tokenize(sentence)
         parsed    = self.ccg_parser.parse(tokenized)
-        #print 't:', tokenized
-        #print 'c&c:', parsed
-        #raw_input()
         return parsed
 
 
@@ -219,19 +217,24 @@ class DependencyTreeLocalAPI:
         tree = self.parser(sentence.decode('utf-8'))
         out = []
         ids = dict([(w,'depTree%d' %(self.count+i)) for i, w in enumerate(tree)])
+        format_text = lambda x: x.replace("'", "\\'").lower()
         self.count += len(ids)
         if not (source == None or id == None):
             doc_ref = '%s, %s, ' %(source, id)
         else:
             doc_ref = ''
         for w, i in ids.iteritems():
-            out.append('%s(%s%s, \'%s\')' % (w.pos_, doc_ref, i, w.text))
+            out.append('%s(%s%s, \'%s\')' % (format_text(w.pos_), doc_ref, i, format_text(w.text)))
             if w.text.startswith("@"):
-                out.append('ENTITY(%s%s)' % (doc_ref, i))
+                out.append('entity(%s%s)' % (doc_ref, i))
             if w.head != w:
                 out.append('%s(%s%s, %s)' % (w.dep_, doc_ref, i, ids[w.head]))
             else:
                 out.append('sentence_root(%s%s)' %(doc_ref, i))
         #out = map(lambda x: x.decode('utf-8').encode("utf-8"), out)
         out = (",".join(out)).encode("utf-8")
-        return [LF(FOL('%s(%s)' %(FOL.AND, out)))]
+        text = '%s(%s).' %(FOL.AND, out)
+        fol = FOL(text)
+        #print '\n*:', text
+        #print '\n>',fol
+        return [LF(fol)]

@@ -1,4 +1,5 @@
 from copy import deepcopy as copy
+from sys  import stderr
 
 class FOL:
     NOT    = 'not'
@@ -12,6 +13,7 @@ class FOL:
     @staticmethod
     def parse(text, *extra_args):
         args = map(lambda x: [str(x)], extra_args)
+        #print "@@", text
         return FOL._parse_aux(FOL._split(text), args) if len(text) > 0 else []
 
     @staticmethod
@@ -52,16 +54,32 @@ class FOL:
                     break
                 predicate.append(FOL._parse_aux(queue, extra_args))
             else:
-                predicate.insert(0, term.strip().replace("'", "\\'").replace('"', '\\"'))
+                assert len(predicate) == 0, 'Wrong parsing '+ term + "@"+str(predicate)
+                predicate.insert(0, term.strip())
         assert balance == 0, 'Error parsing FOL'
         return predicate
 
 
     @staticmethod
-    def _split(text, sep = ',()', include_sep = True, filter = ['', '.']):
+    def _split(text, sep = ',()', str_marker="'", include_sep = True):
         queue = []
         token = ''
+        str_flag = False
+        escape_flag = False
         for l in text:
+            if l == str_marker and not escape_flag:
+                if str_flag:
+                    queue.append(str_marker+token+str_marker)
+                str_flag = not str_flag
+                token = ''
+                continue
+            if l == '\\':
+                escape_flag = not escape_flag
+            else:
+                escape_flag = False
+            if str_flag:
+                token += l
+                continue
             if l in sep:
                 if len(token) > 0: queue.append(token.strip())
                 token = ''
@@ -70,6 +88,10 @@ class FOL:
                 token += l
         if len(token) > 0: queue.append(token.strip())
         if queue[-1] == '.': queue.pop()
+
+        #print "\n@@:", text
+        assert not str_flag, 'Parsing FOL: String not terminated'
+        #print ')):', queue
         return queue
 
     def skolemize(self, header = 'fol', removeForAlls = False, ignore=['@placeholder'], **kargs):
@@ -114,9 +136,7 @@ class FOL:
             term = self.info
         if len(term) < 2:
             return term
-        print '*', term
         term = FOL._pushNegation(term)
-        print ">>>", term
         term = FOL._pushQuantifiers(term)
         if self.info[0] == header:
             self.info[-1] = term
@@ -158,35 +178,8 @@ class FOL:
                                     FOL._push_operand(term, op)
         return False
 
-
-                            
-
     def push_operand(self, op):
         FOL._push_operand(self.info, op)
-
-    # @staticmethod
-    # def _pushQuantifiers(term):
-    #     '''Moves all quantifiers to the begining of the formula.'''
-    #     term = eval(str())
-    #     root = term
-    #     tmp = copy(term)
-    #     try:
-    #         if len(term) >= 2:
-    #             frontier = [term]
-    #             while len(frontier):
-    #                 current = frontier.pop()
-    #                 for pos, child in enumerate(current[1:]):
-    #                     if child[0] == FOL.ALL or child[0] == FOL.EXISTS:
-    #                         current[1+pos] = child[2]
-    #                         child[2] = root[2]
-    #                         root[2] = child
-    #                         root = child
-    #                     frontier.append(child)
-    #                     print len(frontier)
-    #     except KeyboardInterrupt as e:
-    #         print '>',tmp
-    #         raw_input()
-    #     return term
 
     @staticmethod
     def _pushQuantifiers(term, root = None):
@@ -273,13 +266,14 @@ class LF:
             #    print "*"
             #print ">", header, fol
             try:
+                #print '\n-', fol
                 fol.convert2PrenexForm()
                 #print '*', fol
                 fol.skolemize(**kargs)
                 fol.push_operand(FOL.OR)
                 self.info = fol.info
             except AttributeError as e:
-                print 'Not a valid FOL'
+                raise Exception('Not a valid FOL')
             #print '&',fol
             #raw_input()
         else:
@@ -320,7 +314,7 @@ class LF:
                 if len(term) > 1:
                     out += '(%s)' % ','.join(map(parser, term[1:]))
         except Exception as e:
-            print e
+            print >> stderr, e
             raise Exception('Ill-formed FOL:%s' %term)
         return out
 

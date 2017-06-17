@@ -11,6 +11,15 @@ class OutAbstract:
         self.docs = []
 
     def _split_doc(self, doc, sep_section = '\n\n', sep_entity='\n', sep_val=':', **kargs):
+        '''Breaks the raw text document into a dictionary.
+        {
+            'url':url of the news,
+            'doc': the text of the news,
+            'question': the question from the Cloze Method,
+            'answer': the answer,
+            'entities_dict': a dictionary maping the aliases to the real entities
+        }
+        '''
         if hasattr(doc, 'read'):
             doc = doc.read()
         info = doc.split(sep_section)
@@ -26,7 +35,7 @@ class OutAbstract:
                }
 
     def replace_entities(self, doc, text):
-        '''Deanonimize the text field
+        '''Deanonimizes the text field
 
         doc: document object with information on how to replace entities
         text: text to go through the replacements
@@ -37,20 +46,22 @@ class OutAbstract:
         entities = sorted(entities_map.keys(), lambda x,y: len(y) - len(x)) #sort by length to avoid replacing '@entity1' in '@entity12', for instance
         for entity in entities:
             text = text.replace(entity, entities_map[entity])
+        print "**:", text
         return text
 
     def process_doc(self, doc, id, *analysers, **args):
         '''Returns a structured document with the analysers results
-
-            doc: document to be analysed
-            id: number to identify the document
-            analysers: analysers to be used, e.g BoxerLocalAPI, DependencyTreeLocalAPI
-            replace: if True, deanonimize the document, default = False
-
+            Params:
+                doc: document to be analysed
+                id: number to identify the document
+                analysers: analysers to be used, e.g BoxerLocalAPI, DependencyTreeLocalAPI
+                replace: if True, deanonimize the document, default = False
         '''
         return None
 
     def add_doc(self, doc, id, *analysers, **args):
+        '''Adds this doc to the list of docs to be dumped in a file later
+        '''
         self.docs.append(self.process_doc(doc, id, *analysers, **args))
 
     def dump(self, file):
