@@ -196,8 +196,8 @@ def config_logger(verbosity):
 
 
 def main(argv):
-    args = parse_args(argv.verbosity)
-    logger = config_logger(args)
+    args = parse_args(argv)
+    logger = config_logger(args.verbosity)
 
     logger.info('Starting at %s', args.dir_path)
     run_tree(args.dir_path, _runAleph, args.file_prefix)
