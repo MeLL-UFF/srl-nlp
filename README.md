@@ -7,6 +7,7 @@ This project aims to process structured representations of texts through SRL to 
 * C&C Tools
 * Python 2
 * Problog, ProbFoil > 2.1
+* Aleph
 
 ## Installing Requirements
 * Problog, ProbFoil (I recommend pip for this task)

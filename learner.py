@@ -33,10 +33,11 @@ class Aleph(Learner):
     API to run the Aleph Learning Algorithm
     '''
     def __init__(self, dir, files, *args, **kargs):
-        '''
+        '''Initializes the Aleph API
 
         Params:
             dir: directory with the experiment data
+            files: list of files to be selected for learning based on their extension
             prefix: [optional] consider only files with this prefix
         '''
         super(Aleph, self).__init__(*args, **kargs)
@@ -92,9 +93,15 @@ class Aleph(Learner):
         return self.neg and self.fact and self.base
 
     def get_files(self):
+        '''
+        Returns a list of the relevant files for learning
+        '''
         return (self.neg, self.fact, self.base)
 
     def get_prefix(self):
+        '''
+        Returns the prefix of the files used for learning
+        '''
         if self.prefix:
             return self.prefix
         else:
@@ -116,6 +123,13 @@ class Aleph(Learner):
                     raise e
 
     def run_learning(self, out_file_name = None, **kargs):
+        ''' Calls Yap to run Aleph and process the output
+
+            Params:
+                out_file_name: [optional] name of the output file to be generated in the experiment folder
+            
+            If there is no out_file_name this method is going to print the output
+        '''
         to_str = True if out_file_name else False
         if self._has_necessary_files():
             if out_file_name:
@@ -135,9 +149,15 @@ class Aleph(Learner):
                     print line,
             err = process.stderr.read()
             if err:
-                self.logger.warning("ALEPH ERROR:\n%s\n%s", self.dir, err)
+                self.logger.warning("ALEPH STDERR:\n%s\n%s", self.dir, err)
         else:
             self.logger.debug('Empty dir: %s', self.dir)
+
+    @staticmethod
+    def process_out(in_file):
+        #TODO
+        out = {}
+        return out
 
 
 def run_tree(dir, func, prefix = None, logger = logging.getLogger(__name__)):
@@ -152,7 +172,7 @@ def run_tree(dir, func, prefix = None, logger = logging.getLogger(__name__)):
 
 def _runAleph(dir, file_list, prefix = None, logger = logging.getLogger(__name__)):
     learner = Aleph(dir, file_list, prefix = prefix)
-    learner.run_learning()
+    learner.run_learning('out.txt')
 
 def parse_args(argv = argv):
     parser = argparse.ArgumentParser(description = 'Runs the experiments defined in each folder (Aleph only right now)')
@@ -162,19 +182,24 @@ def parse_args(argv = argv):
     args = parser.parse_args(argv[1:])
     return args
 
-def main(argv):
-    args = parse_args(argv)
-    #Logger settings
+def config_logger(verbosity):
+    '''Logger settings'''
     FORMAT = "[%(levelname)s:%(name)s:%(filename)s:%(lineno)s] %(message)s"
-    logger = logging.getLogger(__name__)
-    if args.verbosity == 0:
+    if verbosity == 0:
         logging.basicConfig(level=logging.CRITICAL, format=FORMAT)
-    elif args.verbosity == 1 :
+    elif verbosity == 1 :
         logging.basicConfig(level=logging.INFO, format=FORMAT)
-    elif args.verbosity > 1:
+    elif verbosity > 1:
         logging.basicConfig(level=logging.DEBUG, format=FORMAT)
-    logger.info('Starting at %s', args.dir_path)
+    logger = logging.getLogger(__name__)
+    return logger
 
+
+def main(argv):
+    args = parse_args(argv.verbosity)
+    logger = config_logger(args)
+
+    logger.info('Starting at %s', args.dir_path)
     run_tree(args.dir_path, _runAleph, args.file_prefix)
     logger.info('Done')
 

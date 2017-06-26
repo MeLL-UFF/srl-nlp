@@ -3,7 +3,7 @@ from os           import listdir, path
 from sys          import argv,stderr
 from random       import shuffle
 from fol          import FOL
-from boxer        import TokenizerLocalAPI, CandCLocalAPI, BoxerLocalAPI, DependencyTreeLocalAPI
+from analysers    import TokenizerLocalAPI, CandCLocalAPI, BoxerLocalAPI, DependencyTreeLocalAPI
 import json
 import argparse
 import logging

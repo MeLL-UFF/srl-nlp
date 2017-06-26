@@ -5,7 +5,7 @@ if [ "$#" -gt "0" ]; then
 	prefix=$2
 	#echo ">$direct"
 	#echo ">$prefix"
-	echo ":- consult(aleph).
+	echo ":- consult('uw_aleph/aleph').
 :- read_all('$direct/$prefix').
 :- induce.
 :- halt." | yap
