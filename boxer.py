@@ -5,8 +5,11 @@ from tempfile     import TemporaryFile
 from ConfigParser import ConfigParser
 from fol          import FOL
 from logicalform  import LF
-from regex        import match
+from regex        import match, compile
 import json, spacy
+import logging
+
+logger = logging.getLogger(__name__)
 
 config = ConfigParser()
 config.read("external.conf")
@@ -66,7 +69,7 @@ class BoxerAbstract:
     '''
     _expansion_patterns = {
         # pattern : lambda variables...: ([predicate, term1,... termN], ...)
-        r'^n\d+C64placeholder': lambda  : (['who', []]),
+        r'^n\d+c64placeholder': lambda  : (['who', []]),
         r'^n\d+numeral':        lambda  : (['numeral',[]]),
         r'^n\d+(.*)':           lambda x: (['noum', [x]],),
         r'^t_X+(\d+)':          lambda x: (['raw_number', [x]],),
@@ -75,14 +78,15 @@ class BoxerAbstract:
         r'^c\d+(.*)':           lambda x: (['cnoum', [x]],),
         r'^a\d+(.*)':           lambda x: (['adjective', [x]],),
         r'^\w\d+(?:A|actor)':   lambda  : (['actor',[]],),
-        r'^v\d+C64placeholder': lambda  : (['action',[]],),
+        r'^v\d+c64placeholder': lambda  : (['action',[]],),
         r'^v\d+(.*)':           lambda x: (['verb', [x]],),
         r'^r\d+T|theme':        lambda  : (['theme',[]],),
         r'^r\d+T|topic':        lambda  : (['topic',[]],),
         r'^r\d+(.*)':           lambda x: (['relation', [x]],),
         r'^geonam\d(.*)':       lambda x: (['geoname', [x]],)
     }
-    def __init__():
+
+    def __init__(self):
         'abstract class, do not use this method'
         assert True, 'You should not initialize this class'
 
@@ -94,6 +98,14 @@ class BoxerAbstract:
         is_relevant = lambda x: not (x.startswith('id') or x.startswith('%%%')) and len(x) > 0
         raw_fols = filter(is_relevant, boxed.split("\n"))
         fols = map(lambda x: FOL(x, *extra_args), raw_fols)
+        special_char_pattern = compile('C(\d+)')
+        for fol in fols:
+            frontier = [fol.info]
+            while len(frontier):
+                term = frontier.pop()
+                term[0] = special_char_pattern.sub(lambda x: 'c%s' %x.group(1), term[0])
+                frontier.extend(term[1:])
+            logger.debug('Raw fol:',fol)
         for fol in fols:
             fol.info = fol.info[-1] #remove header
         return fols

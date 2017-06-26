@@ -1,6 +1,8 @@
 from copy import deepcopy as copy
 from sys  import stderr
+import logging
 
+logger = logging.getLogger(__name__)
 class FOL:
     NOT    = 'not'
     EXISTS = 'some'
@@ -141,6 +143,7 @@ class FOL:
         #search to replace every existential variable by a constant
         while len(frontier) > 0:
             child = frontier.pop()
+            logger.debug('PrenexForm child: %s', child)
             if len(child) < 2:
                 if child[0]  in constants:
                     child[0] = 'c%s' %constants.index(child[0]) #TODO universal constants
@@ -235,18 +238,19 @@ class FOL:
                 while len(frontier):
                     current = frontier.pop()
                     for pos, child in enumerate(current[1:]):
-                        if child[0] == FOL.EXISTS or child[0] == FOL.ALL:
-                            current[1+pos] = child[2]
-                            child[2] = root[2]
-                            root[2] = child
-                            root = child
-                            frontier.append(child)
-                            break
-                        else:
-                            frontier.append(child)
-        except Exception as e:
-            #print '>',tmp
-            raw_input()
+                        if FOL.is_special(child[0]):
+                            if FOL.is_quantifier(child[0]):
+                                current[1+pos] = child[2]
+                                child[2] = root[2]
+                                root[2] = child
+                                root = child
+                                frontier.append(child)
+                                break
+                            else:
+                                frontier.append(child)
+        except IndexError as e:
+            logger.error('_push_quantifiers: %s', current, exc_info=True)
+            raise e
         return term
 
     #tries to strip all quantifiers and operations from negation

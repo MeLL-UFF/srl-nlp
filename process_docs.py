@@ -1,13 +1,15 @@
 #!/bin/python
 from os           import listdir, path
 from sys          import argv,stderr
+from random       import shuffle
 from fol          import FOL
 from boxer        import TokenizerLocalAPI, CandCLocalAPI, BoxerLocalAPI, DependencyTreeLocalAPI
 import json
 import argparse
+import logging
 
-class OutAbstract:
-    def __init__(self):
+class OutAbstract(object):
+    def __init__(self, *args, **kargs):
         self.docs = []
 
     def _split_doc(self, doc, sep_section = '\n\n', sep_entity='\n', sep_val=':', **kargs):
@@ -66,7 +68,7 @@ class OutAbstract:
 
     def dump(self, file):
         '''Saves the documents to a file'''
-        pass
+        assert True, 'abstract method'
 
     def erase(self):
         self.docs = []
@@ -91,6 +93,13 @@ class OutJSON(OutAbstract):
         json.dump(self.docs, file)
 
 class OutPL(OutAbstract):
+    def __init__(self, store_f = True, store_n = True, *args, **kargs):
+        super(OutPL, self).__init__(args, kargs)
+        self.facts     = []
+        self.negatives = []
+        self.store_f   = store_f
+        self.store_n   = store_n
+
     def process_doc(self, doc, id,*analysers, **args):
         info = self._split_doc(doc, **args)
         analyse = lambda doc,src,id: map(lambda a: a.sentence2LF(doc,src,id), analysers)
@@ -103,6 +112,12 @@ class OutPL(OutAbstract):
             for result in analyse(text, text_field[0], id):
                 for clause in result:
                     out.extend(clause.split())
+        if self.store_f:
+            self.facts.append("answer(%s,%s).\n"%(id, info['answer']))
+        if self.store_n:
+            for entity in info['entities_dict']:
+                if entity != info['answer']:
+                    self.negatives.append("answer(%s,%s).\n"%(id, entity))
         return out
 
     def _lf_to_str(self, lf):
@@ -115,16 +130,29 @@ class OutPL(OutAbstract):
     def dump(self, file):
         for doc in self.docs:
             file.write('\n'.join(map(self._lf_to_str, doc)))
+            file.write('\n')
+
+    def dump_negatives(self, file):
+        file.write(''.join(self.negatives))
+
+    def dump_facts(self, file):
+        file.write(''.join(self.facts))
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description = 'Runs the pipeline in a predefined format of documents')
-    parser.add_argument('dir_path', help = 'the path to the data files')
+    parser.add_argument('dir_path', help = 'the path of the data files')
     parser.add_argument('out_file', help = 'output file name')
     parser.add_argument('-b', '--break_output', type = int, help='if specified, break the output into BREAK_OUTPUT number of files')
     parser.add_argument('-max','--max_docs', type = int, help = 'maximum number of documents to read')
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('-skip', type = int, default= 0, help = 'skips first SKIP questions')
+    group.add_argument('-random', action='store_true', help = 'randomly choose the questions')
+
     parser.add_argument('-out','--output_format', choices=['pl','json'], default= 'json', help = 'format of output')
     parser.add_argument('-e', '--expand_boxer_predicates', action='store_true', help = 'expand Boxer predicates, simplifying its heavy notation')
-    parser.add_argument('-q', '--quiet', action='store_true', help = 'supress progress prints')
+    #parser.add_argument('-q', '--quiet', action='store_true', help = 'supress progress prints')
+    parser.add_argument('-v', '--verbosity', action='count', default=0, help = 'increase output verbosity')
     parser.add_argument('-rep', '--replace_entities', action='store_true', help = 'replace entity aliases by the originals (deanonimization)')
     args = parser.parse_args()
     return args
@@ -133,13 +161,28 @@ def main():
     '''Runs the pipeline in a predefined format of documents
     '''
     args = parse_args()
+    #Log settings
+    #logging.config.fileConfig('logging.ini')
+    if args.verbosity == 0:
+        logging.basicConfig(level=logging.CRITICAL)
+    elif args.verbosity == 1 :
+        logging.basicConfig(level=logging.INFO)
+    elif args.verbosity > 1:
+        logging.basicConfig(level=logging.DEBUG)
+    logger = logging.getLogger(__name__)
+
+    logger.info('Initializing Boxer')
     #boxer = BoxerWebAPI()
     boxer = BoxerLocalAPI(TokenizerLocalAPI(),
                           CandCLocalAPI(),
                           expand_predicates = args.expand_boxer_predicates)
+    logger.info('Initializing Dependence Tree')
     depTree    = DependencyTreeLocalAPI()
     base_dir   = args.dir_path
     file_paths = listdir(base_dir)
+    if args.random:
+        shuffle(file_paths)
+
     if args.max_docs != None: #limit the number of documents read
         length = min(int(args.max_docs), len(file_paths))
     else:
@@ -149,37 +192,51 @@ def main():
     else:
         output = OutJSON()
 
+    prefix, extension = path.splitext(args.out_file)
     if args.break_output: #create format to generate the output file names
-        out_split = argv[2].split('.')
-        if len(out_split) > 1:
-            prefix    = '.'.join(out_split[:-1])
-            extension = out_split[-1]
-        else:
-            prefix    = out_split
+        if len(extension) == 0:
             extension = args.output_format
         out_format = '{0}_%s.{1}'.format(prefix, extension)
 
     out_count = 0
     #iterate trhough all files in the specified dir
-    for count, file_path in enumerate(file_paths[0:length]): #enumerate is used only to set count
+    logger.info('Reading files')
+    for count, file_path in enumerate(file_paths[args.skip:(args.skip+length)]): #enumerate is used only to set count
         with open(path.join(base_dir, file_path), 'r') as raw_text:
             output.add_doc(raw_text, count, boxer, depTree, replace = args.replace_entities)
         if args.break_output and (count+1) % args.break_output == 0: #save to files
             with open(out_format %out_count, 'w') as out_file:
+                logger.info('Writing file %s' %out_count)
                 output.dump(out_file)
                 output.erase()
             out_count += 1
-        if not args.quiet: print "%6.2f%%" % (100*float(count+1)/length,) #print progress
+        logger.info("%6.2f%%", 100*float(count+1)/length) #logs progress
 
     #ensure the last file recives its dump
     if args.break_output:
         if length % args.break_output != 0:
                 with open(out_format %out_count, 'w') as out_file:
+                    logger.info('Writing file %s' %out_count)
                     output.dump(out_file)
-                if not args.quiet: print "%6.2f%%" % (100*float(count+1)/length,) #print progress
+                logger.info("%6.2f%%", 100*float(count+1)/length) #logs progress
     else:
         with open(args.out_file, 'w') as out_file:
-             output.dump(out_file)
+            logger.info('Writing to file %s', args.out_file)
+            output.dump(out_file)
+
+    if args.output_format == 'pl':
+        f_path = '%s.f'%prefix
+        n_path = '%s.n'%prefix
+        with open(f_path, 'w') as out_f:
+            logger.info('Writing to file %s',f_path)
+            output.dump_facts(out_f)
+        with open(n_path, 'w') as out_n:
+            logger.info('Writing to file %s',n_path)
+            output.dump_negatives(out_n)
 
 if __name__ == '__main__':
-    main()
+    logger = logging.getLogger(__name__)
+    try:
+        main()
+    except KeyboardInterrupt:
+        logger.info('Halted by user')

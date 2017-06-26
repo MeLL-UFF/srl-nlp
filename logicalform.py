@@ -1,6 +1,9 @@
 from copy import deepcopy as copy
 from sys  import stderr
 from fol import FOL
+import logging
+
+logger = logging.getLogger(__name__)
 
 class LF:
     def __init__(self, *args, **kargs):
@@ -19,15 +22,17 @@ class LF:
             #print ">", header, fol
             try:
                 #print '\n-', fol
+                logger.debug('FOL: %s', fol)
                 fol.convert2PrenexForm()
+                logger.debug('PRENEX FOL: %s', fol)
                 #print '*', fol
                 fol.skolemize(**kargs)
+                logger.debug('SKOLEMIZED FOL: %s', fol)
                 fol.push_operand(FOL.OR)
-                self.i
+                self.info = fol.info
+                logger.debug('LF: %s', self)
             except AttributeError as e:
-                raise Exception('Not a valid FOL')
-            #print '&',fol
-            #raw_input()
+                raise Exception('Not a valid FOL%s' %fol)
         else:
             self.info = []
 
