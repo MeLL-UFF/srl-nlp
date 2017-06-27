@@ -47,16 +47,17 @@ class Aleph(Learner):
         self.dir    = dir
         self.prefix = kargs.get('prefix', None)
         self.logger.debug('Checking necessary files in %s', self.dir)
-        #self.kb     = self._find_file(self.prefix,'pl', files)
-        self.neg    = self._find_file(self.prefix, 'n', files)
-        self.fact   = self._find_file(self.prefix, 'f', files)
-        self.base   = self._find_file(self.prefix, 'b', files)
+        #self.kb     = Aleph._find_file(self.prefix,'pl', files)
+        self.neg    = Aleph._find_file(self.prefix, 'n', files)
+        self.fact   = Aleph._find_file(self.prefix, 'f', files)
+        self.base   = Aleph._find_file(self.prefix, 'b', files)
 
-    def _find_file(self, prefix, extension, file_list):
+    @staticmethod
+    def _find_file(prefix, extension, file_list, logger = logging.getLogger(__name__)):
         '''
         Returns the first file with the given prefix and extension.
 
-        self._find_file(str,str,[str,...]) -> str
+        Aleph._find_file(str,str,[str,...]) -> str
 
         Params:
             prefix: the prefix of the file name
@@ -65,7 +66,7 @@ class Aleph(Learner):
         '''
         candidates = map(lambda x: path.splitext(x), file_list)
         if len(candidates) < 1:
-            self.logger.debug('No candidates')
+            logger.debug('No candidates')
         else:
             if prefix:
                 match_prefix = filter(lambda x: x[0].startswith(prefix), candidates)
@@ -78,13 +79,13 @@ class Aleph(Learner):
             out = match_extension
             if len(out) > 0:
                 if len(out) > 1:
-                    self.logger.warning('More than one file matching the requisites %s',
+                    logger.warning('More than one file matching the requisites %s',
                                         ', '.join(out))
                 return ''.join(out[0])
             else:
-                self.logger.warning('No file matching requirements: prefix ="%s", ext="%s"',
+                logger.warning('No file matching requirements: prefix ="%s", ext="%s"',
                                     prefix, extension)
-                self.logger.warning('Candidates: %s...', str(file_list))
+                logger.warning('Candidates: %s...', str(file_list))
         return None
 
     def _has_necessary_files(self):
@@ -154,21 +155,62 @@ class Aleph(Learner):
             self.logger.debug('Empty dir: %s', self.dir)
 
     @staticmethod
-    def process_out(in_file):
+    def process_out(in_file_name, logger = logging.getLogger(__name__)):
         #TODO
-        out = {}
+        catch_theory = compile('%\s*\[theory\].*')
+        catch_theory_end = compile('\s*/\*.*')
+        catch_accuracy = compile('\s*Accuracy\s*=\s*(\d*\.\d*)\s*')
+        catch_table = compile('\[Training set performance\].*')
+        NEUTRAL_MODE, THEO_MODE, TABLE_MODE = range(3)
+        mode = NEUTRAL_MODE
+        theory = []
+        accuracy = 0
+        table = []
+        with open(in_file_name, 'r') as in_file:
+            for line in in_file:
+                if mode == NEUTRAL_MODE:
+                    found_theo = catch_theory.match(line)
+                    if found_theo:
+                        mode = THEO_MODE
+                        continue
+                    found_table = catch_table.match(line)
+                    if found_table:
+                        mode = TABLE_MODE
+                        continue
+                elif mode == THEO_MODE:
+                    found_end = catch_theory_end.match(line)
+                    if found_end:
+                        mode = NEUTRAL_MODE
+                    else:
+                        theory.append(line)
+                    continue
+                elif mode == TABLE_MODE:
+                    found_acc = catch_accuracy.match(line)
+                    if found_acc:
+                        accuracy = float(found_acc.group(1))
+                        mode = NEUTRAL_MODE
+                        break
+                    else:
+                        table.append(line)
+        #assert mode == NEUTRAL_MODE
+        if mode != NEUTRAL_MODE:
+            log.warning("File ended before analysis")
+        logger.info('read a file')
+        out = {'table': ''.join(table),
+               'accuracy': accuracy,
+               'theory': ''.join(theory)}
         return out
 
 
-def run_tree(dir, func, prefix = None, logger = logging.getLogger(__name__)):
+def run_tree(dir, func, prefix = None, logger = logging.getLogger(__name__), **kargs):
     _, subdir, files = walkdir(dir).next()
     #logger.debug('Running on %s', dir)
     if len(files) > 0:
         logger.debug("Files: %s", ', '.join(files))
     if len(subdir) > 0:
         for child in subdir:
-            run_tree(path.join(dir,child), func, prefix, logger)
-    func(dir, files, prefix, logger)
+            run_tree(path.join(dir,child), func, prefix, logger, **kargs)
+    func(dir, files, prefix, logger, **kargs)
 
 def _runAleph(dir, file_list, prefix = None, logger = logging.getLogger(__name__)):
     learner = Aleph(dir, file_list, prefix = prefix)
