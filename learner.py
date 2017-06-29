@@ -195,10 +195,10 @@ class Aleph(Learner):
         #assert mode == NEUTRAL_MODE
         if mode != NEUTRAL_MODE:
             log.warning("File ended before analysis")
-        logger.info('read a file')
         out = {'table': ''.join(table),
                'accuracy': accuracy,
                'theory': ''.join(theory)}
+        logger.debug(out)
         return out
 
 
