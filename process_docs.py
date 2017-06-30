@@ -1,14 +1,20 @@
 #!/bin/python
-from os           import listdir, path
-from sys          import argv,stderr
-from random       import shuffle
-from fol          import FOL
-from analysers    import TokenizerLocalAPI, CandCLocalAPI, BoxerLocalAPI, DependencyTreeLocalAPI
+from os            import listdir, path
+from fol           import FOL
+from sys           import argv,stderr
+from random        import shuffle
+from analysers     import TokenizerLocalAPI, CandCLocalAPI, BoxerLocalAPI, DependencyTreeLocalAPI
+from logger_config import config_logger, add_logger_args
 import json
 import argparse
 import logging
 
 class OutAbstract(object):
+    '''
+    *Abstract class*
+    This class and its children define how to process the input and the output
+    for a particular file format.
+    '''
     def __init__(self, *args, **kargs):
         self.docs = []
 
@@ -71,9 +77,15 @@ class OutAbstract(object):
         assert True, 'abstract method'
 
     def erase(self):
+        '''Clears the data stored'''
         self.docs = []
 
+
 class OutJSON(OutAbstract):
+    '''
+    This class defines how to process the input and the output files for a JSON
+    output.
+    '''
     def process_doc(self, doc, id, *analysers, **args):
         info = self._split_doc(doc, **args)
         # given a doc, generate a dict {analyser_i: analyser_i.sentence2FOL(doc)}
@@ -92,7 +104,12 @@ class OutJSON(OutAbstract):
     def dump(self, file):
         json.dump(self.docs, file)
 
+
 class OutPL(OutAbstract):
+    '''
+    This class defines how to process the input and the output files for a Prolog
+    output.
+    '''
     def __init__(self, store_f = True, store_n = True, *args, **kargs):
         super(OutPL, self).__init__(args, kargs)
         self.facts     = []
@@ -111,13 +128,13 @@ class OutPL(OutAbstract):
                 text = info[text_field]
             for result in analyse(text, text_field[0], id):
                 for clause in result:
-                    out.extend(clause.split())
+                    out.extend(self._str_base(clause.split()))
         if self.store_f:
-            self.facts.append("answer(%s,%s).\n"%(id, info['answer']))
+            self.facts.append(self._str_fact(id, info['answer']))
         if self.store_n:
             for entity in info['entities_dict']:
                 if entity != info['answer']:
-                    self.negatives.append("answer(%s,%s).\n"%(id, entity))
+                    self.negatives.append(self._str_neg(id, info['answer']))
         return out
 
     def _lf_to_str(self, lf):
@@ -126,6 +143,15 @@ class OutPL(OutAbstract):
             return '% ' + s
         else:
             return s
+
+    def _str_base(self, *args):
+        return args[0]
+
+    def _str_fact(self, *args, pred='answer'):
+        return "%s(%s).\n" %(pred, ','.join(args))
+
+    def _str_neg(self, *args, pred='answer'):
+        return self._str_fact(*args, pred = pred)
 
     def dump(self, file):
         for doc in self.docs:
@@ -139,39 +165,52 @@ class OutPL(OutAbstract):
         file.write(''.join(self.facts))
 
 
-def parse_args():
+class OutProbLog(OutPL):
+    '''
+    This class defines how to process the input and the output files for a Prolog
+    output.
+    '''
+    def _str_base(self, *args):
+        return map(lambda x: '0.5:: %s', args[0])
+
+    def _str_fact(self, *args, pred='answer'):
+        return "1.0:: %s(%s).\n" %(pred, ','.join(args))
+
+    def _str_neg(self, *args, pred='answer'):
+        return "0.0:: %s(%s).\n" %(pred, ','.join(args))
+
+
+def parse_args(argv = argv, add_logger_args = lambda x: None):
     parser = argparse.ArgumentParser(description = 'Runs the pipeline in a predefined format of documents')
     parser.add_argument('dir_path', help = 'the path of the data files')
     parser.add_argument('out_file', help = 'output file name')
-    parser.add_argument('-b', '--break_output', type = int, help='if specified, break the output into BREAK_OUTPUT number of files')
-    parser.add_argument('-max','--max_docs', type = int, help = 'maximum number of documents to read')
+    parser.add_argument('-b', '--break_output', type = int,
+                        help='if specified, break the output into BREAK_OUTPUT number of files')
+    parser.add_argument('-max','--max_docs', type = int,
+                        help = 'maximum number of documents to read')
     group = parser.add_mutually_exclusive_group()
-    group.add_argument('-skip', type = int, default= 0, help = 'skips first SKIP questions')
-    group.add_argument('-random', action='store_true', help = 'randomly choose the questions')
+    group.add_argument('-skip', type = int, default= 0,
+                        help = 'skips first SKIP questions')
+    group.add_argument('-random', action='store_true',
+                        help = 'randomly choose the questions')
 
-    parser.add_argument('-out','--output_format', choices=['pl','json'], default= 'json', help = 'format of output')
-    parser.add_argument('-e', '--expand_boxer_predicates', action='store_true', help = 'expand Boxer predicates, simplifying its heavy notation')
+    parser.add_argument('-out','--output_format',choices=['pl','json'],
+                        default= 'json', help = 'format of output')
+    parser.add_argument('-e', '--expand_boxer_predicates', action='store_true',
+                        help = 'expand Boxer predicates, simplifying its heavy notation')
     #parser.add_argument('-q', '--quiet', action='store_true', help = 'supress progress prints')
-    parser.add_argument('-v', '--verbosity', action='count', default=0, help = 'increase output verbosity')
-    parser.add_argument('-rep', '--replace_entities', action='store_true', help = 'replace entity aliases by the originals (deanonimization)')
+    parser.add_argument('-rep', '--replace_entities', action='store_true',
+                        help = 'replace entity aliases by the originals (deanonimization)')
+    add_logger_args(parser)
     args = parser.parse_args()
     return args
 
 def main():
     '''Runs the pipeline in a predefined format of documents
     '''
-    args = parse_args()
-    #Log settings
-    #logging.config.fileConfig('logging.ini')
-    if args.verbosity == 0:
-        logging.basicConfig(level=logging.CRITICAL)
-    elif args.verbosity == 1 :
-        logging.basicConfig(level=logging.INFO)
-    elif args.verbosity > 1:
-        logging.basicConfig(level=logging.DEBUG)
-    logger = logging.getLogger(__name__)
+    args = parse_args(argv, add_logger_args)
+    logger = config_logger(args.verbosity)
 
-    logger.info('Initializing Boxer')
     #boxer = BoxerWebAPI()
     boxer = BoxerLocalAPI(TokenizerLocalAPI(),
                           CandCLocalAPI(),

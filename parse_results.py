@@ -2,11 +2,12 @@
 '''
 Parses the ourput of an experiment tree (Aleph only right now)
 '''
-from os           import path, walk as walkdir
-from sys          import argv
-from json         import load,dump
-from regex        import compile
-from learner      import Aleph, run_tree, config_logger
+from os            import path, walk as walkdir
+from sys           import argv
+from json          import load,dump
+from regex         import compile
+from learner       import Aleph, run_tree, config_logger
+from logger_config import config_logger, add_logger_args
 import logging
 import argparse
 
@@ -17,12 +18,12 @@ def _runAleph_out_parser(dir, file_list, prefix = None, logger = logging.getLogg
         logger.info('File name: %s', complete_file_name)
         d.update({complete_file_name: Aleph.process_out(complete_file_name)})
 
-def parse_args(argv = argv):
+def parse_args(argv = argv, add_logger_args = lambda x: None):
     parser = argparse.ArgumentParser(description = 'Parses the ourput of an experiment tree (Aleph only right now)')
     parser.add_argument('dir_path', help = 'the path of the experiments')
     parser.add_argument('-p', '--file_prefix', help = 'prefix of the experiment output files')
     parser.add_argument('-o', '--output_file', help = 'file to store results (if None: print to stdout)')
-    parser.add_argument('-v', '--verbosity', action='count', default=0, help = 'increase output verbosity')
+    add_logger_args(parser)
     args = parser.parse_args(argv[1:])
     return args
 
@@ -70,7 +71,7 @@ def json_to_object(json):
 
 
 def main(argv):
-    args = parse_args(argv)
+    args = parse_args(argv, add_logger_args)
     logger = config_logger(args.verbosity)
     out = {}
     logger.info('Starting at %s', args.dir_path)

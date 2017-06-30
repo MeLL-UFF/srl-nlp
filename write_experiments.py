@@ -3,11 +3,12 @@
 '''
 This module is designed to generate or update all the experiments based on the current state of the 'process_docs.py' module.
 '''
-from sys    import argv,stderr
-from os     import path, makedirs, symlink
-from shutil import copyfile
-from regex  import compile
-from random import shuffle
+from sys           import argv,stderr
+from os            import path, makedirs, symlink
+from shutil        import copyfile
+from regex         import compile
+from random        import shuffle
+from logger_config import config_logger, add_logger_args
 import argparse
 import json
 import logging
@@ -58,6 +59,7 @@ class ProcessNegatives(ProcessFile):
             else:
                 self.lines.extend(dic[key][:lim])
         self.logger.info('Storing negatives')
+
 
 class ProcessBase(ProcessFile):
     def __init__(self, source_file_path, *args, **kargs):
@@ -183,7 +185,8 @@ def _mkdir(dir):
     return True
 
 
-def write_exp(conf, kb, base, targets, negatives, folder_path, copy_kb = False, prefix = 'exp', dic = None):
+def write_exp(conf, kb, base, targets, negatives, folder_path,
+              copy_kb = False, prefix = 'exp', dic = None):
     '''
         Creates a hierarquy of folders rooted in folder_path.
 
@@ -194,12 +197,14 @@ def write_exp(conf, kb, base, targets, negatives, folder_path, copy_kb = False, 
             targets: the fact file (*.f)
             negatives: the negative file (*.n)
             folder_path: the folder that will root the experiments
-            copy_kb: copy the knowledge base file to each leaf (only do this if the kb is small)
+            copy_kb: copy the knowledge base file to each leaf
+                     (only do this if the kb is small)
             prefix: prefix of the leaf files generated
             dic: [internal use]
 
-        The leaf directories all have the files for the particular setting of the experiment,
-        plus a short settings.json file indicating the settings of this particular experiment.
+        The leaf directories all have the files for the particular setting of
+        the experiment, plus a short settings.json file indicating the settings
+        of this particular experiment.
     '''
     if dic == None:
         dic = {}
@@ -232,9 +237,10 @@ def write_exp(conf, kb, base, targets, negatives, folder_path, copy_kb = False, 
                 d[i].update(conf[0][param].get(i,{}))
             param_path = path.join(folder_path, param)
             _mkdir(param_path)
-            write_exp(conf[1:], kb, base, targets, negatives, param_path, copy_kb, prefix, d)
+            write_exp(conf[1:], kb, base, targets, negatives, param_path,
+                      copy_kb, prefix, d)
 
-def parse_args(argv=argv):
+def parse_args(argv = argv, add_logger_args = lambda x: None):
     parser = argparse.ArgumentParser(description = 'Generates or updates all the experiments based on the current state of knowledge base')
     parser.add_argument('kb', help = 'the base file')
     parser.add_argument('base', help = 'the base file')
@@ -242,19 +248,22 @@ def parse_args(argv=argv):
     parser.add_argument('facts', help = 'the target examples file')
     parser.add_argument('dir_name', help = 'name of the experiments folder')
     #parser.add_argument('-s', '--settings', help = 'the settings file')
-    parser.add_argument('-c', '--copy_kb', action='store_true', help = 'copy the kb file instead of linking')
-    parser.add_argument('-conf', '--configuration_file', help = 'the configuration file for this particular series of tests')
+    parser.add_argument('-c', '--copy_kb', action='store_true',
+                        help = 'copy the kb file instead of linking')
+    parser.add_argument('-conf', '--configuration_file',
+                        help = 'the configuration file for this particular series of tests')
     #parser.add_argument('-al', '--aleph', help = 'Supress default Aleph location')
     #parser.add_argument('-probl', '--problog', help = 'Supress default ProbLog location')
-    parser.add_argument('-e','--engine', choices=['aleph', 'problog'], default= 'aleph', help = 'engine')
-    parser.add_argument('-v', '--verbosity', action='count', default=0, help = 'increase output verbosity')
+    parser.add_argument('-e','--engine', choices=['aleph', 'problog'],
+                        default= 'aleph', help = 'engine')
+    add_logger_args(parser)
     args = parser.parse_args(argv[1:])
     return args
 
 
 def main():
-    logger = logging.getLogger(__name__)
-    args = parse_args()
+    args = parse_args(argv, add_logger_args)
+    logger = config_logger(args.verbosity)
     #Log settings
     if args.verbosity == 0:
         logging.basicConfig(level=logging.CRITICAL)
