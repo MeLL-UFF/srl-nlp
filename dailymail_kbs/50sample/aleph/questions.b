@@ -202,7 +202,7 @@
 :- determination(answer/2, quantmod/4).
 :- determination(answer/2, acl/4).
 
-:- consult(kb).
+%:- consult(kb).
 
 %%%%%%%%%%%%%%%%%
 % Eval settings %
