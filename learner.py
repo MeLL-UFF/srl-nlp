@@ -14,6 +14,7 @@ from logger_config import config_logger, add_logger_args
 import logging
 import argparse
 
+logger = logging.getLogger(__name__)
 
 config = ConfigParser()
 config.read("external.conf")
@@ -228,13 +229,12 @@ def parse_args(argv = argv, add_logger_args = lambda x: None):
 
 def main(argv):
     args = parse_args(argv, add_logger_args)
-    logger = config_logger(args.verbosity)
+    config_logger(args)
     logger.info('Starting at %s', args.dir_path)
     run_tree(args.dir_path, _runAleph, args.file_prefix)
     logger.info('Done')
 
 if __name__ == '__main__':
-    logger = logging.getLogger(__name__)
     try:
         main(argv)
     except KeyboardInterrupt:
