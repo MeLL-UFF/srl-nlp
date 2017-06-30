@@ -181,7 +181,7 @@ class Processor2PL(ProcessorAbstract):
                 text = info[text_field]
             for result in analyse(text, text_field[0], id):
                 for clause in result:
-                    out.extend(self._str_base(clause.split()))
+                    out.extend(self._str_base(*clause.split()))
         if self.store_f:
             self.facts.append(self._str_fact('answer',id, info['answer']))
         if self.store_n:
@@ -190,15 +190,11 @@ class Processor2PL(ProcessorAbstract):
                     self.negatives.append(self._str_neg('answer', id, entity))
         return out
 
-    def _lf_to_str(self, lf):
-        s = repr(lf)
-        if s.startswith('(') or s.startswith(FOL.NOT):
-            return '% ' + s
-        else:
-            return s
-
     def _str_base(self, *args):
-        return args[0]
+        ignored = lambda s: s.startswith('(') or s.startswith(FOL.NOT)
+        comment_filter = lambda x: ('% ' + x) if ignored(x) else x
+        handle_lf = lambda lf: comment_filter(str(lf))
+        return map(handle_lf, args)
 
     def _str_fact(self, pred, *args):
         return "%s(%s).\n" %(pred, ','.join(map(str, args)))
@@ -208,7 +204,7 @@ class Processor2PL(ProcessorAbstract):
 
     def dump(self, file):
         for doc in self.docs:
-            file.write('\n'.join(map(self._lf_to_str, doc)))
+            file.write('\n'.join(doc))
             file.write('\n')
 
     def dump_neg(self, file):
@@ -245,7 +241,10 @@ class Processor2ProbLog(Processor2PL):
     output.
     '''
     def _str_base(self, *args):
-        return map(lambda x: '0.5:: %s', args[0])
+        ignored = lambda s: s.startswith('(') or s.startswith(FOL.NOT)
+        comment_filter = lambda x: ('% ' if ignored(x) else '') + '0.5:: ' + x
+        handle_lf = lambda lf: comment_filter(str(lf))
+        return map(handle_lf, args)
 
     def _str_fact(self, pred, *args):
         return "1.0:: %s(%s).\n" %(pred, ','.join(map(str, args)))
