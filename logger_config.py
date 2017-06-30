@@ -12,6 +12,6 @@ def config_logger(args):
     logger = logging.getLogger(__name__)
     return logger
 
-def add_logger_args(args):
+def add_logger_args(parser):
     parser.add_argument('-v', '--verbosity', action='count', default=0,
                     help = 'increase output verbosity')

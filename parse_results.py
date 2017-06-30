@@ -11,6 +11,8 @@ from logger_config import config_logger, add_logger_args
 import logging
 import argparse
 
+logger = logging.getLogger(__name__)
+
 def _runAleph_out_parser(dir, file_list, prefix = None, logger = logging.getLogger(__name__), d = {}):
     file_name = Aleph._find_file(prefix, None, file_list, logger)
     if file_name:
@@ -72,7 +74,7 @@ def json_to_object(json):
 
 def main(argv):
     args = parse_args(argv, add_logger_args)
-    logger = config_logger(args.verbosity)
+    config_logger(args)
     out = {}
     logger.info('Starting at %s', args.dir_path)
     run_tree(args.dir_path, _runAleph_out_parser, args.file_prefix, logger, d = out)
@@ -84,7 +86,6 @@ def main(argv):
     logger.info('Done')
 
 if __name__ == '__main__':
-    logger = logging.getLogger(__name__)
     try:
         main(argv)
     except KeyboardInterrupt:

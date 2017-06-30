@@ -9,13 +9,16 @@ import json
 import argparse
 import logging
 
-class OutAbstract(object):
+logger = logging.getLogger(__name__)
+
+class ProcessorAbstract(object):
     '''
     *Abstract class*
     This class and its children define how to process the input and the output
     for a particular file format.
     '''
     def __init__(self, *args, **kargs):
+        '''abstract class initializer'''
         self.docs = []
 
     def _split_doc(self, doc, sep_section = '\n\n', sep_entity='\n', sep_val=':', **kargs):
@@ -43,10 +46,12 @@ class OutAbstract(object):
                }
 
     def replace_entities(self, doc, text):
-        '''Deanonimizes the text field
+        '''
+        Deanonimizes the text field
 
-        doc: document object with information on how to replace entities
-        text: text to go through the replacements
+        Params:
+            doc: document object with information on how to replace entities
+            text: text to go through the replacements
 
         This method returns the original text with all aliases (@entityXX)replace by its original tokens.
         '''
@@ -54,7 +59,6 @@ class OutAbstract(object):
         entities = sorted(entities_map.keys(), lambda x,y: len(y) - len(x)) #sort by length to avoid replacing '@entity1' in '@entity12', for instance
         for entity in entities:
             text = text.replace(entity, entities_map[entity])
-        print "**:", text
         return text
 
     def process_doc(self, doc, id, *analysers, **args):
@@ -73,19 +77,67 @@ class OutAbstract(object):
         self.docs.append(self.process_doc(doc, id, *analysers, **args))
 
     def dump(self, file):
-        '''Saves the documents to a file'''
+        '''Dumps the documents to file (a stream)'''
         assert True, 'abstract method'
 
     def erase(self):
         '''Clears the data stored'''
         self.docs = []
 
+    def _get_name_formatter(self, out_file, default_extension, break_output = False, force_extension = False):
+        '''Build a formatter to handle the output file names
 
-class OutJSON(OutAbstract):
+        _get_name_formatter(...) -> f(extension, id) -> str
+
+        Params:
+            out_file_name: the desired output file name
+            default_extension: the default extension for this kind of output
+            breaks_output: a boolean value
+            force_extension: a boolean value to force the default_extension
+
+        Returns:
+            Returns a function that returns a string.
+            The function 'format takes as arguments extension and id (optional)
+
+            Params of f:
+                extension: the desired extension (might be negleted)
+                id: the desired id (might be negleted)
+        '''
+        prefix, extension = path.splitext(out_file)
+        if len(extension) == 0:
+                extension = default_extension[1:]
+        if break_output:
+            if force_extension:
+                out_str = '%s_{1}.{0}' %prefix
+            else:
+                out_str = '%s_{1}.%s' % (prefix, extension)
+        else:
+            if force_extension:
+                out_str = '%s.{0}' %prefix
+            else:
+                out_str = '%s.%s' %(prefix, extension)
+        return out_str.format
+
+    def save_output(self, file_name, id = None):
+        '''
+        Parsers the file_name and generate the output file_name based on it
+        '''
+        formatter = self._get_name_formatter(file_name, self.default_extension, id != None)
+        out_name = formatter(default_extension,id)
+        logger.info('Writing to file %s', out_name)
+        with open(out_name,'w') as f:
+            self.dump(f)
+
+
+class Processor2JSON(ProcessorAbstract):
     '''
     This class defines how to process the input and the output files for a JSON
     output.
     '''
+
+    def __init__(self,*args, **kargs):
+        super(Processor2PL, self).__init__(args, kargs)
+        self.default_extension = 'json'
     def process_doc(self, doc, id, *analysers, **args):
         info = self._split_doc(doc, **args)
         # given a doc, generate a dict {analyser_i: analyser_i.sentence2FOL(doc)}
@@ -105,17 +157,18 @@ class OutJSON(OutAbstract):
         json.dump(self.docs, file)
 
 
-class OutPL(OutAbstract):
+class Processor2PL(ProcessorAbstract):
     '''
     This class defines how to process the input and the output files for a Prolog
     output.
     '''
     def __init__(self, store_f = True, store_n = True, *args, **kargs):
-        super(OutPL, self).__init__(args, kargs)
+        super(Processor2PL, self).__init__(args, kargs)
         self.facts     = []
         self.negatives = []
         self.store_f   = store_f
         self.store_n   = store_n
+        self.default_extension = 'pl'
 
     def process_doc(self, doc, id,*analysers, **args):
         info = self._split_doc(doc, **args)
@@ -130,11 +183,11 @@ class OutPL(OutAbstract):
                 for clause in result:
                     out.extend(self._str_base(clause.split()))
         if self.store_f:
-            self.facts.append(self._str_fact(id, info['answer']))
+            self.facts.append(self._str_fact('answer',id, info['answer']))
         if self.store_n:
             for entity in info['entities_dict']:
                 if entity != info['answer']:
-                    self.negatives.append(self._str_neg(id, info['answer']))
+                    self.negatives.append(self._str_neg('answer', id, entity))
         return out
 
     def _lf_to_str(self, lf):
@@ -147,25 +200,46 @@ class OutPL(OutAbstract):
     def _str_base(self, *args):
         return args[0]
 
-    def _str_fact(self, *args, pred='answer'):
-        return "%s(%s).\n" %(pred, ','.join(args))
+    def _str_fact(self, pred, *args):
+        return "%s(%s).\n" %(pred, ','.join(map(str, args)))
 
-    def _str_neg(self, *args, pred='answer'):
-        return self._str_fact(*args, pred = pred)
+    def _str_neg(self,pred, *args):
+        return self._str_fact(pred, *args)
 
     def dump(self, file):
         for doc in self.docs:
             file.write('\n'.join(map(self._lf_to_str, doc)))
             file.write('\n')
 
-    def dump_negatives(self, file):
-        file.write(''.join(self.negatives))
+    def dump_neg(self, file):
+        for doc in self.negatives:
+            file.write(doc)
 
-    def dump_facts(self, file):
-        file.write(''.join(self.facts))
+    def dump_fact(self, file):
+        for doc in self.facts:
+            file.write(doc)
+
+    def save_output(self, file_name, id = None):
+        '''
+        Parsers the file_name and generate the outputs file_name based on it.
+        After that it dumps the contents to the outputs file_name
+        '''
+        formatter = self._get_name_formatter(file_name, self.default_extension, id != None, True)
+        logger.info('Writing to files %s', formatter("*",id))
+        for ext, dump in [('n',  self.dump_neg),
+                          ('pl', self.dump),
+                          ('f',  self.dump_fact)]:
+            with open(formatter(ext, id),'w') as f:
+                dump(f)
+
+    def erase(self):
+        '''Clears the data stored'''
+        super(Processor2PL, self).erase()
+        self.facts     = []
+        self.negatives = []
 
 
-class OutProbLog(OutPL):
+class Processor2ProbLog(Processor2PL):
     '''
     This class defines how to process the input and the output files for a Prolog
     output.
@@ -173,11 +247,11 @@ class OutProbLog(OutPL):
     def _str_base(self, *args):
         return map(lambda x: '0.5:: %s', args[0])
 
-    def _str_fact(self, *args, pred='answer'):
-        return "1.0:: %s(%s).\n" %(pred, ','.join(args))
+    def _str_fact(self, pred, *args):
+        return "1.0:: %s(%s).\n" %(pred, ','.join(map(str, args)))
 
-    def _str_neg(self, *args, pred='answer'):
-        return "0.0:: %s(%s).\n" %(pred, ','.join(args))
+    def _str_neg(self, pred, *args):
+        return "0.0:: %s(%s).\n" %(pred, ','.join(map(str, args)))
 
 
 def parse_args(argv = argv, add_logger_args = lambda x: None):
@@ -189,12 +263,11 @@ def parse_args(argv = argv, add_logger_args = lambda x: None):
     parser.add_argument('-max','--max_docs', type = int,
                         help = 'maximum number of documents to read')
     group = parser.add_mutually_exclusive_group()
-    group.add_argument('-skip', type = int, default= 0,
+    group.add_argument ('-skip', type = int, default= 0,
                         help = 'skips first SKIP questions')
-    group.add_argument('-random', action='store_true',
+    group.add_argument ('-random', action='store_true',
                         help = 'randomly choose the questions')
-
-    parser.add_argument('-out','--output_format',choices=['pl','json'],
+    parser.add_argument('-out','--output_format',choices=['pl','problog','json'],
                         default= 'json', help = 'format of output')
     parser.add_argument('-e', '--expand_boxer_predicates', action='store_true',
                         help = 'expand Boxer predicates, simplifying its heavy notation')
@@ -205,12 +278,14 @@ def parse_args(argv = argv, add_logger_args = lambda x: None):
     args = parser.parse_args()
     return args
 
-def main():
+
+def main(argv):
     '''Runs the pipeline in a predefined format of documents
     '''
-    args = parse_args(argv, add_logger_args)
-    logger = config_logger(args.verbosity)
+    args   = parse_args(argv, add_logger_args)
+    config_logger(args)
 
+    logger.info('Initializing Boxer')
     #boxer = BoxerWebAPI()
     boxer = BoxerLocalAPI(TokenizerLocalAPI(),
                           CandCLocalAPI(),
@@ -219,6 +294,7 @@ def main():
     depTree    = DependencyTreeLocalAPI()
     base_dir   = args.dir_path
     file_paths = listdir(base_dir)
+
     if args.random:
         shuffle(file_paths)
 
@@ -226,56 +302,36 @@ def main():
         length = min(int(args.max_docs), len(file_paths))
     else:
         length = len(file_paths)
-    if args.output_format == 'pl': #define the whay the info whil be stored and dumped
-        output = OutPL() 
-    else:
-        output = OutJSON()
 
-    prefix, extension = path.splitext(args.out_file)
-    if args.break_output: #create format to generate the output file names
-        if len(extension) == 0:
-            extension = args.output_format
-        out_format = '{0}_%s.{1}'.format(prefix, extension)
+    if args.output_format == 'pl': #define the whay the info whil be stored and dumped
+        output = Processor2PL()
+    elif args.output_format == 'problog':
+        output = Processor2ProbLog()
+    else:
+        output = Processor2JSON()
 
     out_count = 0
     #iterate trhough all files in the specified dir
+    #args.out_file
     logger.info('Reading files')
     for count, file_path in enumerate(file_paths[args.skip:(args.skip+length)]): #enumerate is used only to set count
         with open(path.join(base_dir, file_path), 'r') as raw_text:
             output.add_doc(raw_text, count, boxer, depTree, replace = args.replace_entities)
         if args.break_output and (count+1) % args.break_output == 0: #save to files
-            with open(out_format %out_count, 'w') as out_file:
-                logger.info('Writing file %s' %out_count)
-                output.dump(out_file)
-                output.erase()
+            output.save_output(args.out_file, out_count)
+            output.erase()
             out_count += 1
-        logger.info("%6.2f%%", 100*float(count+1)/length) #logs progress
+        logger.info("%6.2f%% Read", 100*float(count+1)/length) #logs progress
 
     #ensure the last file recives its dump
     if args.break_output:
         if length % args.break_output != 0:
-                with open(out_format %out_count, 'w') as out_file:
-                    logger.info('Writing file %s' %out_count)
-                    output.dump(out_file)
-                logger.info("%6.2f%%", 100*float(count+1)/length) #logs progress
+                output.save_output(args.out_file, out_count)#logs progress
     else:
-        with open(args.out_file, 'w') as out_file:
-            logger.info('Writing to file %s', args.out_file)
-            output.dump(out_file)
-
-    if args.output_format == 'pl':
-        f_path = '%s.f'%prefix
-        n_path = '%s.n'%prefix
-        with open(f_path, 'w') as out_f:
-            logger.info('Writing to file %s',f_path)
-            output.dump_facts(out_f)
-        with open(n_path, 'w') as out_n:
-            logger.info('Writing to file %s',n_path)
-            output.dump_negatives(out_n)
+        output.save_output(args.out_file)
 
 if __name__ == '__main__':
-    logger = logging.getLogger(__name__)
     try:
-        main()
+        main(argv)
     except KeyboardInterrupt:
         logger.info('Halted by user')

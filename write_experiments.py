@@ -13,6 +13,8 @@ import argparse
 import json
 import logging
 
+logger = logging.getLogger(__name__)
+
 class ProcessFile(object):
     def __init__(self, source_file_path, *args, **kargs):
         self.lines = []
@@ -261,17 +263,10 @@ def parse_args(argv = argv, add_logger_args = lambda x: None):
     return args
 
 
-def main():
+def main(argv):
     args = parse_args(argv, add_logger_args)
-    logger = config_logger(args.verbosity)
-    #Log settings
-    if args.verbosity == 0:
-        logging.basicConfig(level=logging.CRITICAL)
-    elif args.verbosity == 1 :
-        logging.basicConfig(level=logging.INFO)
-    elif args.verbosity > 1:
-        logging.basicConfig(level=logging.DEBUG)
-    
+    config_logger(args)
+
     if not args.configuration_file:
         args.configuration_file = 'tests.conf'
     with open(args.configuration_file, 'r') as f:
@@ -287,9 +282,8 @@ def main():
     write_exp(conf, args.kb, args.base, args.facts, args.negatives, engine_path, args.copy_kb)
 
 if __name__ == '__main__':
-    logger = logging.getLogger(__name__)
     try:
-        main()
+        main(argv)
     except KeyboardInterrupt:
         logger.info('Halted by the user')
     except OSError as e:
