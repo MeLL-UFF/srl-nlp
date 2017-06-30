@@ -15,4 +15,5 @@ This project aims to process structured representations of texts through SRL to 
     sudo pip install -r requirements.txt
     ```
 * Boxer and C&C Tools
-    Run script XXX __under development__ #TODO
+    Run make XXX
+    #TODO: makefile that installs boxer and the C&C Tools
