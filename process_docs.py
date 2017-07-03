@@ -1,4 +1,7 @@
 #!/bin/python
+'''
+Runs the pipeline in a predefined format of documents
+'''
 from os            import listdir, path
 from fol           import FOL
 from sys           import argv,stderr
@@ -6,8 +9,8 @@ from random        import shuffle
 from analysers     import TokenizerLocalAPI, CandCLocalAPI, BoxerLocalAPI, DependencyTreeLocalAPI
 from logger_config import config_logger, add_logger_args
 import json
-import argparse
 import logging
+import argparse
 
 logger = logging.getLogger(__name__)
 
@@ -279,7 +282,8 @@ def parse_args(argv = argv, add_logger_args = lambda x: None):
 
 
 def main(argv):
-    '''Runs the pipeline in a predefined format of documents
+    '''
+    Runs the pipeline in a predefined format of documents
     '''
     args   = parse_args(argv, add_logger_args)
     config_logger(args)
