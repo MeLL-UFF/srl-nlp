@@ -1,6 +1,7 @@
 from requests     import post
 from subprocess   import PIPE, Popen
 from sys          import stderr
+from os           import path
 from tempfile     import TemporaryFile
 from ConfigParser import ConfigParser
 from fol          import FOL
@@ -12,7 +13,9 @@ import logging
 logger = logging.getLogger(__name__)
 
 config = ConfigParser()
-config.read("external.conf")
+_package_directory = path.dirname(__file__)
+
+config.read(path.join(_package_directory, "external.conf"))
 
 class Process:
     '''Intended to be an abstract class
