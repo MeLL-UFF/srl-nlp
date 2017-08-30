@@ -187,7 +187,7 @@ class BoxerAbstract:
 
 
 class BoxerLocalAPI(Process, BoxerAbstract):
-    def __init__(self, tokenizer, ccg_parser, expand_predicates, path_to_bin = config.get('semantic_local', 'boxer'), *params):
+    def __init__(self, tokenizer = TokenizerLocalAPI(), ccg_parser = CandCLocalAPI(), expand_predicates = True, path_to_bin = config.get('semantic_local', 'boxer'), *params):
         if len(params) == 0:
             params = ('--stdin', '--semantics', 'fol')
         self.name        = 'Boxer'
