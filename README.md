@@ -17,3 +17,8 @@ This project aims to process structured representations of texts through SRL to 
 * Boxer and C&C Tools
     Run make XXX
     #TODO: makefile that installs boxer and the C&C Tools
+* If you want to run all the test units, install Pytest and then run it:
+```shell
+    sudo pip install pytest
+    pytest
+```
