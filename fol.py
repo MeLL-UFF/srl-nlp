@@ -19,7 +19,7 @@ class FOL:
             text: a text in the format: '<clause>.'
                 <clause> := <id>(<clause>+)|<id>
                 <id> := [A-Za-z0-9_#]+ | '.*'
-            extra_args: terms to be added to the non-special (not qualifier or operand) predicates
+            extra_args: terms to be added to the non-special (not quantifier or operand) predicates
         '''
         args = map(lambda x: [str(x)], extra_args)
         return FOL._parse_aux(FOL._split(text), args) if len(text) > 0 else []
@@ -180,7 +180,7 @@ class FOL:
                 aggregate: allows the aggregation of same kind operators:
                            and(a,and(b,c)) -> and(a,b,c)
 
-            This operation respect negation. It does not move any operator accross a nagation.
+            This operation respect negation. It does not move any operator accross a negation.
         '''
         complement_op = FOL.AND if op == FOL.OR else FOL.AND
         if FOL.is_quantifier(term[0]):
