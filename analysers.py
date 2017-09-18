@@ -277,7 +277,7 @@ class DependencyTreeBeltagyLocalAPI:
         def __str__(self):
             return '%s -%s-> %s' %(self.dep.text, self.rel, self.gov.text)
         def __repr__(self):
-            return self__str__()
+            return self.__str__()
         def __hash__(self):
             return (self.dep, self.rel, self.gov).__hash__()
 
@@ -384,15 +384,13 @@ class DependencyTreeBeltagyLocalAPI:
         return [LF(fol)]
 
 
-class DependencyTreeBeltagySpaCyLocalAPI(DependencyTreeBeltagySpaCyLocalAPI):
+class DependencyTreeBeltagySpaCyLocalAPI(DependencyTreeBeltagyLocalAPI):
     #TODO add specific tag lists
     def _init_parser(self, model = config.get('syntatic_local', 'spacy_model'), *args, **kargs):
         self.name = 'depTreeBeltagySpacy'
         self.parser = spacy.load(model)
 
     def _parse_sentence_tree(self, sentence):
-        tree = self.parser(sentence.decode('utf-8'))
-        parsing = self.parser.parseToStanfordDependencies(sentence.decode('utf-8'))
         dependencies = self.parser(sentence.decode('utf-8'))
         tree = dict()
 
@@ -408,7 +406,8 @@ class DependencyTreeBeltagySpaCyLocalAPI(DependencyTreeBeltagySpaCyLocalAPI):
                 struct_dep.gov = gov
                 struct_dep.rel = rel
             parent = tree.get(gov, self._Dependence('ROOT',gov,gov)) #if there is not a gov representation, create it
-            parent.children.append(struct_dep)
+            if gov != dep:
+                parent.children.append(struct_dep)
             tree[gov] = parent
 
         for dep in tree:
