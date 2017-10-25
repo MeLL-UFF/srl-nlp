@@ -63,7 +63,7 @@ class FrameXMLParser:
                     curr_tag, curr_text = tag_stack.pop()
                     curr_name, attrib = in_tag_pattern.findall(curr_tag)[0]
 
-                    logger.debug('Last_tag %s, attrib %s, tag %s', curr_name, attrib, name)
+                    logger.debug('Last_tag \'%s\', attrib \'%s\', tag \'%s\'', curr_name, attrib, name)
                     if name == curr_name:
                         #print 'name is matching!!'
                         if name == 'ex':
@@ -190,9 +190,8 @@ class NetXMLParser:
         for count, file_name in enumerate(ls(frames_path)):
             if file_name.endswith('.xml'):
                 file_path = path.join(frames_path, file_name)
-                logger.debug('%3d reading frame "%s"',
-                             ((count+1)*100)/len(files_names),
-                             file_name)
+                logger.info('{percent:3d}% reading frame "{absolute}"'.format(percent  = ((count+1)*100)/len(files_names),
+                                                                              absolute = file_name))
                 frame = self._fparser.parse(file_path)
                 frames[frame.name] = frame
 
