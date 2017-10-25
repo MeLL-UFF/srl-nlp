@@ -42,7 +42,7 @@ class FrameXMLParser:
         tag_pattern = compile('(?:{open}(.*?){close})|(.+?(?=(?:{open})|^))'.format(open = open_tag, close = close_tag), DOTALL)
         in_tag_pattern = compile('\s*((?:\w|-|_)+)\s*(?:name="(\w*)")?\s*', DOTALL)
 
-        text        = comment_pattern.sub('', xmlNode.text)
+        text        = comment_pattern.sub('', xmlNode.text)# if xmlNode.text != None else ''
         tokens      = tag_pattern.findall(text)
         tag_stack   = []
 
@@ -50,8 +50,10 @@ class FrameXMLParser:
         tag_buffer  = description
         text_buffer = ''
         content     = None
-        logger.debug('SENTENCE:', xmlNode.text)
-        logger.debug('TOKENS:', tokens)
+
+        logger.debug('SENTENCE:%s', xmlNode.text)
+        logger.debug('TOKENS:%s', tokens)
+
         for tag, text in tokens:
             #print "tag:'%s', text: '%s'" %(tag, text)
             if len(tag) != 0: #if it is a tag
@@ -61,7 +63,7 @@ class FrameXMLParser:
                     curr_tag, curr_text = tag_stack.pop()
                     curr_name, attrib = in_tag_pattern.findall(curr_tag)[0]
 
-                    logger.debug('Last_tag %s, attrib %s, tag %s' %(curr_name, attrib, name))
+                    logger.debug('Last_tag %s, attrib %s, tag %s', curr_name, attrib, name)
                     if name == curr_name:
                         #print 'name is matching!!'
                         if name == 'ex':
@@ -168,7 +170,6 @@ class FrameXMLParser:
                 LUs.append(self._parse_lu(child))
 
             elif child.tag.endswith('definition'):
-
                 definition = self._parse_description(child)
                 #print 'TEXT:', definition#child.text
 
@@ -213,12 +214,15 @@ def main(argv):
     args = parse_args(argv, add_logger_args)
     config_logger(args)
     print 'I am parsing'
-    f = FrameXMLParser()
+    parser = NetXMLParser()
+    fn = parser.parse('fndata-1.7')
+    print '#Frames in FrameNet:', len(fn)
+    parser1 = FrameXMLParser()
     class A(): pass
     a = A()
     definition = '<def-root><fen>Authorities</fen> charge a <fen>Suspect</fen>, who is under suspicion of having committed a crime (the <fen>Charges</fen>), and take him/her into custody.<ex><fex name="Authorities">The police</fex> <t>arrested</t> <fex name="Suspect">Harry</fex> <fex name="Chrg">on charges of manslaughter</fex>.</ex></def-root>'
     setattr(a,'text', definition)
-    d = f._parse_description(a, escapeHTML = False)
+    d = parser1._parse_description(a, escapeHTML = False)
     assert str(d) == definition
     print 'Matching worked'
 
