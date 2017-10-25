@@ -6,7 +6,7 @@ from os            import path, walk as walkdir
 from sys           import argv
 from json          import load,dump
 from regex         import compile
-from learner       import Aleph, ProbLog, run_tree
+from learner       import Aleph, ProbFoil, run_tree
 from logger_config import config_logger, add_logger_args
 import logging
 import argparse
@@ -63,11 +63,11 @@ def _runAleph_out_parser(dir, file_list, prefix = None, logger = logging.getLogg
         d.update({complete_file_name: Aleph.process_out(complete_file_name)})
 
 def _runProbLog_out_parser(dir, file_list, prefix = None, logger = logging.getLogger(__name__), d = {}):
-    file_name = ProbLog._find_file(prefix, None, file_list, logger)
+    file_name = ProbFoil._find_file(prefix, None, file_list, logger)
     if file_name:
         complete_file_name = path.join(dir, file_name)
         logger.info('File name: %s', complete_file_name)
-        d.update({complete_file_name: ProbLog.process_out(complete_file_name)})
+        d.update({complete_file_name: ProbFoil.process_out(complete_file_name)})
 
 def parse_args(argv = argv, add_logger_args = lambda x: None):
     parser = argparse.ArgumentParser(description = 'Parses the ourput of an experiment tree (Aleph only right now)')

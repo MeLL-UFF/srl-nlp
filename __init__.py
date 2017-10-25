@@ -1,1 +1,1 @@
-__all__ = ['analysers', 'logical_form',  'fol', 'parse_results', 'process_docs', 'write_experiments']
+__all__ = ['analysers', 'logicalform',  'fol', 'parse_results', 'process_docs', 'write_experiments']
