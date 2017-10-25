@@ -14,6 +14,7 @@ import argparse
 
 logger = logging.getLogger(__name__)
 
+
 class FrameXMLParser:
     '''Parses a XML file describing a Frame into an actual Frame
        FrameNet version: 1.7'''
@@ -37,17 +38,18 @@ class FrameXMLParser:
         return fe
 
     def _parse_description(self, xmlNode, open_tag = '<', close_tag = '>',end_tag_marker = '/', escapeHTML = False):
-        tag_pattern = compile('(?:{0}(.*?){1})|(.+?(?=(?:{0})|^))'.format(open_tag, close_tag), DOTALL)
+        comment_pattern = compile('{open}!--.*?--{close}'.format(open = open_tag, close = close_tag), DOTALL)
+        tag_pattern = compile('(?:{open}(.*?){close})|(.+?(?=(?:{open})|^))'.format(open = open_tag, close = close_tag), DOTALL)
         in_tag_pattern = compile('\s*((?:\w|-|_)+)\s*(?:name="(\w*)")?\s*', DOTALL)
 
-        tokens      = tag_pattern.findall(xmlNode.text)
+        text        = comment_pattern.sub('', xmlNode.text)
+        tokens      = tag_pattern.findall(text)
         tag_stack   = []
 
         description = Description(escapeHTML=escapeHTML)
         tag_buffer  = description
         text_buffer = ''
         content     = None
-        is_comment  = False
         #print 'SENTENCE:', xmlNode.text
         #print 'TOKENS:', tokens
         for tag, text in tokens:
@@ -57,59 +59,57 @@ class FrameXMLParser:
                 name = name.strip()
                 #print 'NAME %s' %name
                 if tag.startswith(end_tag_marker):
-                    if not is_comment:
-                        curr_tag, curr_text = tag_stack.pop()
-                        curr_name, attrib = in_tag_pattern.findall(curr_tag)[0]
+                    curr_tag, curr_text = tag_stack.pop()
+                    curr_name, attrib = in_tag_pattern.findall(curr_tag)[0]
 
-                        #print 'CURNAME %s, attrib %s, name %s' %(curr_name, attrib, name)
-                        if name == curr_name:
-                            #print 'name is matching!!'
-                            if name == 'ex':
-                                if content != None:
-                                    tag_buffer.add_text(content)
-                                description.add_element(tag_buffer)
-                                tag_buffer = description
-                            elif name == 'fex':
-                                tag_buffer.add_element(Description.FEeXample(attrib, content, escapeHTML=escapeHTML))
-                            elif name == 'fen':
-                                tag_buffer.add_element(Description.FEName(content, escapeHTML=escapeHTML))
-                            elif name == 't':
-                                tag_buffer.add_element(Description.T(content, escapeHTML=escapeHTML))
-                            elif name == 'm':
-                                tag_buffer.add_element(Description.M(content, escapeHTML=escapeHTML))
-                            elif name == 'ment':
-                                tag_buffer.add_element(Description.Ment(content, escapeHTML=escapeHTML))
-                            elif name == 'gov':
-                                tag_buffer.add_element(Description.Gov(content, escapeHTML=escapeHTML))
-                            elif name == 'em':
-                                tag_buffer.add_element(Description.EM(content, escapeHTML=escapeHTML))
-                            elif name == 'supp':
-                                tag_buffer.add_element(Description.Supp(content, escapeHTML=escapeHTML))
-                            elif name == 'target':
-                                tag_buffer.add_element(Description.Target(content, escapeHTML=escapeHTML))
-                            elif name == 'def-root':
-                                pass
-                            elif name == 'x':
-                                pass
-                            else:
-                                logger.debug('Weird tag "{name}" from text'.format(name = name, text= xmlNode.text))
-                                #raise Exception('{text}\nWeird tag "{tag}"'.format(tag = name, text= xmlNode.text))
-                        else:
-                            raise Exception('{text}\n{name} != {cname}'.format(name = name, cname =curr_name, text= xmlNode.text))
-                else:
-                    if name.startswith('--'):
-                        is_comment = not is_comment
-                    if not is_comment:
-                        tag_stack.append((tag, text))
-                        if content != None:
-                            tag_buffer.add_text(content)
+                    #print 'CURNAME %s, attrib %s, name %s' %(curr_name, attrib, name)
+                    if name == curr_name:
+                        #print 'name is matching!!'
                         if name == 'ex':
-                            tag_buffer = Description.EXample(escapeHTML=escapeHTML)
-                        if tag.endswith(end_tag_marker):
-                            tag_stack.pop()
+                            if content != None:
+                                tag_buffer.add_text(content)
+                            description.add_element(tag_buffer)
+                            tag_buffer = description
+                        elif name == 'fex':
+                            tag_buffer.add_element(Description.FEeXample(attrib, content, escapeHTML=escapeHTML))
+                        elif name == 'fen':
+                            tag_buffer.add_element(Description.FEName(content, escapeHTML=escapeHTML))
+                        elif name == 't':
+                            tag_buffer.add_element(Description.T(content, escapeHTML=escapeHTML))
+                        elif name == 'm':
+                            tag_buffer.add_element(Description.M(content, escapeHTML=escapeHTML))
+                        elif name == 'ment':
+                            tag_buffer.add_element(Description.Ment(content, escapeHTML=escapeHTML))
+                        elif name == 'gov':
+                            tag_buffer.add_element(Description.Gov(content, escapeHTML=escapeHTML))
+                        elif name == 'em':
+                            tag_buffer.add_element(Description.EM(content, escapeHTML=escapeHTML))
+                        elif name == 'supp':
+                            tag_buffer.add_element(Description.Supp(content, escapeHTML=escapeHTML))
+                        elif name == 'target':
+                            tag_buffer.add_element(Description.Target(content, escapeHTML=escapeHTML))
+                        elif name == 'def-root':
+                            pass
+                        elif name == 'x':
+                            pass
+                        else:
+                            logger.warning('Unknown tag "{tag}"'.format(tag = name))
+                            #raise Exception('{text}\nWeird tag "{tag}"'.format(tag = name, text= xmlNode.text))
+                    else:
+                        raise Exception('Tag is not properly closed: {text}\n{name} != {cname}'.format(name = name, cname =curr_name, text= xmlNode.text))
+                else:
+                    tag_stack.append((tag, text))
+                    if content != None:
+                        tag_buffer.add_text(content)
+                    if name == 'ex':
+                        tag_buffer = Description.EXample(escapeHTML=escapeHTML)
+                    if tag.endswith(end_tag_marker):
+                        tag_stack.pop()
                 content = None
             else:
                 content = text.encode('utf-8')
+        if len(tag_stack) > 0:
+            logger.warning('Not all tags closed!{stack}'.format(stack = tokens))
         return description
 
     def _parse_lexeme(self, xmlNode):
@@ -211,8 +211,8 @@ def parse_args(argv = argv, add_logger_args = lambda x: None):
     return args
 
 def main(argv):
-    #args = parse_args(argv)
-    #config_logger(args)
+    args = parse_args(argv, add_logger_args)
+    config_logger(args)
     print 'I am parsing'
     f = FrameXMLParser()
     class A(): pass
