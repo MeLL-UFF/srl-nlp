@@ -55,7 +55,7 @@ class Description:
         def __hash__(self):
             return (self.name, self.description).__hash__()
 
-        def __str__(self, escapeHTML = None):
+        def __str__(self, escapeHTML = False):
 
             if escapeHTML or self.escapeHTML:
                 open_tag = '&lt;'
@@ -76,7 +76,7 @@ class Description:
             self.content = []
             self.escapeHTML = escapeHTML
 
-        def __str__(self, escapeHTML = None):
+        def __str__(self, escapeHTML = False):
             if escapeHTML or self.escapeHTML:
                 return '&lt;ex&gt;%s&lt;/ex&gt;' %''.join(map(str, self.content))
             else:
@@ -97,7 +97,7 @@ class Description:
         def add_element(self, element):
             self.content.append(element)
 
-    class Special:
+    class Special(object):
         def __init__(self, content, name = 'special', escapeHTML = False):
             self.name = name
             self.content = content
@@ -109,7 +109,7 @@ class Description:
         def __hash__(self):
             return (self.name, self.content).__hash__()
 
-        def __str__(self, escapeHTML = None):
+        def __str__(self, escapeHTML = False):
             if escapeHTML or self.escapeHTML:
                 open_tag = '&lt;'
                 close_tag = '&gt;'
@@ -125,32 +125,32 @@ class Description:
             return str(self)
 
     class T(Special):
-        def __str__(self, content, escapeHTML = False):
-            super(content,'t',escapeHTML)
+        def __init__(self, content, escapeHTML = False):
+            super(self.__class__, self).__init__(content,'t',escapeHTML)
 
     class M(Special):
-        def __str__(self, content, escapeHTML = False):
-            super(content,'m',escapeHTML)
+        def __init__(self, content, escapeHTML = False):
+            super(self.__class__, self).__init__(content,'m',escapeHTML)
 
     class Ment(Special):
-        def __str__(self, content, escapeHTML = False):
-            super(content,'ment',escapeHTML)
+        def __init__(self, content, escapeHTML = False):
+            super(self.__class__, self).__init__(content,'ment',escapeHTML)
 
     class Gov(Special):
-        def __str__(self, content, escapeHTML = False):
-            super(content,'gov',escapeHTML)
+        def __init__(self, content, escapeHTML = False):
+            super(self.__class__, self).__init__(content,'gov',escapeHTML)
 
     class EM(Special):
-        def __str__(self, content, escapeHTML = False):
-            super(content,'em',escapeHTML)
+        def __init__(self, content, escapeHTML = False):
+            super(self.__class__, self).__init__(content,'em',escapeHTML)
 
     class Supp(Special):
-        def __str__(self, content, escapeHTML = False):
-            super(content,'supp',escapeHTML)
+        def __init__(self, content, escapeHTML = False):
+            super(self.__class__, self).__init__(content,'supp',escapeHTML)
 
     class Target(Special):
-        def __str__(self, content, escapeHTML = False):
-            super(content,'target',escapeHTML)
+        def __init__(self, content, escapeHTML = False):
+            super(self.__class__, self).__init__(content,'target',escapeHTML)
 
 
     def __init__(self, escapeHTML = False):
@@ -181,7 +181,7 @@ class Description:
     def __contains__(self, element):
         return element in self.fens or element in self.specials
 
-    def __str__(self, escapeHTML = None):
+    def __str__(self, escapeHTML = False):
         if escapeHTML or self.escapeHTML:
             return '&lt;def-root&gt;%s&lt;/def-root&gt;' % (''.join(map(str, self.content)))
         else:
