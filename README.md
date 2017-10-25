@@ -8,6 +8,7 @@ This project aims to process structured representations of texts through SRL to 
 * Python 2
 * Problog, ProbFoil > 2.1
 * Aleph
+* Prolog package sgml
 
 ## Installing Requirements
 * Problog, ProbFoil (I recommend pip for this task)
@@ -17,8 +18,8 @@ This project aims to process structured representations of texts through SRL to 
 * Boxer and C&C Tools
     Run make XXX
     #TODO: makefile that installs boxer and the C&C Tools
-* If you want to run all the test units, install Pytest and then run it:
-```shell
-    sudo pip install pytest
-    pytest
-```
+* If you want to run all the **test units**, install Pytest and then run it:
+    ```shell
+        sudo pip install -U pytest
+        pytest
+    ```
