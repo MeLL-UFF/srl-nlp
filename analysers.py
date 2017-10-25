@@ -267,7 +267,7 @@ class DependencyTreeBeltagyLocalAPI:
     _drop_tags  = ('det', 'det:predet', 'neg', 'case', 'dislocated', 'remnant', 'discourse',
                    'aux', 'auxpass', 'cop', 'mark', 'punct', 'cc', 'cc:preconj')
     _merge_tags = ('nmod:npmod', 'amod', 'advmod', 'compound', 'compound:prt', 'name', 'mwe',
-                   'foreign', 'goeswith', 'prt', 'nn')
+                   'foreign', 'goeswith', 'prt', 'nn','prep_at')
     _new_tags   = ('nsubj', 'nsubjpass', 'dobj', 'iobj', 'csubj', 'csubjpass', 'ccomp',
                    'xcomp', 'nummod', 'appos', 'nmod', 'nmod:poss', 'nmod:tmod', 'acl',
                    'acl:relcl', 'advcl', 'list', 'parataxis', 'reparandum', 'vocative',
