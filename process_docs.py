@@ -7,7 +7,7 @@ from fol                     import FOL
 from sys                     import argv,stderr
 from random                  import shuffle
 from analysers.boxer         import TokenizerLocalAPI, CandCLocalAPI, BoxerLocalAPI
-from analysers.depencenytree import DependencyTreeLocalAPI
+from analysers.depencytree   import DependencyTreeLocalAPI
 from logger_config           import config_logger, add_logger_args
 import json
 import logging
