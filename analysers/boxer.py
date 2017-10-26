@@ -224,39 +224,3 @@ class BoxerWebAPI(BoxerAbstract):
 
     def _parsed2FOLstring(self, parsed):
         return  post(self.url, data = parsed).text.strip()
-
-
-class DependencyTreeLocalAPI:
-    def __init__(self, model = config.get('syntatic_local', 'spacy_model')):
-        self.name = ' '.join(['depTree', model])
-        self.parser = spacy.load(model)
-        self.count = 0
-
-    def sentence2LF(self, sentence, source = None, id = None, *args, **kargs):
-        '''Translates an english sentence into its LF representation
-        str -> LF
-        '''
-        tree = self.parser(sentence.decode('utf-8'))
-        out  = []
-        ids  = dict([(w,'depTree%d' %(self.count+i)) for i, w in enumerate(tree)])
-        format_text = lambda x: x.replace("'", "\\'").lower()
-        self.count += len(ids)
-        if not (source == None or id == None):
-            doc_ref = '%s, %s, ' %(source, id)
-        else:
-            doc_ref = ''
-        for w, i in ids.iteritems():
-            out.append('%s(%s%s, \'%s\')' % (format_text(w.pos_), doc_ref, i, format_text(w.text)))
-            if w.text.startswith("@"):
-                out.append('entity(%s%s)' % (doc_ref, i))
-            if w.head != w:
-                out.append('%s(%s%s, %s)' % (w.dep_, doc_ref, i, ids[w.head]))
-            else:
-                out.append('sentence_root(%s%s)' %(doc_ref, i))
-        #out = map(lambda x: x.decode('utf-8').encode("utf-8"), out)
-        out = (",".join(out)).encode("utf-8")
-        text = '%s(%s).' %(FOL.AND, out)
-        fol = FOL(text)
-        #print '\n*:', text
-        #print '\n>',fol
-        return [LF(fol)]
