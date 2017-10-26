@@ -1,7 +1,6 @@
 dailymail_kbs/**
 stanford_parser/stanford-parser-*/*
 stanford_parser/*.ser
-framenet/sgml_xml/**
 framenet/fndata**
 framenet/zip
 **.pyc
