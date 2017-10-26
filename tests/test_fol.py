@@ -68,7 +68,7 @@ def test_skolemization_someA_and_allB():
 #TODO more skolemization tests
 
 #TODO more prenexform test
-sdef test_prenexform_someA_and_someB():
+def test_prenexform_someA_and_someB():
     '''some(A,and(4,all(B,a(4)))) -> some(A,some(B,and(4,a(4))))'''
     f  = FOL('')
     f.info = ['some', ['A'], ['and', ['b'], ['some', ['B'], ['a', ['c']]]]]

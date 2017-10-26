@@ -1,7 +1,7 @@
 '''
 Test unit for the fol.py module
 '''
-from analysers import BoxerLocalAPI, BoxerWebAPI
+from analysers.boxer import BoxerLocalAPI, BoxerWebAPI
 
 #UTILS
 

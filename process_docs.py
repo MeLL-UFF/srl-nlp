@@ -2,12 +2,13 @@
 '''
 Runs the pipeline in a predefined format of documents
 '''
-from os            import listdir, path
-from fol           import FOL
-from sys           import argv,stderr
-from random        import shuffle
-from analysers     import TokenizerLocalAPI, CandCLocalAPI, BoxerLocalAPI, DependencyTreeLocalAPI
-from logger_config import config_logger, add_logger_args
+from os                      import listdir, path
+from fol                     import FOL
+from sys                     import argv,stderr
+from random                  import shuffle
+from analysers.boxer         import TokenizerLocalAPI, CandCLocalAPI, BoxerLocalAPI
+from analysers.depencenytree import DependencyTreeLocalAPI
+from logger_config           import config_logger, add_logger_args
 import json
 import logging
 import argparse
