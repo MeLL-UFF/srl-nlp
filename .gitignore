@@ -7,3 +7,6 @@ framenet/zip
 **.pyc
 **.txt
 .cache/**
+tmp.py
+usp-code/**
+wordnet/**
