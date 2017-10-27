@@ -3,22 +3,6 @@ Test unit for the fol.py module
 '''
 from fol import FOL
 
-#UTILS
-
-# def list_eq(x,y):
-#     '''Compares two lists and checking if all their elements are equivalent'''
-#     if type(x) != list and type(x) != tuple:
-#         if type(x) == type(y):
-#             if x == y:
-#                 return True
-#         return False
-#     if len(x) != len(y):
-#         return False
-#     for i in range(len(x)):
-#         if not list_eq(x[i],y[i]):
-#             return False
-#     return True
-
 #TESTS
 
 def test_split_someA_with_a_and():
