@@ -163,8 +163,8 @@ class FOL:
             term = self.info
         if len(term) < 2:
             return term
-        term = FOL._pushNegation(term)
-        term = FOL._pushQuantifiers(term)
+        term = FOL._push_negation(term)
+        term = FOL._push_quantifiers(term)
         if self.info[0] == header:
             self.info[-1] = term
         else:
@@ -228,7 +228,7 @@ class FOL:
         FOL._push_operand(self.info, op, aggregate)
 
     @staticmethod
-    def _pushQuantifiers(term, root = None):
+    def _push_quantifiers(term, root = None):
         '''Moves all quantifiers to the begining of the formula.'''
         try:
             if root == None:
@@ -255,14 +255,14 @@ class FOL:
 
     #tries to strip all quantifiers and operations from negation
     @staticmethod
-    def _pushNegation(term):
+    def _push_negation(term):
         '''Moves all negation to the 'leaf' terms.'''
         if len(term) < 2:
             return term
         if term[0] == FOL.NOT:
             term = FOL._negate(term[1])
         for pos, child in enumerate(term[1:]):
-            term[1+pos] = FOL._pushNegation(child)
+            term[1+pos] = FOL._push_negation(child)
         return term
 
     @staticmethod
