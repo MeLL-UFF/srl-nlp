@@ -77,22 +77,22 @@ class BoxerAbstract:
     _expansion_patterns = [
         #pattern:           lambda p_elems, terms: tuple([predicate, [term1], ..., [termN]],...)  
         (r'^pernam(\w*)',        lambda p_elems, terms: (['person']    + terms,
-                                                        ['noun']       + terms + [p_elems])),
+                                                        ['noun']       + terms + p_elems)),
         (r'^geonam\d?(\w*)',     lambda p_elems, terms: (['place']     + terms,
-                                                        ['noun']       + terms + [p_elems])),
+                                                        ['noun']       + terms + p_elems)),
         (r'^\w\d+(?:A|actor)',   lambda p_elems, terms: (['actor']     + terms,)),
         (r'^r\d+(?:T|t)heme',    lambda p_elems, terms: (['theme']     + terms,)),
         (r'^r\d+(?:T|t)opic',    lambda p_elems, terms: (['topic']     + terms,)),
-        (r'^r\d+(\w*)',          lambda p_elems, terms: (['relation']  + terms + [p_elems],)),
+        (r'^r\d+(\w*)',          lambda p_elems, terms: (['relation']  + terms + p_elems,)),
         (r'^n\d+numeral',        lambda p_elems, terms: (['numeral']   + terms,)),
-        (r'^n\d+(.*)',           lambda p_elems, terms: (['noun']      + terms + [p_elems],)),
-        (r'^t_X+(\d+)',          lambda p_elems, terms: (['number']    + terms + [p_elems],)),
-        (r'^c(\d+)number',       lambda p_elems, terms: (['noun']      + terms + [p_elems],)),
+        (r'^n\d+(.*)',           lambda p_elems, terms: (['noun']      + terms + p_elems,)),
+        (r'^t_X+(\d+)',          lambda p_elems, terms: (['number']    + terms + p_elems,)),
+        (r'^c(\d+)number',       lambda p_elems, terms: (['noun']      + terms + p_elems,)),
         (r'^c\d+numeral',        lambda p_elems, terms: (['numeral']   + terms,)),
-        (r'^c\d+(.*)',           lambda p_elems, terms: (['cnoun']     + terms + [p_elems],)),
-        (r'^a\d+(.*)',           lambda p_elems, terms: (['adjective'] + terms + [p_elems],)),
+        (r'^c\d+(.*)',           lambda p_elems, terms: (['cnoun']     + terms + p_elems,)),
+        (r'^a\d+(.*)',           lambda p_elems, terms: (['adjective'] + terms + p_elems,)),
         (r'^v\d+c64placeholder', lambda p_elems, terms: (['action']    + terms,)),
-        (r'^v\d+(.*)',           lambda p_elems, terms: (['verb']      + terms + [p_elems],)),
+        (r'^v\d+(.*)',           lambda p_elems, terms: (['verb']      + terms + p_elems,)),
     ]
 
     def __init__(self):
@@ -140,7 +140,8 @@ class BoxerAbstract:
         for pattern, parser in BoxerAbstract._expansion_patterns:
             matching = match(pattern, predicate)
             if matching:
-                out = parser(list(matching.groups()), list(args))
+                pred_elems = map(lambda x: [x.lower()], matching.groups())
+                out = parser(pred_elems, list(args))
                 logger.debug(' {exp} :- {fol}'.format(exp = out, fol = fol))
                 return out
         return None
@@ -220,6 +221,7 @@ class BoxerWebAPI(BoxerAbstract):
     def __init__(self, url = config.get('semantic_soap', 'boxer'), expand_predicates = True):
         self.url = url
         self.name = 'boxer'
+        self.expand_predicates = expand_predicates
 
     def _parse_sentence(self, sentence):
         return sentence
