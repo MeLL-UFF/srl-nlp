@@ -36,7 +36,7 @@ class Aleph:
                 patttern: regex pattern to parse a line
                 target:   target predicate to look
             '''
-            super(ProcessNegatives,self).__init__(source_file_path, *args, **kargs)
+            super(Aleph.ProcessNegatives,self).__init__(source_file_path, *args, **kargs)
             target = kargs.get('target', 'answer')
             pat = compile(kargs.get('pattern', '%s\s*\(\s*(\d+)\s*,\s*[^\)]+\s*\)\s*.\s*' % target))
             self.logger.info('Reading from "%s"',source_file_path)
@@ -70,7 +70,7 @@ class Aleph:
                 patttern: regex pattern to parse a line
                 target:   target predicate to look
             '''
-            super(ProcessBase,self).__init__(source_file_path, *args, **kargs)
+            super(Aleph.ProcessBase,self).__init__(source_file_path, *args, **kargs)
             
             self.logger.info('Reading from "%s"',source_file_path)
             sources = kargs.get('sources',[])
@@ -168,7 +168,7 @@ class Aleph:
             '''
             Process the fact files (*.f)
             '''
-            super(ProcessFacts,self).__init__(source_file_path, *args, **kargs)
+            super(Aleph.ProcessFacts,self).__init__(source_file_path, *args, **kargs)
             with open(source_file_path, 'r') as source:
                 for line in source:
                     self.lines.append(line.strip())
@@ -188,7 +188,7 @@ class ProbLog:
             if not kargs.has_key('pattern'):
                 target = kargs.get('target', 'answer')
                 kargs['pattern'] = '\d*\.?\d*\s*::\s*%s\s*\(\s*(\d+)\s*,\s*[^\)]+\s*\)\s*.\s*' % target
-            super(ProcessNegatives,self).__init__(source_file_path, *args, **kargs)
+            super(Aleph.ProcessNegatives,self).__init__(source_file_path, *args, **kargs)
             
     class ProcessBase(ProcessFile):
         def __init__(self, source_file_path, *args, **kargs):
@@ -198,7 +198,7 @@ class ProbLog:
                 patttern: regex pattern to parse a line
                 target:   target predicate to look
             '''
-            super(ProcessFacts,self).__init__(source_file_path, *args, **kargs)
+            super(Problog.ProcessBase,self).__init__(source_file_path, *args, **kargs)
             with open(source_file_path, 'r') as source:
                 for line in source:
                     self.lines.append(line.strip())
@@ -208,7 +208,7 @@ class ProbLog:
             '''
             Process the fact files (*.f)
             '''
-            super(ProcessFacts,self).__init__(source_file_path, *args, **kargs)
+            super(Problog.ProcessFile,self).__init__(source_file_path, *args, **kargs)
             with open(source_file_path, 'r') as source:
                 for line in source:
                     self.lines.append(line.strip())
@@ -275,13 +275,13 @@ def write_exp(conf, kb, base, targets, negatives, folder_path, engine, copy_kb =
                 d[i].update(conf[0][param].get(i,{}))
             param_path = path.join(folder_path, param)
             _mkdir(param_path)
-            write_exp(conf[1:], kb, base, targets, negatives, param_path,
+            write_exp(conf[1:], kb, base, targets, negatives, param_path, engine,
                       copy_kb, prefix, d)
 
 
 def parse_args(argv = argv, add_logger_args = lambda x: None):
     parser = argparse.ArgumentParser(description = 'Generates or updates all the experiments based on the current state of knowledge base')
-    parser.add_argument('kb', help = 'the base file')
+    parser.add_argument('kb', help = 'the knowledge base file')
     parser.add_argument('base', help = 'the base file')
     parser.add_argument('negatives', help = 'the negative examples file')
     parser.add_argument('facts', help = 'the target examples file')
