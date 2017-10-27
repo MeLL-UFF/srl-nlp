@@ -19,8 +19,12 @@ config.read(path.join(_package_directory, "../external.conf"))
 
 class Process:
     '''Intended to be an abstract class
-    Its subclasses must have an attribute "params" of the type list
+    Its subclasses must have an attribute "params" of the type list and a string attribute "path_to_bin"
     '''
+    def __init__(self, path_to_bin, *params):
+        self.path_to_bin = path_to_bin
+        self.params      = params
+
     def _process(self, input_text, shell = False):
         with TemporaryFile() as tmp:
             tmp.write(input_text)
@@ -70,24 +74,26 @@ class CandCLocalAPI(Process):
 class BoxerAbstract:
     '''Do not initialize this class. Use BoxerLocalAPI or BoxerWebAPI instead.
     '''
-    _expansion_patterns = {
-        # pattern : lambda variables...: ([predicate, term1,... termN], ...)
-        r'^n\d+c64placeholder': lambda  : (['who', []]),
-        r'^n\d+numeral':        lambda  : (['numeral',[]]),
-        r'^n\d+(.*)':           lambda x: (['noun', [x]],),
-        r'^t_X+(\d+)':          lambda x: (['raw_number', [x]],),
-        r'^c(\d+)number':       lambda x: (['number', [x]],),
-        r'^c\d+numeral':        lambda  : (['numeral',[]]),
-        r'^c\d+(.*)':           lambda x: (['cnoum', [x]],),
-        r'^a\d+(.*)':           lambda x: (['adjective', [x]],),
-        r'^\w\d+(?:A|actor)':   lambda  : (['actor',[]],),
-        r'^v\d+c64placeholder': lambda  : (['action',[]],),
-        r'^v\d+(.*)':           lambda x: (['verb', [x]],),
-        r'^r\d+T|theme':        lambda  : (['theme',[]],),
-        r'^r\d+T|topic':        lambda  : (['topic',[]],),
-        r'^r\d+(.*)':           lambda x: (['relation', [x]],),
-        r'^geonam\d(.*)':       lambda x: (['geoname', [x]],)
-    }
+    _expansion_patterns = [
+        #pattern:           lambda p_elems, terms: tuple([predicate, [term1], ..., [termN]],...)  
+        (r'^pernam(\w*)',        lambda p_elems, terms: (['person']    + terms,
+                                                        ['noun']       + terms + [p_elems])),
+        (r'^geonam\d?(\w*)',     lambda p_elems, terms: (['place']     + terms,
+                                                        ['noun']       + terms + [p_elems])),
+        (r'^\w\d+(?:A|actor)',   lambda p_elems, terms: (['actor']     + terms,)),
+        (r'^r\d+(?:T|t)heme',    lambda p_elems, terms: (['theme']     + terms,)),
+        (r'^r\d+(?:T|t)opic',    lambda p_elems, terms: (['topic']     + terms,)),
+        (r'^r\d+(\w*)',          lambda p_elems, terms: (['relation']  + terms + [p_elems],)),
+        (r'^n\d+numeral',        lambda p_elems, terms: (['numeral']   + terms,)),
+        (r'^n\d+(.*)',           lambda p_elems, terms: (['noun']      + terms + [p_elems],)),
+        (r'^t_X+(\d+)',          lambda p_elems, terms: (['number']    + terms + [p_elems],)),
+        (r'^c(\d+)number',       lambda p_elems, terms: (['noun']      + terms + [p_elems],)),
+        (r'^c\d+numeral',        lambda p_elems, terms: (['numeral']   + terms,)),
+        (r'^c\d+(.*)',           lambda p_elems, terms: (['cnoun']     + terms + [p_elems],)),
+        (r'^a\d+(.*)',           lambda p_elems, terms: (['adjective'] + terms + [p_elems],)),
+        (r'^v\d+c64placeholder', lambda p_elems, terms: (['action']    + terms,)),
+        (r'^v\d+(.*)',           lambda p_elems, terms: (['verb']      + terms + [p_elems],)),
+    ]
 
     def __init__(self):
         'abstract class, do not use this method'
@@ -131,15 +137,11 @@ class BoxerAbstract:
         predicate = fol[0]
         args = fol[1:]
         #print predicate, '-', len(args), '\n\n\n'
-        for pattern, parser in BoxerAbstract._expansion_patterns.iteritems():
+        for pattern, parser in BoxerAbstract._expansion_patterns:
             matching = match(pattern, predicate)
             if matching:
-                out = []
-                for p,a in parser(*matching.groups()):
-                    if len(a) > 0:
-                         out.append([p]+args+[a])
-                    else:
-                        out.append([p]+args)
+                out = parser(list(matching.groups()), list(args))
+                logger.debug(' {exp} :- {fol}'.format(exp = out, fol = fol))
                 return out
         return None
 

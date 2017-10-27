@@ -291,7 +291,28 @@ class FOL:
             out = info[0]
             if len(info) > 1:
                 out += '(%s)' % ','.join(map(FOL._str_aux, info[1:]))
-        return out  
+        return out
+
+    def __eq__(self, other):
+        if self is None or other is None:
+            if self is None and other is None:
+                return True
+            else:
+                return False
+        return self._eq_predicate(self.info, other.info)
+
+
+    def _eq_predicate(self, l_list,r_list):
+        if len(l_list) != len(r_list):
+            return False
+
+        for l,r in zip(l_list, r_list):
+            if str(l) and str(r):
+                if l != r:
+                    return False
+            else:
+                return self._eq_predicate(l,r)
+        return True
 
     def __repr__(self):
         return FOL._str_aux(self.info) + '.'
