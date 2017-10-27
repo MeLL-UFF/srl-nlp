@@ -129,15 +129,16 @@ class FOL:
             term = self.info
         #Find all existential variables
         oldTerm = None
-        while term[0] == FOL.EXISTS or term[0] == FOL.ALL:
-            if removeForAlls or not term[0] == FOL.ALL:
-                if term[1][0] not in ignore:
+        while term[0] == FOL.EXISTS or term[0] == FOL.ALL: #if the predicate is a quantifier
+            if removeForAlls or term[0] != FOL.ALL: #if I should remove this quantifier
+                if term[1][0] not in ignore: #store variable to update it in the next predicates
                     constants.extend(term[1])
                 if oldTerm:
                     oldTerm[2] = term[2]
                 else:
-                    oldTerm = term
-                    self.info = term
+                    self.info = term[2]
+            else:
+                oldTerm = term
             term = term[2]
         frontier = [term]
         #search to replace every existential variable by a constant
@@ -149,6 +150,7 @@ class FOL:
                     child[0] = 'c%s' %constants.index(child[0]) #TODO universal constants
             else:
                 frontier.extend(child[1:])
+
 
     def convert2PrenexForm(self, header = 'fol'):
         '''Changes its structure to represent a FOL in Prenex Form
