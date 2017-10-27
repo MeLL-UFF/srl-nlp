@@ -299,10 +299,10 @@ class FOL:
                 return True
             else:
                 return False
-        return self._eq_predicate(self.info, other.info)
+        return FOL._eq_predicate(self.info, other.info)
 
-
-    def _eq_predicate(self, l_list,r_list):
+    @staticmethod
+    def _eq_predicate(l_list,r_list):
         if len(l_list) != len(r_list):
             return False
 
@@ -311,7 +311,7 @@ class FOL:
                 if l != r:
                     return False
             else:
-                return self._eq_predicate(l,r)
+                return FOL._eq_predicate(l,r)
         return True
 
     def __repr__(self):
