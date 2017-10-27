@@ -75,6 +75,13 @@ class LF:
             raise Exception('Ill-formed FOL:%s' %term)
         return out
 
+    def __eq__(self, other):
+        if self is None or other is None:
+            if self is None and other is None:
+                return True
+            else:
+                return False
+        return FOL._eq_predicate(self.info, other.info)
 
     def __repr__(self, and_t = ',', or_t = ';', supress_not = False):
         '''Return a str representation of the LF
