@@ -96,13 +96,13 @@ def test_expand_predicates():
                         ['some',['D'],
                          ['some',['E'],
                           ['and',
-                           ['relation', ['E'], ['B'], ['Time']],
+                           ['relation', ['E'], ['B'], ['time']],
                            ['and',
                             ['relation', ['E'], ['even']],
                             ['and',
                              ['adjective', ['D'], ['faster']],
                              ['and',
-                              ['relation', ['E'], ['D'], ['Manner']],
+                              ['relation', ['E'], ['D'], ['manner']],
                               ['and', ['actor', ['E'], ['C']], ['verb', ['E'],['run']]]]]]]]]]]]]
     boxer._expandFOLpredicates(fol)
     assert fol == expanded_fol
