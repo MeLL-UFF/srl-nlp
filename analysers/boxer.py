@@ -126,7 +126,7 @@ class BoxerAbstract:
         if expand_predicates:
             parse = lambda x: to_LF(BoxerAbstract._expandFOLpredicates(x))
         else:
-            parse = to_LF(x)
+            parse = to_LF
         out = map(parse, fol_list)
         # print out
         # raw_input()

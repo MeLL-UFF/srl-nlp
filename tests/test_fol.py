@@ -17,13 +17,14 @@ def test_someA_with_a_and():
     l1 = ['some', ['A'], ['and', ['b'], ['a', ['c']]]]
     assert FOL._eq_predicate(f1,l1)
 
-# def test_repeated_comma_error():
-#     '''some(A, and(b, a(c)))'''
-#     try:
-#         f1 = FOL('some(A, , and(b, a(c)))').info
-#     except:
-#         return
-#     assert False #No exception raised
+def test_repeated_comma_error():
+    '''some(A, and(b, a(c)))'''
+    fail = True
+    try:
+        f1 = FOL('some(A, , and(b, a(c)))').info
+    except:
+        fail = False
+    assert fail #No exception raised
 
 def test_someA_allBwith_a_and():
     '''some(A, all(B, and(b, a(c))))'''

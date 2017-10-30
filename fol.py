@@ -9,8 +9,11 @@ class FOL:
     AND    = 'and'
     OR     = 'or'
     ALL    = 'all'
-    def __init__(self, text, *extra_args):
-        self.info = FOL.parse(text.strip(), *extra_args)
+    def __init__(self, text = None, *extra_args):
+        if text is None:
+            self.info = []
+        else:
+            self.info = FOL.parse(text.strip(), *extra_args)
 
     @staticmethod
     def parse(text, *extra_args):
