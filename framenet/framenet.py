@@ -178,6 +178,9 @@ class Description:
     def has_fe_annotation(self):
         return len(self.fens) > 0
 
+    def get_fens(self):
+        return self.fens
+
     def __contains__(self, element):
         return element in self.fens or element in self.specials
 
@@ -204,10 +207,11 @@ class Frame:
             self.isCore     = isCore
 
         def __eq__(self, other):
-            return self.name == other.name and self.abbrev == other.abbrev
+            return self.name == other.name #and self.abbrev == other.abbrev
 
         def __hash__(self):
-            return (self.name, self.abbrev).__hash__()
+            return self.name.__hash__()
+            #return (self.name, self.abbrev).__hash__()
 
         def __str__(self):
             #return '<Frame "%s" %s>' %(self.name, dir(self))
@@ -273,7 +277,9 @@ class Frame:
         return False
 
     def in_transitive_closure(self, relationName, other):
-        '''Checks if a given frame, other, can be reached by a transitive closure of the relation.'''
+        '''
+        Checks if a given frame, other, can be reached by a transitive closure of
+        the relation.'''
         return self._in_transitive_closure(relationName, other, [])
 
 
@@ -281,6 +287,10 @@ class Frame:
         return self.name.__hash__()
 
     def __eq__(self, other):
+        '''
+        Two Frames are equal if they have the same name, the same Core Frame Elements,
+        and the same Peripheral Frame elements.
+        '''
         eq_core = [ fe in other.coreFEs for fe in self.coreFEs] + \
                   [fe in self.coreFEs for fe in other.coreFEs]
         eq_peripheral = [ fe in other.peripheralFEs for fe in self.peripheralFEs] + \
@@ -308,7 +318,7 @@ class Net:
         self._fes2frames = dict()
         for frame in self:    
             for fe in frame.coreFEs + frame.peripheralFEs:
-                self._fes[fe.name]   = fe
+                self._fes[fe.name]   = self._fes.get(fe.name, fe)
                 self._fes2frames[fe] = self._fes2frames.get(fe, [])
                 self._fes2frames[fe].append(frame)
 
@@ -322,15 +332,23 @@ class Net:
         return self.frames.itervalues()
 
     def __getitem__(self, item):
-        return self.frames[item]
+        '''Returns the Frames in the FrameNet by name'''
+        try:
+            return self.frames[item]
+        except KeyError as e:
+            raise KeyError('\'{item}\' is not a valid Frame name in this FrameNet'.format(item = item))
 
     def __len__(self):
         '''Number of Frames in the Network'''
         return len(self.frames)
 
     def getFrameElement(self, name):
-        '''Returns the Frames in the NetFrame by name'''
-        return self._fes[name]
+        '''Returns the Frame Elements in the FrameNet by name'''
+        try:
+            return self._fes[name]
+        except KeyError as e:
+            raise KeyError('\'{item}\' is not a valid Frame Element name in this FrameNet'.format(item = name))
+
 
     def getFrameElementFrames(self, fe, coreFEs = True, peripheralFEs = True):
         '''Get all frames where the given fe is a Frame Element
@@ -353,8 +371,8 @@ class Net:
             frames = filter(frame_filter, frames)
         return frames
 
-    def str(self):
+    def __str__(self):
         return '<FrameNet, %d frames>' %len(self)
 
-    def repr(self):
+    def __repr__(self):
         return str(self)

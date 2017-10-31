@@ -197,9 +197,6 @@ class NetXMLParser:
 
         return Net(frames)
 
-    def parse_frames(self, str_dir):
-        pass
-
 
 def parse_args(argv = argv, add_logger_args = lambda x: None):
     parser = argparse.ArgumentParser(description = 'Parses the XML files from FrameNet')
