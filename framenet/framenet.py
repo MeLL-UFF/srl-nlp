@@ -1,3 +1,5 @@
+import distance
+
 class Lexeme:
     def __init__(self, name = '', pos = '', breakBefore = True, headWord = True, text = ''):
         self.name        = name
@@ -304,6 +306,11 @@ class Frame:
 
 
 class Net:
+
+    _word_distances = {'levenshtein': distance.levenshtein,
+                       #'hamming': distance.hamming #the two strings must have the same length
+                       'jaccard': distance.jaccard,
+                       'sorensen': distance.sorensen}
     def __init__(self, frames):
         '''FrameNet python API
 
@@ -337,6 +344,43 @@ class Net:
             return self.frames[item]
         except KeyError as e:
             raise KeyError('\'{item}\' is not a valid Frame name in this FrameNet'.format(item = item))
+
+    # def __getslice__(self, term, max_elems):
+    #     return None ##TODO
+
+    def getMostSimilarFrames(self, word, qtd = 3, threshold = 1, distance = 'levenshtein'):
+        '''
+        Return an ordered list of the most similar Frames using the specified distance:
+
+        Implemented distances:
+            'levenshtein' : the minimum number of single-character edits
+            'jaccard'     : the size of the intersection divided by the size of
+                            the union of two label sets
+            'sorensen'    : (F1-score) 
+
+        self.getMostSimilarFrames(str, int, float, string) ->
+                    [ (socore1, Frame1), ..., (socoreN, FrameN)] # N <= qtd
+        '''
+        top_values = []
+        metric = self._word_distances[distance]
+        try:
+            distance = lambda x: metric(x.name, word, normalized = True)
+        except TypeError:
+            distance = lambda x: metric(x.name, word)
+        for frame in self:
+            score = min(map(distance, frame.LUs + [frame]))
+            if score <= threshold:
+                pos = 0
+                for other_score, _ in top_values:
+                    if score > other_score:
+                        pos = pos+1
+                    else:
+                        break
+                top_values.insert(pos, (score, frame))
+                if len(top_values) > qtd:
+                    top_values.pop()
+        return top_values
+
 
     def __len__(self):
         '''Number of Frames in the Network'''

@@ -3,3 +3,4 @@ probfoil>=2.1
 configparser>=3.5.0
 spacy>=1.8.2
 python>=2.7
+Distance>=0.1.3
