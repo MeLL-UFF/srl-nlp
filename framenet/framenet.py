@@ -307,7 +307,7 @@ class Frame:
 
 class Net:
 
-    _word_distances = {'levenshtein': distance.levenshtein,
+    _word_distances = {'levenshtein': lambda x,y: distance.levenshtein(x,y, normalized = True),
                        #'hamming': distance.hamming #the two strings must have the same length
                        'jaccard': distance.jaccard,
                        'sorensen': distance.sorensen}
@@ -363,10 +363,7 @@ class Net:
         '''
         top_values = []
         metric = self._word_distances[distance]
-        try:
-            distance = lambda x: metric(x.name, word, normalized = True)
-        except TypeError:
-            distance = lambda x: metric(x.name, word)
+        distance = lambda x: metric(x.name, word)
         for frame in self:
             score = min(map(distance, frame.LUs + [frame]))
             if score <= threshold:
