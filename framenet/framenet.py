@@ -23,15 +23,16 @@ class LexicalUnit:
 class Description:
 
     class FEName:
+        name = 'fen'
         def __init__(self, name, escapeHTML = False):
-            self.name = name
+            self.fenname = name
             self.escapeHTML = escapeHTML
 
         def __eq__(self, other):
-            return self.name == other.name
+            return self.fenname == other.fenname
 
         def __hash__(self):
-            return self.name.__hash__()
+            return self.fenname.__hash__()
 
         def __str__(self, escapeHTML = None):
             if escapeHTML or self.escapeHTML:
@@ -40,22 +41,23 @@ class Description:
             else:
                 open_tag = '<'
                 close_tag = '>'
-            return '{open}fen{close}{name}{open}/fen{close}'.format(name    = self.name,
+            return '{open}fen{close}{name}{open}/fen{close}'.format(name    = self.fenname,
                                                                     open    = open_tag,
                                                                     close   = close_tag)
         def __repr__(self):
             return 'FEName(\'{name}\')'.format(name = self.name)
 
     class FEeXample:
+        name = 'fex'
         def __init__(self, name, description, escapeHTML = False, **args):
-            self.name = name
+            self.fexname = name
             self.description = description
             self.escapeHTML = escapeHTML
             for k,v in args.iteritems():
                 setattr(self, k, v)
 
         def __hash__(self):
-            return (self.name, self.description).__hash__()
+            return (self.fexname, self.description).__hash__()
 
         def __str__(self, escapeHTML = False):
 
@@ -67,25 +69,28 @@ class Description:
                 close_tag = '>'
             return '{open}fex name="{name}"{close}{desc}{open}/fex{close}'.format(open  = open_tag,
                                                                                   close = close_tag,
-                                                                                  name  = self.name,
+                                                                                  name  = self.fexname,
                                                                                   desc  = self.description)
 
         def __repr__(self):
-            return 'FEeXample(\'{name}\':\'{desc}\')'.format(name= self.name,desc= self.description)
+            return 'FEeXample(\'{name}\':\'{desc}\')'.format(name= self.fexname, desc= self.description)
 
     class EXample:
+        name = 'ex'
         def __init__(self, escapeHTML = False):
             self.content = []
             self.escapeHTML = escapeHTML
 
         def __str__(self, escapeHTML = False):
             if escapeHTML or self.escapeHTML:
-                return '&lt;ex&gt;%s&lt;/ex&gt;' %''.join(map(str, self.content))
+                return '&lt;{name}&gt;{content}&lt;/{name}&gt;'\
+                            .format(name= self.name,
+                                    content = ''.join(map(str, self.content)))
             else:
                 return '<ex>%s</ex>' % (''.join(map(str, self.content)))
 
         def __repr__(self):
-            return 'Example(\'{desc}\')'.format(desc = self.content)
+            return 'Example(\'{desc}\')'.format(desc = ''.join(map(str, self.content)))
 
         def __hash__(self):
             return self.content.__hash__()
@@ -160,6 +165,7 @@ class Description:
         self.specials = set()
         self.content = []
         self.escapeHTML = escapeHTML
+        self.tags = dict()
 
     def add_text(self, text):
         if len(self.content) and type(self.content[-1]) == str:
@@ -173,6 +179,11 @@ class Description:
             self.fens.add(element)
         elif isinstance(element, Description.Special):
             self.specials.add(element)
+        self.tags[element.name] = self.tags.get(element.name, [])
+        self.tags[element.name].append(element)
+
+    def get_elements(self, element_name):
+        return self.tags.get(element_name, [])
 
     def has_special_annotation(self):
         return len(self.specials) > 0
@@ -209,7 +220,11 @@ class Frame:
             self.isCore     = isCore
 
         def __eq__(self, other):
-            return self.name == other.name #and self.abbrev == other.abbrev
+            if type(other) == str: #allow comparison with string
+                other_name = other
+            else:
+                other_name = other.name
+            return self.name == other_name #and self.abbrev == other.abbrev
 
         def __hash__(self):
             return self.name.__hash__()
