@@ -21,79 +21,42 @@ class LexicalUnit:
 
 
 class Description:
-
-    class FEName:
-        name = 'fen'
-        def __init__(self, name, escapeHTML = False):
-            self.fenname = name
-            self.escapeHTML = escapeHTML
-
-        def __eq__(self, other):
-            return self.fenname == other.fenname
-
-        def __hash__(self):
-            return self.fenname.__hash__()
-
-        def __str__(self, escapeHTML = None):
-            if escapeHTML or self.escapeHTML:
-                open_tag = '&lt;'
-                close_tag = '&gt;'
+    class Label(object):
+        # name = 'l'
+        # shortname = 'Label'
+        def __init__(self, content = None, escapeHTML = False, **attribs):
+            if content == None:
+                self.content = []
             else:
-                open_tag = '<'
-                close_tag = '>'
-            return '{open}fen{close}{name}{open}/fen{close}'.format(name    = self.fenname,
-                                                                    open    = open_tag,
-                                                                    close   = close_tag)
-        def __repr__(self):
-            return 'FEName(\'{name}\')'.format(name = self.name)
-
-    class FEeXample:
-        name = 'fex'
-        def __init__(self, name, description, escapeHTML = False, **args):
-            self.fexname = name
-            self.description = description
-            self.escapeHTML = escapeHTML
-            for k,v in args.iteritems():
-                setattr(self, k, v)
-
-        def __hash__(self):
-            return (self.fexname, self.description).__hash__()
-
-        def __str__(self, escapeHTML = False):
-
-            if escapeHTML or self.escapeHTML:
-                open_tag = '&lt;'
-                close_tag = '&gt;'
-            else:
-                open_tag = '<'
-                close_tag = '>'
-            return '{open}fex name="{name}"{close}{desc}{open}/fex{close}'.format(open  = open_tag,
-                                                                                  close = close_tag,
-                                                                                  name  = self.fexname,
-                                                                                  desc  = self.description)
-
-        def __repr__(self):
-            return 'FEeXample(\'{name}\':\'{desc}\')'.format(name= self.fexname, desc= self.description)
-
-    class EXample:
-        name = 'ex'
-        def __init__(self, escapeHTML = False):
-            self.content = []
+                self.content = content
+            self.attribs = attribs
             self.escapeHTML = escapeHTML
 
         def __str__(self, escapeHTML = False):
+            attr = ''.join(['%s="%s"'%item for item in self.attribs.iteritems()])
+            if len(attr) > 0:
+                attr = ' '+ attr
             if escapeHTML or self.escapeHTML:
-                return '&lt;{name}&gt;{content}&lt;/{name}&gt;'\
+                return '&lt;{name}{attr}&gt;{content}&lt;/{name}&gt;'\
                             .format(name= self.name,
+                                    attr= attr,
                                     content = ''.join(map(str, self.content)))
             else:
-                return '<ex>%s</ex>' % (''.join(map(str, self.content)))
+                return '<{name}{attr}>{content}</{name}>'\
+                            .format(name= self.name,
+                                    attr= attr,
+                                    content = ''.join(map(str, self.content)))
 
         def __repr__(self):
-            return 'Example(\'{desc}\')'.format(desc = ''.join(map(str, self.content)))
+            attr = ''.join(['%s = "%s"'%item for item in self.attribs.iteritems()])
+            if len(attr) > 0:
+                attr = ' '+ attr
+            return '{name}(\'{desc}\'{attr})'.format(name = self.shortname,
+                                               attr= attr,
+                                               desc = ''.join(map(str, self.content)))
 
         def __hash__(self):
-            return self.content.__hash__()
+            return (self.name, tuple(self.content), tuple(self.attribs.items())).__hash__()
 
         def add_text(self, text):
             if len(self.content) and type(self.content[-1]) == str:
@@ -104,60 +67,61 @@ class Description:
         def add_element(self, element):
             self.content.append(element)
 
-    class Special(object):
-        def __init__(self, content, name = 'special', escapeHTML = False):
-            self.name = name
-            self.content = content
-            self.escapeHTML = escapeHTML
+        def set_attribs(self, **atribs):
+            self.attribs = attribs
 
-        def __eq__(self, other):
-            return self.name == other.name and self.content == other.content
+        def str_no_annotation(self):
+            out = ''
+            try:
+                for elem in self.content:
+                    if isinstance(elem, Description.Label):
+                        text = elem.str_no_annotation()
+                    else:
+                        text = elem
+                    out = out+text
+            except TypeError as e:
+                print self
+                print elem
+                raise e
+            return out
 
-        def __hash__(self):
-            return (self.name, self.content).__hash__()
+    class FEName(Label):
+        name = 'fen'
+        shortname = 'FEName'
 
-        def __str__(self, escapeHTML = False):
-            if escapeHTML or self.escapeHTML:
-                open_tag = '&lt;'
-                close_tag = '&gt;'
-            else:
-                open_tag = '<'
-                close_tag = '>'
-            return '{open}{name}{close}{content}{open}/{name}{close}'.format(name    = self.name,
-                                                                             content = self.content,
-                                                                             open    = open_tag,
-                                                                             close   = close_tag)
+    class FEeXample(Label):
+        name = 'fex'
+        shortname = 'FEeXample'
 
-        def __repr__(self):
-            return str(self)
+    class EXample(Label):
+        name = 'ex'
+        shortname = 'EXample'
+
+    class Special(Label):
+        name = 'special'
+        shortname = 'Special'
 
     class T(Special):
-        def __init__(self, content, escapeHTML = False):
-            super(self.__class__, self).__init__(content,'t',escapeHTML)
+        name = 't'
+        shortname = 'Target'
 
     class M(Special):
-        def __init__(self, content, escapeHTML = False):
-            super(self.__class__, self).__init__(content,'m',escapeHTML)
+        name = 'm'
 
     class Ment(Special):
-        def __init__(self, content, escapeHTML = False):
-            super(self.__class__, self).__init__(content,'ment',escapeHTML)
+        name = 'ment'
 
     class Gov(Special):
-        def __init__(self, content, escapeHTML = False):
-            super(self.__class__, self).__init__(content,'gov',escapeHTML)
+        name = 'gov'
 
     class EM(Special):
-        def __init__(self, content, escapeHTML = False):
-            super(self.__class__, self).__init__(content,'em',escapeHTML)
+        name = 'em'
 
     class Supp(Special):
-        def __init__(self, content, escapeHTML = False):
-            super(self.__class__, self).__init__(content,'supp',escapeHTML)
+        name = 'supp'
 
     class Target(Special):
-        def __init__(self, content, escapeHTML = False):
-            super(self.__class__, self).__init__(content,'target',escapeHTML)
+        name = 'target'
 
 
     def __init__(self, escapeHTML = False):
@@ -183,6 +147,7 @@ class Description:
         self.tags[element.name].append(element)
 
     def get_elements(self, element_name):
+        '''Returns a list of elements that match element_name'''
         return self.tags.get(element_name, [])
 
     def has_special_annotation(self):
@@ -248,7 +213,7 @@ class Frame:
 
         def __repr__(self):
             frame_names = map(lambda x: x.name, self.frames)
-            return '{%d}' %str(frame_names)[1:-1]
+            return '{%s}' %str(frame_names)[1:-1]
 
         def __eq__(self, other):
             if type(other) == str:
@@ -354,11 +319,31 @@ class Net:
         return self.frames.itervalues()
 
     def __getitem__(self, item):
-        '''Returns the Frames in the FrameNet by name'''
-        try:
-            return self.frames[item]
-        except KeyError as e:
-            raise KeyError('\'{item}\' is not a valid Frame name in this FrameNet'.format(item = item))
+        '''Returns the Frames in the FrameNet by name, if item is a name
+           If item is a slice, then:
+
+           self[word:qtd] = self.getMostSimilarFrames(word, qtd)
+           self[word:qtd:distance] = self.getMostSimilarFrames(word, qtd, distance = distance)
+                distace is a string
+           self[word:qtd:threshold] = self.getMostSimilarFrames(word, qtd, threshold = threshold)
+                threshold is an float in the interval [0, 1.0]
+        '''
+        if type(item) == slice:
+            token    = item.start
+            limit    = item.stop
+            extra = item.step
+            if extra:
+                if type(extra) == str:
+                    return self.getMostSimilarFrames(token, limit, distance = extra)
+                else:
+                    return self.getMostSimilarFrames(token, limit, threshold = extra)
+            else:
+                return self.getMostSimilarFrames(token, limit)
+        else:
+            try:
+                return self.frames[item]
+            except KeyError as e:
+                raise KeyError('\'{item}\' is not a valid Frame name in this FrameNet'.format(item = item))
 
     # def __getslice__(self, term, max_elems):
     #     return None ##TODO
