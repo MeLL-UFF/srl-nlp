@@ -8,16 +8,43 @@ class Lexeme:
         self.headWord    = headWord
         self.text        = text
 
+    def __repr__(self):
+        return str(self) #TODO
+
+    def __str__(self):
+        return "{name}.{pos}".format(name = self.name, pos = self.pos)
+
+    def __eq__(self, other):
+        return self.name == other.name and self.pos.lower() == other.pos.lower()
+
+    def __hash__(self):
+        return (self.name, self.pos).__hash__()
+
 
 class LexicalUnit:
     def __init__(self, name, pos = '', status = '', definition = '',
-                 anottation = (0,0), lexeme = None):
+                 annotation = (0,0), lexeme = None):
         self.name       = name
         self.pos        = pos
         self.status     = status
         self.definition = definition
-        self.anottation = anottation
+        self.annotation = annotation
         self.lexeme     = lexeme
+
+    def __repr__(self):
+        return "LU('{name}.{pos}',{anot},{status})".format(name = self.name,
+                                                           pos = self.pos,
+                                                           anot = self.annotation,
+                                                           status = self.status)
+
+    def __str__(self):
+        return "{name}.{pos}".format(name = self.name, pos = self.pos)
+
+    def __eq__(self, other):
+        return self.name == other.name and self.pos.lower() == other.pos.lower()
+
+    def __hash__(self):
+        return (self.name, self.pos).__hash__()
 
 
 class Description:

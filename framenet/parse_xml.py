@@ -35,6 +35,8 @@ class FrameXMLParser:
 
     def _parse_fe(self, xmlNode):
         attrib = xmlNode.attrib
+        for key in attrib:
+            attrib[key] = attrib[key].encode('utf-8')
         definition = None
         for grandchild in xmlNode:
             if grandchild.tag.endswith('definition'):
@@ -108,6 +110,8 @@ class FrameXMLParser:
 
     def _parse_lexeme(self, xmlNode):
         attrib = xmlNode.attrib
+        for key in attrib:
+            attrib[key] = attrib[key].encode('utf-8')
         text = xmlNode.text if xmlNode.text != None else ''
         le = Lexeme(name        = attrib['name'],
                     pos         = attrib['POS'],
@@ -118,6 +122,8 @@ class FrameXMLParser:
 
     def _parse_lu(self, xmlNode):
         attrib = xmlNode.attrib
+        for key in attrib:
+            attrib[key] = attrib[key].encode('utf-8')
         definition = ''
         lexeme = None
         for grandchild in xmlNode:
@@ -127,12 +133,13 @@ class FrameXMLParser:
                 pass
             elif grandchild.tag.endswith('lexeme'):
                 lexeme = self._parse_lexeme(grandchild)
+        name = '.'.join(attrib['name'].split('.')[:-1])
                 
-        lu = LexicalUnit(name       = attrib['name'],
+        lu = LexicalUnit(name       = name,
                          pos        = attrib['POS'],
                          status     = attrib['status'],
                          definition = definition,
-                         #anottation = (0,0),
+                         #annotation = (0,0),
                          lexeme     = lexeme)
         return lu
 
