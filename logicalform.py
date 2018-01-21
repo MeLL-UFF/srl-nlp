@@ -1,6 +1,6 @@
 from copy import deepcopy as copy
 from sys  import stderr
-from fol import FOL
+from fol  import FOL
 import logging
 
 logger = logging.getLogger(__name__)
@@ -10,7 +10,7 @@ class LF:
         '''Creates a new Logical Formula
         LF(fol) -> lf
 
-        The first parameter must be the source to be usedto generate the LF.
+        The first parameter must be the source to be used to generate the LF.
         If it is a FOL, you can specify the argument 'header' to eliminate the header if it is there
         '''
         if len(args) > 0:
@@ -54,6 +54,54 @@ class LF:
                 out.append(lf)
         return out
 
+    def iterterms(self):
+        '''Returns un iterator that yields the terms of this LF as LFs 
+        themselves
+        '''
+        if len(self.info) > 0:
+            for term in self.info[1:]:
+                out = LF()
+                out.info = term
+                yield out
+
+    def get_pred(self):
+        '''Returns the literal of the top predicate of this LF, usually
+        it is going to be an 'AND'
+        '''
+        if len(self.info) > 0:
+            return self.info[0]
+        return None
+
+    def set_pred(self, pred):
+        '''Updates the literal of the top predicate of this LF
+        '''
+        if len(self.info) > 0:
+            self.info[0] = pred
+        return None
+
+    def has_pred(self, pred, avoid_leaf = True):
+        if hasattr(pred, 'get_pred'):
+            pred = pred.get_pred()
+        if self.get_pred() == pred:
+            return True
+        else:
+            for term in self.iterterms():
+                if not avoid_leaf or not term.isleaf():
+                    if term.has_pred(pred):
+                        return True
+        return False
+
+    def isleaf(self):
+        return len(self.info) == 1
+
+    def __eq__(self, other):
+        if self is None or other is None:
+            if self is None and other is None:
+                return True
+            else:
+                return False
+        return FOL._eq_predicate(self.info, other.info)
+
     @staticmethod
     def _repr_aux(term, and_t, or_t, supress_not):
         try:
@@ -75,20 +123,13 @@ class LF:
             raise Exception('Ill-formed FOL:%s' %term)
         return out
 
-    def __eq__(self, other):
-        if self is None or other is None:
-            if self is None and other is None:
-                return True
-            else:
-                return False
-        return FOL._eq_predicate(self.info, other.info)
-
-    def __repr__(self, and_t = ',', or_t = ';', supress_not = False):
+    def __repr__(self, and_t = ',', or_t = ';', supress_not = False, final_dot = True):
         '''Return a str representation of the LF
         '''
         if self.info == None or len(self.info) < 1:
             out = ''
         else:
             term = self.info
-            out = LF._repr_aux(term, and_t, or_t, supress_not) + '.'
+            dot = '.' if final_dot else ''
+            out = LF._repr_aux(term, and_t, or_t, supress_not) + dot
         return out
