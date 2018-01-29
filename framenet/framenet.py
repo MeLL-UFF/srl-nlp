@@ -23,12 +23,13 @@ class Lexeme:
 
 class LexicalUnit:
     def __init__(self, name, pos = '', status = '', definition = '',
-                 annotation = (0,0), lexeme = None):
+                 annotation = (0,0), id = None, lexeme = None):
         self.name       = name
         self.pos        = pos
         self.status     = status
         self.definition = definition
         self.annotation = annotation
+        self.id         = id
         self.lexeme     = lexeme
 
     def __repr__(self):
@@ -203,13 +204,14 @@ class Frame:
 
     class Element:
         def __init__(self, name = '', abbrev = '', definition = '',
-                     fgColor = 'black', bgColor = 'white', isCore = True, semanticType = ''):
+                     fgColor = 'black', bgColor = 'white', isCore = True, semanticType = '', id = None):
             self.name       = name
             self.abbrev     = abbrev
             self.definition = definition
             self.fgColor    = fgColor
             self.bgColor    = bgColor
             self.isCore     = isCore
+            self.id         = id
 
         def __eq__(self, other):
             if type(other) == str: #allow comparison with string
@@ -249,7 +251,7 @@ class Frame:
                 return self.name == other.name
 
     def __init__(self, name = '', description = '', coreFEs = [],
-                 peripheralFEs = [], LUs = [], **relations):
+                 peripheralFEs = [], LUs = [], id = None, **relations):
         #TODO exceptions
         assert name != None #None type is not an acceptable name
         self.name          = name
@@ -257,6 +259,7 @@ class Frame:
         self.coreFEs       = coreFEs
         self.peripheralFEs = peripheralFEs
         self.LUs           = LUs
+        self.id            = id
         self.relations     = relations
 
     def hasFEinCore(self, fe):
@@ -300,7 +303,10 @@ class Frame:
         Two Frames are equal if they have the same name, the same Core Frame Elements,
         and the same Peripheral Frame elements.
         '''
-        eq_core = [ fe in other.coreFEs for fe in self.coreFEs] + \
+        if other == None:
+            return self == None
+
+        eq_core = [fe in other.coreFEs for fe in self.coreFEs] + \
                   [fe in self.coreFEs for fe in other.coreFEs]
         eq_peripheral = [ fe in other.peripheralFEs for fe in self.peripheralFEs] + \
                         [fe in self.peripheralFEs for fe in other.peripheralFEs]
@@ -326,6 +332,7 @@ class Net:
         if type(frames) != dict: #if the user passes a list of frames instead of a dict then convert it
             frames = dict(zip(map(lambda x: x.name, frames), frames))
         self.frames = frames
+        self.framesByID = dict([(frame.id, frame) for frame in frames.values()])
         for frame in frames.itervalues():
             self._update_frame_references(frame)
         self._fes = dict()
@@ -346,7 +353,7 @@ class Net:
         return self.frames.itervalues()
 
     def __getitem__(self, item):
-        '''Returns the Frames in the FrameNet by name, if item is a name
+        '''Returns the Frames in the FrameNet by name or id, if item is a name or integer
            If item is a slice, then:
 
            self[word:qtd] = self.getMostSimilarFrames(word, qtd)
@@ -367,10 +374,14 @@ class Net:
             else:
                 return self.getMostSimilarFrames(token, limit)
         else:
-            try:
-                return self.frames[item]
-            except KeyError as e:
-                raise KeyError('\'{item}\' is not a valid Frame name in this FrameNet'.format(item = item))
+            frame = self.frames.get(item, None)
+            if frame is None:
+                frame = self.framesByID.get(item, None)
+                if frame is None:
+                    raise KeyError('\'{item}\' is not a valid Frame name or id in this FrameNet version'.format(item = item))
+
+            return frame
+                
 
     # def __getslice__(self, term, max_elems):
     #     return None ##TODO

@@ -47,7 +47,8 @@ class FrameXMLParser:
                            fgColor      = attrib['fgColor'],
                            bgColor      = attrib['bgColor'],
                            isCore       = attrib.get('coreType') == 'Core',
-                           semanticType = attrib.get('semanticType',''))
+                           semanticType = attrib.get('semanticType',''),
+                           id           = int(attrib.get('ID','None')))
         return fe
 
     def _parse_description(self, xmlNode, open_tag = '<', close_tag = '>',end_tag_marker = '/', escapeHTML = False):
@@ -140,6 +141,7 @@ class FrameXMLParser:
                          status     = attrib['status'],
                          definition = definition,
                          #annotation = (0,0),
+                         id         = int(attrib['ID']),
                          lexeme     = lexeme)
         return lu
 
@@ -147,6 +149,7 @@ class FrameXMLParser:
         tree = XMLTree.parse(file_str).getroot()
         #print tree.attrib, file_str
         name = tree.attrib['name']
+        id = int(tree.attrib['ID'])
         coreFEs = []
         peripheralFEs = []
         LUs = []
@@ -174,7 +177,7 @@ class FrameXMLParser:
                 #print 'TEXT:', definition#child.text
 
         return Frame(name = name, description = definition, coreFEs = coreFEs,
-                 peripheralFEs = peripheralFEs, LUs = LUs, **relations)
+                 peripheralFEs = peripheralFEs, LUs = LUs, id = id, **relations)
 
 
 class NetXMLParser:
