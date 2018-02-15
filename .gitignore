@@ -10,4 +10,4 @@ tmp*
 usp-code/**
 wordnet/**
 GILPS/**
-**.pickle
+**.pkl
