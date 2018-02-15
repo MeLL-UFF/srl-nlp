@@ -1,4 +1,4 @@
-#!/bin/python
+#!/bin/env python
 '''
 Runs all the experiments in a given directory tree
 '''
