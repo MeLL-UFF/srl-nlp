@@ -1,3 +1,4 @@
+#!/bin/env python
 from srl_nlp.framenet.parse_xml import NetXMLParser
 from srl_nlp.framenet.framenet  import Description
 from srl_nlp.analysers.boxer    import BoxerLocalAPI
@@ -34,7 +35,9 @@ config.read(path.join(_package_directory, "external.conf"))
 def get_examples(target, fn):
     '''
         Iterates over the fn frames that contain target as a Frame element and return every description element with the tag EXample
-    '''
+
+        Returns: list of (example, Frame) pairs
+        '''
     frames = fn.getFrameElementFrames(target)
     examples = []
     for frame in frames:
@@ -46,7 +49,7 @@ def get_examples(target, fn):
 
 def get_preds(lf, token, skip = ['relation']):
     '''
-    Return a list of predicates that contain the token
+    Returns: a list of predicates that contain the token
     '''
     out = []
     if not lf.get_pred() in skip:
@@ -73,6 +76,9 @@ nlp = spacy.load('en_core_web_sm')
 
 def get_annotations(example, lf, abbrev2fe = {}, get_lemma = lambda token: nlp(token.decode('utf-8'))[0].lemma_):
     '''
+    This function matches the example annotations against the given lf
+    (the lf must represent the example for this to make any sense)
+    
     Returns a tuple (fes_dict, taget_list), where
         fes_dict is a dictionary mapping Frame Element names to a predicate list
         target_list is a list of predicates that are target in this example
@@ -108,14 +114,12 @@ def get_annotations(example, lf, abbrev2fe = {}, get_lemma = lambda token: nlp(t
                             l = fes.get(pred, [])
                             l.append(literal)
                             fes[pred] = l
-                            #if pred[:1].islower():
-                            #    print "%% %s, '%s' '%s'\t %s" %(term, pred, pred_old, example.content)
     return fes, target
 
 
 def get_factors(lf, out = None):
     '''
-    Returns a mapping from the terms to pedicate lists
+    Returns a mapping from the terms to predicate lists
     '''
     if out == None:
         out = {}
@@ -219,12 +223,14 @@ def make_theory(lfs, examples):
                                             logger.error(elements)
                                             logger.error(targets)
                                             raise Exception('%s FE was not matched, the label is lower cased' %label)
-                                        theory.append("%s :- %s, %s." %(str_preds(make_pred('frame_element', pred, label.lower())),
+                                        rule = "%s :- %s, %s." %(str_preds(make_pred('frame_element', pred, label.lower())),
                                                                 str_preds(make_pred('frame_related', target, frame.name.lower())),
                                                                 str_preds(path))
-                                                     )
+                                        logger.debug("Rule: %s" %rule)
+                                        theory.append(rule)
                                         break
                     except IndexError as e:
+                        logger.error(e)
                         continue
     return theory
 
@@ -286,6 +292,7 @@ def make_frame_matching_rules(lus2frames, lu_pos2pred = lu_pos2pred, f_out = Non
 def parse_args(argv= argv, add_logger_args = lambda x: None):
     parser = argparse.ArgumentParser(description = 'Tmp file that generate the deep rules')
     parser.add_argument('--lfs_file', help = 'the path of file with the lfs (if the file does not exist, it will be created and filled)')
+    #parser.add_argument('--txt_file', help = 'the path of file with sentences to fill')
     parser.add_argument('--out_file', help = 'the path to where to write the rules')
     #parser.add_argument('-p', '--file_prefix', help = 'prefix of the experiment files')
     #parser.add_argument('-v', '--verbosity', action='count', default=0, help = 'increase output verbosity')
@@ -325,7 +332,8 @@ def main(argv):
     if not lfs:
         lfs = dict()
         for count, (fe, example_list) in enumerate(examples.iteritems()):
-            lfs[fe] = [boxer.sentence2LF(example.str_no_annotation()) for example in example_list]
+            lfs[fe] = [boxer.sentence2LF(example.str_no_annotation())
+                            for ex_list, _ in example_list for example in ex_list]
             logger.info("%06.2f%%" %(100.*(count+1)/len(examples)))
         if overwrite_lfs_file:
             with open(args.lfs_file, 'w') as f:
