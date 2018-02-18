@@ -1,90 +1,252 @@
 #!/bin/env python
 
-from srl_nlp.logger_config   import config_logger, add_logger_args
+from sys                      import argv
+from srl_nlp.logger_config    import config_logger, add_logger_args
+from srl_nlp.semeval07.corpus import *
 import xml.etree.ElementTree as XMLTree
+import pickle
 
-class AnnotationSet:
-    def __init__(self, params):
-        pass
+import logging
+import argparse
 
-    def parse_xml(xml):
-        if True:#type of node is xml.node:
-            pass
-        else:
-            pass
+logger = logging.getLogger(__name__)
 
-    def is_frame(self):
-        return True
-
-    def fe_count(self):
-        return 0
-
-    def get_fes(self):
-        pass
-
-class SemEval07Adapter:
-    def __init__(self, params):
+class FNXMLAdapter:
+    _TAG_PREFIX='{http://framenet.icsi.berkeley.edu}'
+    def __init__(self, **params):
         '''params are the files locations and stuff'''
-        self.name = ''
-        self.id   = ''
-        self.docs = []
+        self.params = params
+        #TODO
 
-    def _add_sentence(self, text, pos, semantics):
-        pass
+    def _parse_document(self, xml_node):
+        doc_args = {}
+        paragraphs = {}
+        logger.debug('ROOT tag:{tag}'.format(tag = xml_node.tag))
+        for xml_child in xml_node:
+            logger.debug('Child tag:{tag}'.format(tag = xml_child.tag))
+            if xml_child.tag == self._TAG_PREFIX+'header':
+                try:
+                    xml_corpus_header    = xml_child.getchildren()[0]
+                    xml_doc_header       = xml_corpus_header.getchildren()[0]
+                    doc_args['corpus']   = xml_corpus_header.attrib['name']
+                    doc_args['corpusID'] = xml_corpus_header.attrib['ID']
+                    doc_args['id']       = xml_doc_header.attrib['ID']
+                    doc_args['name']     = xml_doc_header.attrib['name']
+                    doc_args['desc']     = xml_doc_header.attrib['description']
+                except IndexError as e:
+                    logger.error(e)
+            elif self._TAG_PREFIX+'sentence' == xml_child.tag:
+                xml_sent = xml_child
+                parNo    = int(xml_sent.attrib['paragNo'])
+                aPos     = int(xml_sent.attrib['aPos'])
+                par      = paragraphs.get((parNo, aPos), [])
+                par.append(self._parse_sentence(xml_sent))
+                paragraphs[(parNo, aPos)]  = par
+        assert len(doc_args) > 0, 'Not enough information to parse a Document'
 
-    def _add_document(self, id, description):
-        pass
+        ordering = lambda (x,_): x
+        ord_par = [par for _, par in sorted(paragraphs.items(), key = ordering)]
+        sentences = []
+        for par in ord_par:
+            sentences.extend(par)
+        doc_args['sentences'] = sentences
+        doc = Document(**doc_args)
+        return doc
 
-    def _add_paragraph(self, id, documentOrder):
-        pass
+    def _parse_sentence(self, xml_node, **params):
+        logger.debug('Sentence({}):{}'.format(xml_node.tag, xml_node.attrib))
+        assert xml_node.tag == self._TAG_PREFIX+'sentence'
+        id = xml_node.attrib['ID']
+        text = None
+        annotation_sets = []
+        for child in xml_node:
+            if child.tag == self._TAG_PREFIX+'text':
+                text = child.text
+            if child.tag == self._TAG_PREFIX+'annotationSets':
+                for anno_set in child:
+                    annotation_sets.append(self._parse_annoset(anno_set))
+        sentence = Sentence(id = id, text = text, annotation_sets = annotation_sets)
+        return sentence
 
-    def _add_annotation(self, text, pos, semantics):
-        pass
+    def _parse_annoset(self, xml_node, **params):
+        logger.debug(xml_node.tag)
+        assert self._TAG_PREFIX+'annotationSet' == xml_node.tag
+        annos = []
+        for layer in xml_node:
+            assert self._TAG_PREFIX+'layer' == layer.tag
+            try:
+                annos.append(self._parse_annotation(layer))
+            except IndexError:
+                continue
 
-    def load(self, sentence_list, pos_list, semantics_list):
-        if len(sentence_list) == len(pos_list) == len(semantics_list):
-            for i in zip(sentence_list, pos_list, semantics_list):
-                pass
+        id        = xml_node.get('ID', None)
+        frameID   = xml_node.get('frameRef', None)
+        frameName = xml_node.get('frameName', None)
+        luID      = xml_node.get('luID', None)
+        luName    = xml_node.get('luName', None)
+        status    = xml_node.get('status', None)
+
+        anno_set = AnnotationSet(id = id,
+                                 frameID = frameID,
+                                 frameName = frameName,
+                                 luID = luID,
+                                 luName = luName,
+                                 status = status,
+                                 annotations = annos,
+                                 **params)  
+        return anno_set
+
+    def _parse_annotation(self, xml_node, **params):
+        #TODO change for the layer level
+        logger.debug('Annotation[{}]:{}'.format(xml_node.tag, xml_node.attrib))
+        assert self._TAG_PREFIX+'layer' == xml_node.tag
+        children = xml_node.getchildren()
+        if len(children) > 0:
+            labels = children[0]
+            label = labels.getchildren()[0]
+            logger.debug('{lab}:{attr}'.format(lab= label.tag, attr = label.attrib))
+            name  = label.attrib['name']
+            itype = label.attrib.get('itype', None)
+            if itype:
+                anno  = Annotation(name = name, itype = itype, **params)
+            else:
+                start = label.attrib['start']
+                end   = label.attrib['end']
+                anno  = Annotation(start = start, end = end, name = name, **params)
+            return anno
         else:
-            raise Exception('Invalid sentence, pos, or semantic lists')
+            err = IndexError('Empty layer id({id})'.format(id = xml_node.attrib.get('ID','?')))
+            logger.warning(err)
+            raise err
 
-    def loadXML(self, xml):
-        tree = XMLTree.parse(xml).getroot()
-        c_name = tree.attrib['name']
-        c_id = tree.attrib['ID']
-        for doc_list in tree:
-            for document in doc_list:
-                self._add_document(document.attrib['ID'],document.attrib['description'])
-                for par_list in document:
-                    for paragraph in par_list:
-                        self._add_paragraph(paragraph.attrib['ID'], int(paragraph.attrib['documentOrder']))
-                        for sent_list in paragraph:
-                            for sentence in sent_list:
-                                self._add_sentence('')
-                                for anno_sets in sentence: #TODO
-                                    self._add_annotation(AnnotationSet.parse_xml(anno_sets))
+    def parseXML(self, xml_item):
+        '''
+        Returns a list of documents
+        '''
+        if isinstance(xml_item, XMLTree.Element):
+            root = xml_item
+        else:
+            root = XMLTree.parse(xml_item).getroot()
+        return [self._parse_document(root)]
+
+######------------------------------
+
+class SemEval07XMLAdapter(FNXMLAdapter):
+    _TAG_PREFIX=''
+    def _parse_document(self, xml_node):
+        id = xml_node.attrib['ID']
+        desc = xml_node.attrib['description']
+        paragraphs = {}
+        for xml_par_list in xml_node:
+            assert 'paragraphs' == xml_par_list.tag
+            for xml_par in xml_par_list:
+                #logger.debug('Paragraph:\'{}\''.format(xml_par.tag))
+                assert 'paragraph' == xml_par.tag
+                sentences = []
+                for xml_sents in xml_par:
+                    assert 'sentences' == xml_sents.tag
+                    for xml_sent in xml_sents:
+                        sentences.append(self._parse_sentence(xml_sent))
+                pos = int(xml_par.attrib['documentOrder'])
+                sentences.extend(paragraphs.get(pos, []))
+                paragraphs[pos] = sentences
+
+        ordering = lambda (x,_): x
+        sentences = []
+        for _, sent_list in sorted(paragraphs.items(), key = ordering):
+            sentences.extend(sent_list)
+        doc = Document(id = id, desc = desc,sentences = sentences)
+        return doc
+
+    def _parse_annoset(self, xml_node, **params):
+        logger.debug(xml_node.tag)
+        assert 'annotationSet' == xml_node.tag
+        annos = []
+        for layers in xml_node:
+            for layer in layers:
+                #TODO assert layer has type layer
+                try:
+                    annos.append(self._parse_annotation(layer))
+                except IndexError:
+                    continue
+
+        id        = xml_node.get('ID', None)
+        frameID   = xml_node.get('frameRef', None)
+        frameName = xml_node.get('frameName', None)
+        luID      = xml_node.get('lexUnitRef', None)
+        luName    = xml_node.get('luName', None)
+        status    = xml_node.get('status', None)
+
+        anno_set = AnnotationSet(id = id,
+                                 frameID = frameID,
+                                 frameName = frameName,
+                                 luID = luID,
+                                 luName = luName,
+                                 status = status,
+                                 annotations = annos,
+                                 **params)  
+        return anno_set
+
+    def parseXML(self, xml_item):
+        '''
+        Returns a list of documents
+        '''
+        if isinstance(xml_item, XMLTree.Element):
+            root = xml_item
+        else:
+            root = XMLTree.parse(xml_item).getroot()
+        c_name = root.attrib['name']
+        c_id = root.attrib['ID']
+        docs = []
+        for doc_list in root:
+            for xml_doc in doc_list:
+                doc = self._parse_document(xml_doc)
+                doc.corpus = c_name
+                doc.corpusID = c_id
+                docs.append(doc)
+        return docs
 
 
-    def dump(self, file, **params):
-        file.write(prefix)
-        for doc in documents:
-            self._dump_documents(file)
-        file.write(suffix)
+PARSERS_AVAILABLE = {'semeval': SemEval07XMLAdapter,
+                     'framenet': FNXMLAdapter}
 
-    def _dump_documents(self, file, **params):
-        file.write(prefix)
-        for doc in documents:
-            self._dump_paragraphs(file)
-        file.write(suffix)
+def parse_args(argv = argv, add_logger_args = lambda x: None):
+    parser = argparse.ArgumentParser(description = 'Parses the semeval07 format into Documment')
+    parser.add_argument('input_file', help = 'File to be parsed')
+    parser.add_argument('-o', '--output_file', help = 'File to write the pickle serialization')
+    parser.add_argument("-p","--parser", choices=PARSERS_AVAILABLE.keys(), help = 'Parser for the appropriate kind of file')
+    add_logger_args(parser)
+    args = parser.parse_args(argv[1:])
+    return args
 
-    def _dump_paragraphs(self, file, **params):
-        file.write(prefix)
-        for doc in documents:
-            self._dump_sentences(file)
-        file.write(suffix)
 
-    def _dump_sentences(self, file, **params):
-        file.write(prefix)
-        for doc in documents:
-            self._dump_sentences(file)
-        file.write(suffix)
+def main(argv):
+    args = parse_args(argv, add_logger_args)
+    config_logger(args)
+    #file_path = '/home/bcarvalho/DataSets/semeval07/trial/xml/ElectionVictory_anno.xml'
+    logger.info('Loading XML file')
+    with open(args.input_file, 'r') as f:
+        tree = XMLTree.parse(f)
+    logger.info('XML tree ready')
+    root = tree.getroot()
+
+    adapter = PARSERS_AVAILABLE.get(args.parser, SemEval07XMLAdapter)()
+
+    logger.info('Parsing XML tree')
+    docs = adapter.parseXML(root)
+    logger.info('Done parsing XML tree')
+
+    if args.output_file != None:
+        logger.info('Writing pickle file')
+        with open(args.output_file, 'wb') as f:
+            pickle.dump(docs,f)
+        
+
+if __name__ == '__main__':
+    try:
+        main(argv)
+    except KeyboardInterrupt:
+        logger.info('Halted by the user')
+    except OSError as e:
+        logger.critical('Problem reading/writing files')
+        logger.exception(e)
