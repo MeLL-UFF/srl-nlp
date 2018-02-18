@@ -2,7 +2,7 @@
 
 from sys                      import argv
 from srl_nlp.logger_config    import config_logger, add_logger_args
-from srl_nlp.semeval07.corpus import *
+from srl_nlp.framenet.corpus  import *
 import xml.etree.ElementTree as XMLTree
 import pickle
 
