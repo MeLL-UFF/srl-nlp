@@ -3,7 +3,7 @@
 from sys                      import argv
 from srl_nlp.logger_config    import config_logger, add_logger_args
 from srl_nlp.framenet.corpus  import *
-import xml.etree.ElementTree as XMLTree
+import xml.etree.ElementTree  as XMLTree
 import pickle
 
 import logging
@@ -14,7 +14,6 @@ logger = logging.getLogger(__name__)
 class FNXMLAdapter:
     _TAG_PREFIX='{http://framenet.icsi.berkeley.edu}'
     def __init__(self, **params):
-        '''params are the files locations and stuff'''
         self.params = params
         #TODO
 
@@ -28,11 +27,11 @@ class FNXMLAdapter:
                 try:
                     xml_corpus_header    = xml_child.getchildren()[0]
                     xml_doc_header       = xml_corpus_header.getchildren()[0]
-                    doc_args['corpus']   = xml_corpus_header.attrib['name']
-                    doc_args['corpusID'] = xml_corpus_header.attrib['ID']
-                    doc_args['id']       = xml_doc_header.attrib['ID']
-                    doc_args['name']     = xml_doc_header.attrib['name']
-                    doc_args['desc']     = xml_doc_header.attrib['description']
+                    doc_args['corpus']   = xml_corpus_header.attrib.get('name', '')
+                    doc_args['corpusID'] = xml_corpus_header.attrib.get('ID', '')
+                    doc_args['id']       = xml_doc_header.attrib.get('ID', '')
+                    doc_args['desc']     = xml_doc_header.attrib.get('description', '')
+                    doc_args['name']     = xml_doc_header.attrib.get('name', '')
                 except IndexError as e:
                     logger.error(e)
             elif self._TAG_PREFIX+'sentence' == xml_child.tag:
@@ -102,8 +101,7 @@ class FNXMLAdapter:
         assert self._TAG_PREFIX+'layer' == xml_node.tag
         children = xml_node.getchildren()
         if len(children) > 0:
-            labels = children[0]
-            label = labels.getchildren()[0]
+            label = children.getchildren()[0]
             logger.debug('{lab}:{attr}'.format(lab= label.tag, attr = label.attrib))
             name  = label.attrib['name']
             itype = label.attrib.get('itype', None)
@@ -129,10 +127,67 @@ class FNXMLAdapter:
             root = XMLTree.parse(xml_item).getroot()
         return [self._parse_document(root)]
 
+    def doc2XML(self, doc, xml_file = None):
+        root = self._doc2XML(doc)
+        tree = XMLTree.ElementTree(root)
+        if xml_file != None:
+            tree.write(xml_file)
+        else:
+            return XMLTree.dump(tree)
+
+    def _doc2XML(self, doc):
+        root = XMLTree.Element('fullTextAnnotation')
+        root.attrib = {'xmlns':'http://framenet.icsi.berkeley.edu',
+                       'xmlns:xsi':'http://www.w3.org/2001/XMLSchema-instance'}
+        header = XMLTree.Element('fullTextAnnotation')
+        header.attrib = {'xmlns':'http://framenet.icsi.berkeley.edu',
+                       'xmlns:xsi':'http://www.w3.org/2001/XMLSchema-instance'}
+        corpus = XMLTree.Element('corpus')
+        corpus.attrib = {'description':'',
+                         'name':doc.corpus, 'ID':doc.corpusID}
+        document = XMLTree.Element('document')
+        document.attrib = {'description':doc.desc,
+                           'name':doc.name, 'ID':doc.ID}
+        corpus.append(doc)
+        header.append(corpus)
+        root.append(header)
+
+        for sent in doc.sentences:
+            xml_doc.append(self._sentence2XML(sent), corpID = doc.corpusID, docID = doc.id)
+        
+        return root
+
+    def _sentence2XML(self, sent, corpID, docID):
+        xml_sent = XMLTree.Element('sentence')
+        xml_sent.attrib = {'corpID': corpID,
+                            'docID': docID,
+                            #'sentNo': None,
+                            #'paragNo': None,
+                            #'aPos': None,
+                            'ID': sent.id}
+        xml_text = XMLTree.Element('text')
+        xml_text.text = sent.text
+        xml_sent.append(xml_text)
+        for annoSet in sent.annotation_sets: #TODO
+            xml_sent.append(self._anno_set2XML(annoSet))
+
+    def _anno_set2XML(self, annoset):
+        xml_anno_set = XMLTree.Element('annotationSet')
+        xml_anno_set.attrib = {'ID':annoset.id}
+
+        for anno in annoset:
+            sentence= XMLTree.Element('')
+            text= XMLTree.Element('')
+            sentence= XMLTree.Element('')
+
 ######------------------------------
 
 class SemEval07XMLAdapter(FNXMLAdapter):
     _TAG_PREFIX=''
+    def __init__(self, **params):
+        self.params = params
+        #TODO
+
     def _parse_document(self, xml_node):
         id = xml_node.attrib['ID']
         desc = xml_node.attrib['description']
@@ -211,7 +266,7 @@ PARSERS_AVAILABLE = {'semeval': SemEval07XMLAdapter,
                      'framenet': FNXMLAdapter}
 
 def parse_args(argv = argv, add_logger_args = lambda x: None):
-    parser = argparse.ArgumentParser(description = 'Parses the semeval07 format into Documment')
+    parser = argparse.ArgumentParser(description = 'Parses the semeval07 and framenet format into Documment')
     parser.add_argument('input_file', help = 'File to be parsed')
     parser.add_argument('-o', '--output_file', help = 'File to write the pickle serialization')
     parser.add_argument("-p","--parser", choices=PARSERS_AVAILABLE.keys(), help = 'Parser for the appropriate kind of file')
