@@ -10,10 +10,16 @@ logger = logging.getLogger(__name__)
 class Document:
     aggregations = {'SENTENCE_AVERAGE': lambda l: float(sum(l))/len(l)}
     
-    def __init__(self, id, corpus = '', corpusID = None, name = '', desc = '', sentences = [], **params):
+    def __init__(self, id, corpus = '', corpusID = None, name = '', desc = '', sentences = None, **params):
         self.id = id
         self.desc = desc
-        self.sentences = sentences
+        self.name = name
+        self.corpus = corpus
+        self.corpusID = corpusID
+        if sentences == None:
+            self.sentences = []
+        else:
+            self.sentences = sentences
         self.params = params
 
     def add_sentence(self, sentence):
@@ -125,7 +131,7 @@ class Sentence:
 
 class AnnotationSet:
     def __init__(self, id, frameID = None, frameName = None, luID = None,
-                 luName = None, status = None, annotations = None, **params):
+                 luName = None, status = None, layers = None, **params):
         self.id        = id
         self.frameID   = frameID
         self.frameName = frameName
@@ -133,16 +139,16 @@ class AnnotationSet:
         self.luName    = luName
         self.status    = status
         self.params    = params
-        if(annotations == None):
-            self.annotations = []
+        if(layers == None):
+            self.layers = []
         else:
-            self.annotations = annotations
+            self.layers = layers
 
     def is_frame(self):
         return (self.frameName != None) or (self.frameID != None)
 
     def get_fes(self):
-        return list(filter(Annotation.is_fe, self.annotations))
+        return list(filter(Annotation.is_fe, self.layers))
 
     def __getitem__(self, item):
         '''If item is an annotation we return a slice of the sentence.
@@ -153,26 +159,29 @@ class AnnotationSet:
             return self[item.start, item.end+1]
         elif isinstance(item, slice):
             return text[item.start, item.end]
-        return 
-
-    def __len__(self):
-        return len(self.annotations)
+        return
 
     def __iter__(self):
-        return self.annotations.__iter__()
+        return self.layers.__iter__()
+
+    def __len__(self):
+        return len(self.layers)
+
+    def __iter__(self):
+        return self.layers.__iter__()
 
     def __hash__(self):
         return (self.id, self.frameID, self.frameName, \
                 self.luID, self.luName, self.status).__hash__()
 
     def __eq__(self, other):
-        if self.id        == other.id        and \
-           self.frameID   == other.frameID   and \
-           self.frameName == other.frameName and \
-           self.luID      == other.luID      and \
-           self.luName    == other.luName:
+        if self.id        != other.id        or \
+           self.frameID   != other.frameID   or \
+           self.frameName != other.frameName or \
+           self.luID      != other.luID      or \
+           self.luName    != other.luName:
             return False
-        for anno1, anno2 in zip(self.annotations, other.annotations):
+        for anno1, anno2 in zip(self.layers, other.layers):
             #TODO
             pass
         return True
@@ -184,18 +193,56 @@ class AnnotationSet:
     def __str__(self):
         params_str = str(self.params) if len(self.params) > 0 else ''
         if self.is_frame():
-            return '<Frame \'{fr}\'>{anno}{params}</Frame>'.format(fr = self.frameName, anno = str(self.annotations)[1:-1], params = params_str)
+            return '<Frame \'{fr}\'>{anno}{params}</Frame>'.format(fr = self.frameName, anno = str(self.layers)[1:-1], params = params_str)
         else:
-            return '<AnnoSet>{anno}{params}</AnnoSet>'.format(anno = str(self.annotations)[1:-1], params = params_str)
+            return '<AnnoSet>{anno}{params}</AnnoSet>'.format(anno = str(self.layers)[1:-1], params = params_str)
 
     def __repr__(self):
         #TODO
         return str(self)
 
+class Layer:
+    def __init__(self, name, rank = None, annotations = None, **params):
+        self.name = name
+        self.rank = rank
+        if annotations == None:
+            self.annotations = []
+        else:
+            self.annotations = annotations
+        self.params = params
+
+    def __iter__(self):
+        return self.annotations.__iter__()
+
+    def __eq__(self, other):
+        if self.id   != other.id   or \
+           self.name != other.name or \
+           self.rank != other.rank:
+            return False
+        for anno1, anno2 in zip(self.layers, other.layers):
+            #TODO
+            pass
+        return True
+
+    def _similar(self, other, fn = None):
+        #TODO
+        return True
+
+    def __str__(self):
+        params_str = str(self.params) if len(self.params) > 0 else ''
+        labels = '\n'.join(map(str, self.annotations))
+        return '<Layer \'{name}\'>{anno}</Layer>'.format(name = self.name, anno = labels)
+        
+    def __repr__(self):
+        #TODO
+        return str(self)
+
+
 class Annotation:
     def __init__(self, start = None, end = None, itype = None, name = None, **params):
         self.start = start
         self.end = end
+        self.itype = itype
         self.name = name
         self.params = params
         pass

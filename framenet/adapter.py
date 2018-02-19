@@ -61,61 +61,63 @@ class FNXMLAdapter:
         for child in xml_node:
             if child.tag == self._TAG_PREFIX+'text':
                 text = child.text
-            if child.tag == self._TAG_PREFIX+'annotationSets':
-                for anno_set in child:
-                    annotation_sets.append(self._parse_annoset(anno_set))
+            if child.tag == self._TAG_PREFIX+'annotationSet':
+                annotation_sets.append(self._parse_annoset(child))
         sentence = Sentence(id = id, text = text, annotation_sets = annotation_sets)
         return sentence
 
     def _parse_annoset(self, xml_node, **params):
-        logger.debug(xml_node.tag)
+        logger.debug('AnnoSet[{}]:{}'.format(xml_node.tag, xml_node.attrib))
         assert self._TAG_PREFIX+'annotationSet' == xml_node.tag
-        annos = []
+        layers = []
         for layer in xml_node:
             assert self._TAG_PREFIX+'layer' == layer.tag
             try:
-                annos.append(self._parse_annotation(layer))
+                layers.append(self._parse_layer(layer))
             except IndexError:
                 continue
-
-        id        = xml_node.get('ID', None)
-        frameID   = xml_node.get('frameRef', None)
-        frameName = xml_node.get('frameName', None)
-        luID      = xml_node.get('luID', None)
-        luName    = xml_node.get('luName', None)
-        status    = xml_node.get('status', None)
-
-        anno_set = AnnotationSet(id = id,
-                                 frameID = frameID,
-                                 frameName = frameName,
-                                 luID = luID,
-                                 luName = luName,
-                                 status = status,
-                                 annotations = annos,
-                                 **params)  
+        args = {'id'         : xml_node.attrib['ID'],
+                'frameID'    : xml_node.attrib.get('frameRef', None),
+                'frameName'  : xml_node.attrib.get('frameName', None),
+                'luID'       : xml_node.attrib.get('luID', None),
+                'luName'     : xml_node.attrib.get('luName', None),
+                'status'     : xml_node.attrib.get('status', None),
+                'layers': layers}
+        params.update(args)
+        anno_set = AnnotationSet(**params)  
         return anno_set
+
+    def _parse_layer(self, xml_node, **params):
+        logger.debug('Layer[{}]:{}'.format(xml_node.tag, xml_node.attrib))
+        assert self._TAG_PREFIX+'layer' == xml_node.tag
+        annos = []
+        for child in xml_node:
+            annos.append(self._parse_annotation(child))
+            if len(child) == 0:
+                err = IndexError('Empty layer id({id})'.format(id = xml_node.attrib.get('ID','?')))
+                logger.warning(err)
+        args = {'rank'       : xml_node.attrib.get('rank', None),
+                'name'       : xml_node.attrib['name'],
+                'annotations': annos}
+        params.update(args)
+        return Layer(**params)
+
 
     def _parse_annotation(self, xml_node, **params):
         #TODO change for the layer level
         logger.debug('Annotation[{}]:{}'.format(xml_node.tag, xml_node.attrib))
-        assert self._TAG_PREFIX+'layer' == xml_node.tag
-        children = xml_node.getchildren()
-        if len(children) > 0:
-            label = children.getchildren()[0]
-            logger.debug('{lab}:{attr}'.format(lab= label.tag, attr = label.attrib))
-            name  = label.attrib['name']
-            itype = label.attrib.get('itype', None)
-            if itype:
-                anno  = Annotation(name = name, itype = itype, **params)
-            else:
-                start = label.attrib['start']
-                end   = label.attrib['end']
-                anno  = Annotation(start = start, end = end, name = name, **params)
-            return anno
+        assert self._TAG_PREFIX+'label' == xml_node.tag
+        label = xml_node
+        logger.debug('{lab}:{attr}'.format(lab= label.tag, attr = label.attrib))
+        name  = label.attrib['name']
+        itype = label.attrib.get('itype', None)
+        if itype:
+            anno  = Annotation(name = name, itype = itype, **params)
         else:
-            err = IndexError('Empty layer id({id})'.format(id = xml_node.attrib.get('ID','?')))
-            logger.warning(err)
-            raise err
+            start = label.attrib['start']
+            end   = label.attrib['end']
+            anno  = Annotation(start = start, end = end, name = name, **params)
+        return anno
 
     def parseXML(self, xml_item):
         '''
@@ -131,31 +133,31 @@ class FNXMLAdapter:
         root = self._doc2XML(doc)
         tree = XMLTree.ElementTree(root)
         if xml_file != None:
-            tree.write(xml_file)
+            tree.write(xml_file, encoding='utf-8', xml_declaration=True)
         else:
-            return XMLTree.dump(tree)
+            return XMLTree.tostring(tree, encoding='utf-8')
 
     def _doc2XML(self, doc):
-        root = XMLTree.Element('fullTextAnnotation')
-        root.attrib = {'xmlns':'http://framenet.icsi.berkeley.edu',
+        xml_root = XMLTree.Element('fullTextAnnotation')
+        xml_root.attrib = {'xmlns':'http://framenet.icsi.berkeley.edu',
                        'xmlns:xsi':'http://www.w3.org/2001/XMLSchema-instance'}
-        header = XMLTree.Element('fullTextAnnotation')
-        header.attrib = {'xmlns':'http://framenet.icsi.berkeley.edu',
+        xml_header = XMLTree.Element('header')
+        xml_header.attrib = {'xmlns':'http://framenet.icsi.berkeley.edu',
                        'xmlns:xsi':'http://www.w3.org/2001/XMLSchema-instance'}
-        corpus = XMLTree.Element('corpus')
-        corpus.attrib = {'description':'',
+        xml_corpus = XMLTree.Element('corpus')
+        xml_corpus.attrib = {'description':'',
                          'name':doc.corpus, 'ID':doc.corpusID}
-        document = XMLTree.Element('document')
-        document.attrib = {'description':doc.desc,
-                           'name':doc.name, 'ID':doc.ID}
-        corpus.append(doc)
-        header.append(corpus)
-        root.append(header)
+        xml_doc = XMLTree.Element('document')
+        xml_doc.attrib = {'description':doc.desc,
+                           'name':doc.name, 'ID':doc.id}
+        xml_corpus.append(xml_doc)
+        xml_header.append(xml_corpus)
+        xml_root.append(xml_header)
 
         for sent in doc.sentences:
-            xml_doc.append(self._sentence2XML(sent), corpID = doc.corpusID, docID = doc.id)
+            xml_root.append(self._sentence2XML(sent, corpID = doc.corpusID, docID = doc.id))
         
-        return root
+        return xml_root
 
     def _sentence2XML(self, sent, corpID, docID):
         xml_sent = XMLTree.Element('sentence')
@@ -170,15 +172,34 @@ class FNXMLAdapter:
         xml_sent.append(xml_text)
         for annoSet in sent.annotation_sets: #TODO
             xml_sent.append(self._anno_set2XML(annoSet))
+        return xml_sent
 
     def _anno_set2XML(self, annoset):
         xml_anno_set = XMLTree.Element('annotationSet')
-        xml_anno_set.attrib = {'ID':annoset.id}
+        xml_anno_set.attrib = {'ID': annoset.id}
+        for layer in annoset:
+            xml_anno_set.append(self._layer2XML(layer))
+        return xml_anno_set
 
-        for anno in annoset:
-            sentence= XMLTree.Element('')
-            text= XMLTree.Element('')
-            sentence= XMLTree.Element('')
+    def _layer2XML(self, layer):
+        xml_layer = XMLTree.Element('layer')
+        xml_layer.attrib = {'name': layer.name}
+        if layer.rank != None:
+            xml_layer.attrib['rank'] = layer.rank
+        for label in layer:
+            xml_layer.append(self._anno2XML(label))
+        return xml_layer
+
+    def _anno2XML(self, anno):
+        xml_anno = XMLTree.Element('label')
+        xml_anno.attrib = {'start': anno.start,
+                           'end'  : anno.end,
+                           'itype': anno.itype,
+                           'name' : anno.name}
+        for key, val in xml_anno.attrib.items():
+            if val == None:
+                del(xml_anno.attrib[key])
+        return xml_anno
 
 ######------------------------------
 
@@ -269,6 +290,7 @@ def parse_args(argv = argv, add_logger_args = lambda x: None):
     parser = argparse.ArgumentParser(description = 'Parses the semeval07 and framenet format into Documment')
     parser.add_argument('input_file', help = 'File to be parsed')
     parser.add_argument('-o', '--output_file', help = 'File to write the pickle serialization')
+    parser.add_argument('-x', '--output_xml_file', help = 'XML File to write the information extracted')
     parser.add_argument("-p","--parser", choices=PARSERS_AVAILABLE.keys(), help = 'Parser for the appropriate kind of file')
     add_logger_args(parser)
     args = parser.parse_args(argv[1:])
@@ -277,8 +299,7 @@ def parse_args(argv = argv, add_logger_args = lambda x: None):
 
 def main(argv):
     args = parse_args(argv, add_logger_args)
-    config_logger(args)
-    #file_path = '/home/bcarvalho/DataSets/semeval07/trial/xml/ElectionVictory_anno.xml'
+    config_logger(args) 
     logger.info('Loading XML file')
     with open(args.input_file, 'r') as f:
         tree = XMLTree.parse(f)
@@ -295,6 +316,13 @@ def main(argv):
         logger.info('Writing pickle file')
         with open(args.output_file, 'wb') as f:
             pickle.dump(docs,f)
+
+    if args.output_xml_file != None:
+        logger.info('Writing XML file')
+        with open(args.output_xml_file, 'w') as f:
+            doc = docs[0] #TODO iterate over the list
+            adapter.doc2XML(doc, xml_file = f)
+
         
 
 if __name__ == '__main__':
