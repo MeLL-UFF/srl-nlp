@@ -1,4 +1,7 @@
 import distance
+import logging
+
+logger = logging.getLogger(__name__)
 
 class Lexeme:
     def __init__(self, name = '', pos = '', breakBefore = True, headWord = True, text = ''):
@@ -74,6 +77,20 @@ class Description:
                             .format(name= self.name,
                                     attr= attr,
                                     content = ''.join(map(str, self.content)))
+
+        def __len__(self):
+            return sum(map(len, self.content))
+
+        def __getitem__(self, item):
+            return self.content[item]
+
+        def __setitem__(self, item, val):
+            logger.debug('Val %s' %val)
+            logger.debug('Content "%s"' %self.content)
+            if isinstance(item, slice):
+                self.content = self.content[:item.start] + val + self.content[item.stop:]
+            else:
+                self[item:item] = val
 
         def __repr__(self):
             attr = ''.join(['%s = "%s"'%item for item in self.attribs.iteritems()])

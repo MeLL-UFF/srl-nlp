@@ -1,6 +1,7 @@
 #!/bin/env python
 
 from srl_nlp.logger_config   import config_logger, add_logger_args
+from srl_nlp.framenet.framenet import Description
 import xml.etree.ElementTree as XMLTree
 import logging
 from copy import copy, deepcopy as dcopy
@@ -55,7 +56,7 @@ class Document:
         for i,(lsent,rsent) in enumerate(zip(lsents,rsents)):
             eq = (rsent == lsent)
             evaluation = 'EQ' if eq else 'DIFF'
-            logger.debugger('[{i}/{total}] {eq} sentences: \n\t{lsent} and \n\t {rsent}'\
+            logger.debug('[{i}/{total}] {eq} sentences: \n\t{lsent} and \n\t {rsent}'\
                                 .format(i = i, total = len(rsents), lsent = lsent, rsent = rsent, eq = evaluation))
             if not eq:
                 return False
@@ -80,7 +81,7 @@ class Document:
         for i,(lsent,rsent) in enumerate(zip(lsents,rsents)):
             sim = (rsents._similar(lsents))
             evaluation = 'EQ' if eq else 'DIFF'
-            logger.debugger('[{i}/{total}] Sim:{sim:6.2} sentences: \n\t{lsent} and \n\t {rsent}'\
+            logger.debug('[{i}/{total}] Sim:{sim:6.2} sentences: \n\t{lsent} and \n\t {rsent}'\
                                 .format(i = i, total = len(rsents), lsent = lsent,
                                         rsent = rsent, sim = sim*100))
             similarities.append(sim)
@@ -108,6 +109,92 @@ class Sentence:
 
     def __iter__(self):
         return self.annotation_sets.__iter__()
+
+    def __getitem__(self, item):
+        '''If item is an annotation we return a slice of the sentence.
+           If item is an slice, just slice the text.
+
+           Returns substring of self.text'''
+       #logger.debug('Slicing sentence {sent}, item \'{item}\''.format(sent = self, item = item))
+        if isinstance(item, Annotation):
+            return self[item.start:(item.end+1)]
+        elif isinstance(item, slice):
+            return self.text[item]
+        #logger.debug('Item is confusing ')
+        return
+
+    def _order_by_pos(self, anno_list, in_place):
+        #TODO documentation
+        key = lambda anno: (anno.start, -anno.end)
+        if in_place:
+            anno_list.sort(key = key)
+        else:
+            return sorted(anno_list, key = key)
+
+    def _handle_annotation(self, content, anno, escapeHTML, Label):
+        anno = copy(anno)
+        #Base case
+        if isinstance(content,str):
+            ltext    = content[0:anno.start]
+            fex_cont = content[anno.start:anno.end+1]
+            rtext    = content[anno.end+1:]
+            logger.debug('Recursion end: [\'{}\',\'{}\',\'{}\']'.format(ltext, fex_cont, rtext))
+            fex   = Label(content = [fex_cont], name = anno.name, escapeHTML = escapeHTML)
+            #logger.debug('Fex.content: \'{}\'\n{}'.format(fex.content,fex))
+            #logger.warning('Fex \'{}\', len(Fex) = {}'. format(fex, len(fex)))
+            result = []
+            if len(ltext) > 0:
+                result.append(ltext)
+            result.append(fex)
+            if len(rtext) > 0:
+                result.append(rtext)
+            return result
+        #Keep digging into the content
+        pos = 0
+        #logger.debug('Annotation content: "{}"'.format(content))
+        while anno.start >= len(content[pos]):
+            anno.start = anno.start - len(content[pos])
+            anno.end   = anno.end   - len(content[pos])
+            pos = pos + 1
+            assert anno.start >= 0
+        subcont = content[pos]
+        #logger.debug('Subcontent: {}'.format(subcont))
+        result  = self._handle_annotation(subcont, anno, escapeHTML, Label)
+        #logger.debug('Result:{}'.format(result))
+        #logger.debug('Instance of subclass: {}'.format(subcont.__class__))
+        if isinstance(subcont, Label):
+            pass
+        elif isinstance(subcont,str):
+            content[pos:pos+1] = result
+        else:
+            raise Exception('Invalid type {}'.format(subcont.__class__))
+        #logger.debug('!!!!Content:{}'.format(content))
+        return content
+
+    def get_fn_example(self, escapeHTML = False, **attribs):
+        #TODO documentation
+        anno_list = []
+        for anno_set in self.annotation_sets:
+            if anno_set.is_frame():
+                for layer in anno_set:
+                    for anno in layer:
+                        if anno.is_fe():
+                            anno_list.append(anno)
+        self._order_by_pos(anno_list, in_place = True)
+        logger.debug(map(lambda x: (x.start, x.end, x.name), anno_list))
+        #raw_input()
+        logger.debug('Sentence "{sent}", fex: "{fex}"'.format(sent = self, fex = anno_list))
+        content = [self.text]
+        logger.debug('Sentence ({})'.format(self.text))
+        if len(anno_list) > 0:
+            for anno in anno_list:
+                logger.debug('Fex "{fex}"'.format(fex = anno))
+                content =  self._handle_annotation(content, anno, escapeHTML = escapeHTML, Label = Description.FEeXample)
+                logger.debug('Content:{}'.format(content))
+                logger.debug('Anno slice: \'{}\''.format(self[anno]))
+        example = Description.EXample(content = content,
+                                      escapeHTML = False, **attribs)
+        return example
 
     def __eq__(self, other):
         if self.id != other.id or self.text != other.text:
@@ -150,17 +237,6 @@ class AnnotationSet:
     def get_fes(self):
         return list(filter(Annotation.is_fe, self.layers))
 
-    def __getitem__(self, item):
-        '''If item is an annotation we return a slice of the sentence.
-           If item is an slice, just slice the text.
-
-           Returns substring of self.text'''
-        if isinstance(item, Annotation):
-            return self[item.start, item.end+1]
-        elif isinstance(item, slice):
-            return text[item.start, item.end]
-        return
-
     def __iter__(self):
         return self.layers.__iter__()
 
@@ -193,9 +269,9 @@ class AnnotationSet:
     def __str__(self):
         params_str = str(self.params) if len(self.params) > 0 else ''
         if self.is_frame():
-            return '<Frame \'{fr}\'>{anno}{params}</Frame>'.format(fr = self.frameName, anno = str(self.layers)[1:-1], params = params_str)
+            return '<Frame \'{fr}\'>{anno}{params}</Frame>'.format(fr = self.frameName, anno = str(self.layers)[1:], params = params_str)
         else:
-            return '<AnnoSet>{anno}{params}</AnnoSet>'.format(anno = str(self.layers)[1:-1], params = params_str)
+            return '<AnnoSet>{anno}{params}</AnnoSet>'.format(anno = str(self.layers)[1:], params = params_str)
 
     def __repr__(self):
         #TODO
@@ -239,16 +315,29 @@ class Layer:
 
 
 class Annotation:
-    def __init__(self, start = None, end = None, itype = None, name = None, **params):
-        self.start = start
-        self.end = end
-        self.itype = itype
-        self.name = name
+    def __init__(self, start = 0, end = 0, itype = None, name = None, **params):
+        self.start  = int(start)
+        self.end    = int(end)
+        self.itype  = itype
+        self.name   = name
         self.params = params
         pass
 
     def is_fe(self):
         return self.name != None #TODO
+
+    def is_subannotation(self, other):
+        #if self.itype != None or other.itype != None:
+        #    return False
+        try:
+            if self.start >= other.start and self.end <= other.end:
+                return True
+        except (TypeError, AttributeError) as e:
+            pass
+        return False
+
+    def __len__(self):
+        return self.end - self.start +1
 
     def is_null(self):
         '''

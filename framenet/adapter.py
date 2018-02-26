@@ -62,18 +62,22 @@ class FNXMLAdapter:
             if child.tag == self._TAG_PREFIX+'text':
                 text = child.text
             if child.tag == self._TAG_PREFIX+'annotationSet':
-                annotation_sets.append(self._parse_annoset(child))
+                anno_set = self._parse_annoset(child)
+                if anno_set.is_frame(): #TODO use other annotations
+                    annotation_sets.append(anno_set)
         sentence = Sentence(id = id, text = text, annotation_sets = annotation_sets)
         return sentence
 
-    def _parse_annoset(self, xml_node, **params):
+    def _parse_annoset(self, xml_node, filter = ['FE'], **params):
         logger.debug('AnnoSet[{}]:{}'.format(xml_node.tag, xml_node.attrib))
         assert self._TAG_PREFIX+'annotationSet' == xml_node.tag
         layers = []
         for layer in xml_node:
             assert self._TAG_PREFIX+'layer' == layer.tag
             try:
-                layers.append(self._parse_layer(layer))
+                layer = self._parse_layer(layer)
+                if not filter or layer.name in filter:
+                    layers.append(layer)
             except IndexError:
                 continue
         args = {'id'         : xml_node.attrib['ID'],
@@ -216,7 +220,6 @@ class SemEval07XMLAdapter(FNXMLAdapter):
         for xml_par_list in xml_node:
             assert 'paragraphs' == xml_par_list.tag
             for xml_par in xml_par_list:
-                #logger.debug('Paragraph:\'{}\''.format(xml_par.tag))
                 assert 'paragraph' == xml_par.tag
                 sentences = []
                 for xml_sents in xml_par:
@@ -226,7 +229,6 @@ class SemEval07XMLAdapter(FNXMLAdapter):
                 pos = int(xml_par.attrib['documentOrder'])
                 sentences.extend(paragraphs.get(pos, []))
                 paragraphs[pos] = sentences
-
         ordering = lambda (x,_): x
         sentences = []
         for _, sent_list in sorted(paragraphs.items(), key = ordering):
@@ -271,6 +273,7 @@ class SemEval07XMLAdapter(FNXMLAdapter):
             root = xml_item
         else:
             root = XMLTree.parse(xml_item).getroot()
+        logger.debug('{}: {}'.format(root.tag, root.attrib))
         c_name = root.attrib['name']
         c_id = root.attrib['ID']
         docs = []
@@ -282,7 +285,6 @@ class SemEval07XMLAdapter(FNXMLAdapter):
                 docs.append(doc)
         return docs
 
-
 PARSERS_AVAILABLE = {'semeval': SemEval07XMLAdapter,
                      'framenet': FNXMLAdapter}
 
@@ -290,6 +292,8 @@ def parse_args(argv = argv, add_logger_args = lambda x: None):
     parser = argparse.ArgumentParser(description = 'Parses the semeval07 and framenet format into Documment')
     parser.add_argument('input_file', help = 'File to be parsed')
     parser.add_argument('-o', '--output_file', help = 'File to write the pickle serialization')
+    parser.add_argument('-c', '--check_examples', action = 'store_true', help = 'check if all examples are a perfect parsing of the respective sentence')
+    #parser.add_argument('-t', '--examples_as_text', help = 'Convert the examples to text before printing')
     parser.add_argument('-x', '--output_xml_file', help = 'XML File to write the information extracted')
     parser.add_argument("-p","--parser", choices=PARSERS_AVAILABLE.keys(), help = 'Parser for the appropriate kind of file')
     add_logger_args(parser)
@@ -309,8 +313,22 @@ def main(argv):
     adapter = PARSERS_AVAILABLE.get(args.parser, SemEval07XMLAdapter)()
 
     logger.info('Parsing XML tree')
-    docs = adapter.parseXML(root)
+    try:
+        docs = adapter.parseXML(root)
+    except KeyError as e:
+        raise KeyError('Consider using another parser type by using the option --parser')
     logger.info('Done parsing XML tree')
+
+    if args.check_examples:
+        for doc in docs:
+            for sentence in doc:
+                converted = sentence.get_fn_example().str_no_annotation()
+                print converted
+                print sentence.get_fn_example()
+                #raw_input()
+                if converted != sentence.text:
+                    logger.critical("{sent} was not properly processed".format(sent = sentence))
+
 
     if args.output_file != None:
         logger.info('Writing pickle file')
@@ -323,7 +341,6 @@ def main(argv):
             doc = docs[0] #TODO iterate over the list
             adapter.doc2XML(doc, xml_file = f)
 
-        
 
 if __name__ == '__main__':
     try:
