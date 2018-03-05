@@ -8,6 +8,7 @@ from srl_nlp.fol          import FOL
 from srl_nlp.logicalform  import LF
 from regex                import match, compile
 import json
+import fcntl, os, time
 import logging
 
 logger = logging.getLogger(__name__)
@@ -17,24 +18,77 @@ _package_directory = path.dirname(__file__)
 
 config.read(path.join(_package_directory, "../external.conf"))
 
-class Process:
+class Process(object):
     '''Intended to be an abstract class
     Its subclasses must have an attribute "params" of the type list and a string attribute "path_to_bin"
     '''
-    def __init__(self, path_to_bin, *params):
+    def __init__(self, path_to_bin, disposable, *params):
         self.path_to_bin = path_to_bin
         self.params      = params
+        self.disposable  = disposable
+        self._proc, _    = self._init_popen()
+        try:
+            self._proc_name = str(self.__class__).split('\'')[1].split('.')[-1]
+        except IndexError:
+            self._proc_name = str(self.__class__)
 
-    def _process(self, input_text, shell = False):
-        with TemporaryFile() as tmp:
-            tmp.write(input_text)
-            tmp.seek(0)
-            process = Popen([self.path_to_bin] + list(self.params),
-                                       shell=shell,
-                                       stdin=tmp,
+    def _init_popen(self):
+        process = Popen([self.path_to_bin] + list(self.params),
+                                       shell=False,
+                                       stdin=PIPE,
                                        stdout=PIPE,
                                        stderr=PIPE)
-            out, err = process.communicate()
+        chstdin, chstdout = process.stdin, process.stdout
+        fl = fcntl.fcntl(chstdout, fcntl.F_GETFL)
+        fcntl.fcntl(chstdout, fcntl.F_SETFL, fl | os.O_NONBLOCK)
+        #TODO wait for header
+        out = []
+        if not self._header_completed(out):
+            while True:
+                try:
+                    out.append(chstdout.readline())
+                except IOError:
+                    time.sleep(0.1)
+                    continue
+                if self._header_completed(out):
+                    break
+        return process, out
+
+    def _header_completed(self, out_list):
+        return True
+
+    def _process_completed(self, out_list):
+        return len(out_list) > 0
+
+    def _process(self, input_text, shell = False):
+        out, err = None, None
+        if self._proc.stdin.closed:
+            #self._proc.kill()
+            self._proc, _ = self._init_popen()
+
+        if self.disposable:
+            logger.info('{proc}: communicating'.format(proc = self._proc_name))
+            out, err = self._proc.communicate(input_text)
+        else:
+            out = []
+            err = []
+            self._proc.stdin.write(input_text)
+            self._proc.stdin.flush()
+            logger.info('{proc}: starting'.format(proc = self._proc_name))
+            while True:
+                try:
+                    out.append(self._proc.stdout.readline())
+                    #TODO get stderr
+                except IOError:
+                    if self._process_completed(out):
+                        break
+                    else:
+                        time.sleep(0.1)
+                        continue
+                logger.debug('{proc} out: {out}'.format(proc = self._proc_name,
+                                                        out = repr(out[-1])))
+            out = ''.join(out)
+            logger.info('{proc}: finished'.format(proc = self._proc_name))
         return out, err
 
 
@@ -42,8 +96,7 @@ class TokenizerLocalAPI(Process):
     def __init__(self, path_to_bin = config.get('syntatic_local', 't'), *params):
         if len(params) == 0:
             params = ('--stdin',)
-        self.path_to_bin = path_to_bin
-        self.params = params
+        Process.__init__(self, path_to_bin, True, *params)
 
     def tokenize(self, text):
         out, err = self._process(text)
@@ -58,8 +111,13 @@ class CandCLocalAPI(Process):
     def __init__(self, path_to_bin = config.get('semantic_local', 'c&c'),*params):
         if len(params) == 0:
             params = ('--models', config.get('semantic_local', 'c&c_models'), '--candc-printer', 'boxer')
-        self.path_to_bin = path_to_bin
-        self.params = params
+        Process.__init__(self, path_to_bin, False, *params)
+
+    def _header_completed(self, out_list):
+        return sum(map( lambda x: (x == '\n'), out_list)) >= 2
+
+    def _process_completed(self, out_list):
+        return sum(map( lambda x: (x == '\n'), out_list)) >= 1
 
     def parse(self, tokenized):
         tokenized = '\n'.join(map(' '.join, tokenized))
@@ -200,11 +258,10 @@ class BoxerLocalAPI(Process, BoxerAbstract):
                  path_to_bin       = config.get('semantic_local', 'boxer'), *params):
         if len(params) == 0:
             params = ('--stdin', '--semantics', 'fol')
+        Process.__init__(self, path_to_bin, True, *params)
         self.name        = 'Boxer'
-        self.path_to_bin = path_to_bin
         self.ccg_parser  = ccg_parser
         self.tokenizer   = tokenizer
-        self.params      = params
         self.expand_predicates = expand_predicates
 
     def _parsed2FOLstring(self, parsed):
