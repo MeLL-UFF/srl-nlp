@@ -14,14 +14,22 @@ This project aims to process structured representations of texts through SRL to 
 ## Installing Requirements
 * Problog, ProbFoil (I recommend pip for this task)
     ```shell
-    sudo pip install -r requirements.txt
+        sudo pip install -r requirements.txt
+    ```
+* Aleph
+    ```shell
+        wget http://www.comlab.ox.ac.uk/oucl/research/areas/machlearn/Aleph/aleph.pl -O ../aleph.pl
     ```
 * Boxer and C&C Tools
-    Run make XXX
-    #TODO: makefile that installs boxer and the C&C Tools
+    Clone the repository of KNews doing the following and then follow the read-me of that repository:
+    ```shell
+        (cd ..
+        git clone https://github.com/valeriobasile/learningbyreading.git
+        )
+    ```
 
 ### Datasets:
-* SemEval07 Task 19:
+* SemEval07 Task 19
 * Framenet 1.X
 * Dailymail and CNN
 
