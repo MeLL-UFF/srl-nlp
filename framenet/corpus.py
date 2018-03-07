@@ -172,7 +172,9 @@ class Sentence:
         return content
 
     def get_fn_example(self, escapeHTML = False, **attribs):
-        #TODO documentation
+        '''
+        Returns the equivalent FrameNet example of the given sentence
+        '''
         anno_list = []
         for anno_set in self.annotation_sets:
             if anno_set.is_frame():
