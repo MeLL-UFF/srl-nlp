@@ -37,7 +37,7 @@ def get_examples(target, fn):
         Iterates over the fn frames that contain target as a Frame element and return every description element with the tag EXample
 
         Returns: list of (example, Frame) pairs
-        '''
+    '''
     frames = fn.getFrameElementFrames(target)
     examples = []
     for frame in frames:
@@ -58,6 +58,34 @@ def get_preds(lf, token, skip = ['relation']):
                 out.append(lf)
             else:
                 out.extend(get_preds(term, token))
+    return out
+
+def _additive_dict_update(d1, d2):
+    for key in d2:
+        val = d1.get(key, [])
+        val.extend(d2[key])
+        d1[key] = val
+
+#TODO
+def get_tokens_index(lf, tokenized, skip = ['relation']):
+    '''
+    Returns:
+        A dictionary of the form {term : [(i, token),...]},
+        where term is a term of the lf and (i, tokens) are tuples
+        with the index and tokens related to the predicate
+
+    Parameters:
+        tokenized: list of strings
+        skip: list of strings with the predicates to ignore
+    '''
+    out = {}
+    for i, token in enumerate(tokenized):
+        if not lf.get_pred() in skip:
+            for term in lf.iterterms():
+                if term.get_pred() == token:
+                    _additive_dict_update(out, {term: [(i, token)]})
+                else:
+                    _additive_dict_update(out, get_tokens_index(lf, tokenized))
     return out
 
 
