@@ -1,14 +1,11 @@
 from requests             import post
-from subprocess           import PIPE, Popen
-from sys                  import stderr
-from os                   import path
-from tempfile             import TemporaryFile
 from ConfigParser         import ConfigParser
 from srl_nlp.fol          import FOL
 from srl_nlp.logicalform  import LF
 from regex                import match, compile
+from os                   import path
+from process              import Process
 import json
-import fcntl, os, time
 import logging
 
 logger = logging.getLogger(__name__)
@@ -18,88 +15,16 @@ _package_directory = path.dirname(__file__)
 
 config.read(path.join(_package_directory, "../external.conf"))
 
-class Process(object):
-    '''Intended to be an abstract class
-    Its subclasses must have an attribute "params" of the type list and a string attribute "path_to_bin"
-    '''
-    def __init__(self, path_to_bin, disposable, *params):
-        self.path_to_bin = path_to_bin
-        self.params      = params
-        self.disposable  = disposable
-        self._proc, _    = self._init_popen()
-        try:
-            self._proc_name = str(self.__class__).split('\'')[1].split('.')[-1]
-        except IndexError:
-            self._proc_name = str(self.__class__)
-
-    def _init_popen(self):
-        process = Popen([self.path_to_bin] + list(self.params),
-                                       shell=False,
-                                       stdin=PIPE,
-                                       stdout=PIPE,
-                                       stderr=PIPE)
-        chstdin, chstdout = process.stdin, process.stdout
-        fl = fcntl.fcntl(chstdout, fcntl.F_GETFL)
-        fcntl.fcntl(chstdout, fcntl.F_SETFL, fl | os.O_NONBLOCK)
-        #TODO wait for header
-        out = []
-        if not self._header_completed(out):
-            while True:
-                try:
-                    out.append(chstdout.readline())
-                except IOError:
-                    time.sleep(0.1)
-                    continue
-                if self._header_completed(out):
-                    break
-        return process, out
-
-    def _header_completed(self, out_list):
-        return True
-
-    def _process_completed(self, out_list):
-        return len(out_list) > 0
-
-    def _process(self, input_text, shell = False):
-        out, err = None, None
-        if self._proc.stdin.closed:
-            #self._proc.kill()
-            self._proc, _ = self._init_popen()
-
-        if self.disposable:
-            logger.info('{proc}: communicating'.format(proc = self._proc_name))
-            out, err = self._proc.communicate(input_text)
-        else:
-            out = []
-            err = []
-            self._proc.stdin.write(input_text)
-            self._proc.stdin.flush()
-            logger.info('{proc}: starting'.format(proc = self._proc_name))
-            while True:
-                try:
-                    out.append(self._proc.stdout.readline())
-                    #TODO get stderr
-                except IOError:
-                    if self._process_completed(out):
-                        break
-                    else:
-                        time.sleep(0.1)
-                        continue
-                logger.debug('{proc} out: {out}'.format(proc = self._proc_name,
-                                                        out = repr(out[-1])))
-            out = ''.join(out)
-            logger.info('{proc}: finished'.format(proc = self._proc_name))
-        return out, err
-
+TIME_OUT = 100
 
 class TokenizerLocalAPI(Process):
     def __init__(self, path_to_bin = config.get('syntatic_local', 't'), *params):
         if len(params) == 0:
             params = ('--stdin',)
-        Process.__init__(self, path_to_bin, True, *params)
+        Process.__init__(self, path_to_bin, True, TIME_OUT, *params)
 
     def tokenize(self, text):
-        out, err = self._process(text)
+        out, err = self._process(text.strip())
         if err:
             print >> stderr, 'Tokenizer error: {0}'.format(err)
         tokenized = out.decode('utf-8').encode("utf-8")
@@ -111,7 +36,7 @@ class CandCLocalAPI(Process):
     def __init__(self, path_to_bin = config.get('semantic_local', 'c&c'),*params):
         if len(params) == 0:
             params = ('--models', config.get('semantic_local', 'c&c_models'), '--candc-printer', 'boxer')
-        Process.__init__(self, path_to_bin, False, *params)
+        Process.__init__(self, path_to_bin, False, TIME_OUT, *params)
 
     def _header_completed(self, out_list):
         return sum(map( lambda x: (x == '\n'), out_list)) >= 2
@@ -120,12 +45,16 @@ class CandCLocalAPI(Process):
         return sum(map( lambda x: (x == '\n'), out_list)) >= 1
 
     def parse(self, tokenized):
-        tokenized = '\n'.join(map(' '.join, tokenized))
-        out, err = self._process(tokenized)
-        if err:
-            # C&C writes info on the stderr, we want to ignore it
-            if not err.startswith('#'):
-                print >> stderr, 'Parser error: {0}'.format(err)
+        out = ''
+        for tokenized in map(' '.join, tokenized):
+            tokenized = tokenized.strip()
+            if len(tokenized) > 0:
+                tmp_out, err = self._process(tokenized.strip()+'\n')
+                if err:
+                    # C&C writes info on the stderr, we want to ignore it
+                    if not err.startswith('#'):
+                        print >> stderr, 'Parser error: {0}'.format(err)
+                out = out + tmp_out
         return out.decode('utf-8').encode("utf-8")
 
 
@@ -144,7 +73,7 @@ class BoxerAbstract:
                                                          ['noun']        + terms + p_elems)),
         (r'^\w\d+(?:A|actor)',   lambda p_elems, terms: (['actor']       + terms,)),
         (r'^r\d+(?:T|t)heme',    lambda p_elems, terms: (['theme']       + terms,)),
-        (r'^r\d+(?:T|t)opic',    lambda p_elems, terms: (['topic']       + terms,)),
+        (r'^\w\d+(?:T|t)opic',   lambda p_elems, terms: (['topic']       + terms,)),
         (r'^r\d+(\w*)',          lambda p_elems, terms: (['relation']    + terms + p_elems,)),
         (r'^n\d+numeral',        lambda p_elems, terms: (['numeral']     + terms,)),
         (r'^n\d+(.*)',           lambda p_elems, terms: (['noun']        + terms + p_elems,)),
@@ -182,7 +111,6 @@ class BoxerAbstract:
         return fols
 
     def FOL2LF(self, fol_list, expand_predicates, removeForAlls = True, **kargs):
-        # print fol_list
         # raw_input()
         to_LF = lambda x: LF(x, removeForAlls=removeForAlls, header = 'fol',**kargs)
         if expand_predicates:
@@ -190,7 +118,6 @@ class BoxerAbstract:
         else:
             parse = to_LF
         out = map(parse, fol_list)
-        # print out
         # raw_input()
         return out
 
@@ -198,7 +125,6 @@ class BoxerAbstract:
     def _expandFOLpredicate(fol):
         predicate = fol[0]
         args = fol[1:]
-        #print predicate, '-', len(args), '\n\n\n'
         for pattern, parser in BoxerAbstract._expansion_patterns:
             matching = match(pattern, predicate)
             if matching:
@@ -212,12 +138,10 @@ class BoxerAbstract:
     def _expandFOLpredicates(fol, concatenator = FOL.AND):
         if fol == None:
             return None
-        #print '\n\n expanding', fol
         frontier = [fol.info]
         while len(frontier) > 0:
             term = frontier.pop()
             predicate = term[0]
-            #print '\ncheck:', predicate,'\n\n'
             if FOL.is_special(predicate):
                 #print 'is special'
                 for pos, child in enumerate(term[1:]):
@@ -252,13 +176,19 @@ class BoxerAbstract:
 
 
 class BoxerLocalAPI(Process, BoxerAbstract):
-    def __init__(self, tokenizer   = TokenizerLocalAPI(),
-                 ccg_parser        = CandCLocalAPI(),
+    def __init__(self, tokenizer   = None,
+                 ccg_parser        = None,
                  expand_predicates = True,
                  path_to_bin       = config.get('semantic_local', 'boxer'), *params):
         if len(params) == 0:
             params = ('--stdin', '--semantics', 'fol')
-        Process.__init__(self, path_to_bin, True, *params)
+        Process.__init__(self, path_to_bin, True, TIME_OUT, *params)
+
+        if tokenizer   == None:
+            tokenizer  = TokenizerLocalAPI()
+        if ccg_parser  == None:
+            ccg_parser = CandCLocalAPI()
+
         self.name        = 'Boxer'
         self.ccg_parser  = ccg_parser
         self.tokenizer   = tokenizer

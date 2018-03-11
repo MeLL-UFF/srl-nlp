@@ -16,6 +16,8 @@ class LF:
         if len(args) > 0:
             header = kargs.get('header',None)
             fol = copy(args[0])
+            if isinstance(fol, str):
+                fol = FOL(fol)
             if header and args[0].info[0] == header:
                 fol.info = fol.info[-1]
             #    print "*"

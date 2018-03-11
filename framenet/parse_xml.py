@@ -73,7 +73,7 @@ class FrameXMLParser:
             if len(tag) != 0: #if it is a tag
                 name, attrib = in_tag_pattern.findall(tag)[0]
                 name = name.strip()
-                logger.debug(label_stack, '*', len(label_stack))
+                #logger.debug(label_stack, '*', len(label_stack))
                 label_buffer = label_stack[-1]
                 if content != None:
                     label_buffer.add_text(content)

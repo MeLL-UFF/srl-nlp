@@ -26,6 +26,48 @@ _package_directory = path.dirname(__file__)
 
 config.read(path.join(_package_directory, "external.conf"))
 
+
+class RuleGenerator(object):
+    '''Take Examples and convert them to rules'''
+    FE_PRED = 'frame_element'
+    FR_PRED = 'frame_related'
+
+    def __init__(self, *analysers, **params):
+        self.analysers = analysers
+        nlp = spacy.load('en_core_web_sm')
+        self._get_lemma = lambda token: nlp(token.decode('utf-8'))[0].lemma_
+
+    def get_rules(self, frame, *examples):
+        '''Generates FrameElement rules'''
+        for analyser in self.analysers:
+            for example in examples:
+                lfs = analyser.sentence2LF(example.str_no_annotation())
+                for lf in lfs:
+                    if not lf.has_pred('not'):
+                        logger.debug('Path:%s' %str(lf))
+                        try:
+                            elements, targets = get_annotations(example, lf, get_abbrev(frame), get_lemma = self._get_lemma)
+                            factors = get_factors(lf)
+                            for target in targets:
+                                for label, preds in elements.iteritems():
+                                    for pred in preds:
+                                        for path in get_paths(pred, target, factors):
+                                            if label[:1].islower():
+                                                logger.error(example)
+                                                logger.error(path)
+                                                logger.error(elements)
+                                                logger.error(targets)
+                                                raise Exception('%s FE was not matched, the label is lower cased' %label)
+                                            rule = "%s :- %s, %s." %(str_preds(make_pred(self.FE_PRED, pred, label.lower())),
+                                                                     str_preds(make_pred(self.FR_PRED, target, frame.name.lower())),
+                                                                     str_preds(path))
+                                            logger.debug("Rule: %s" %rule)
+                                            yield rule
+                                            break
+                        except IndexError as e:
+                            logger.error(e)
+                            continue
+
 ############################
 
 #   Get Deep Role Rules    #
@@ -99,10 +141,10 @@ def get_abbrev(frame):
             out[fe.abbrev] = fe.name
     return out
 
-nlp = spacy.load('en_core_web_sm')
 
 
-def get_annotations(example, lf, abbrev2fe = {}, get_lemma = lambda token: nlp(token.decode('utf-8'))[0].lemma_):
+
+def get_annotations(example, lf, abbrev2fe = {}, get_lemma = None):
     '''
     This function matches the example annotations against the given lf
     (the lf must represent the example for this to make any sense)
@@ -113,15 +155,19 @@ def get_annotations(example, lf, abbrev2fe = {}, get_lemma = lambda token: nlp(t
     '''
     fes = dict()
     target = []
+    if get_lemma == None:
+        nlp = spacy.load('en_core_web_sm')
+        get_lemma = lambda token: nlp(token.decode('utf-8'))[0].lemma_
+
     for term in example.content:
         pred_stack = []
-        logger.debug("TERM %s" %term)
         logger.debug("Example %s" %example)
         while isinstance(term, Description.FEeXample) or \
               isinstance(term, Description.Target) or \
               isinstance(term, Description.T) :
             pred_stack.append(term.attribs.get('name', term.name))
             term = term.content[0]
+        logger.debug("TERM stack %s" %pred_stack)
         if len(pred_stack) > 0:
             for token in term.strip().split(' '):
                 try:
@@ -226,41 +272,18 @@ def str_preds(preds, pattern = compile('^c(\d+)$'), x = ['frame_element', 'frame
     else:
         return ','.join(map(lambda pred: str_preds(pred, pattern, x, count), preds))
 
-def make_theory(lfs, examples):
+def make_theory(rule_generator, fe_examples):
     '''
-    Returns a set of strings where each string is a prolog rule of a theory.
+    Returns a iterator of strings where each string is a prolog rule.
     '''
-    theory = []
-    for fe in lfs.iterkeys():
-        out = []
-        for (example_list, frame), lf_list in zip(examples[fe], lfs[fe]):
-            for example in example_list:
-                for lf in lf_list:
-                    if lf.has_pred('not'):
-                        continue
-                    try:
-                        elements, targets = get_annotations(example, lf, get_abbrev(frame))
-                        factors = get_factors(lf)
-                        for target in targets:
-                            for label, preds in elements.iteritems():
-                                for pred in preds:
-                                    for path in get_paths(pred, target, factors):
-                                        if label[:1].islower():
-                                            logger.error(example)
-                                            logger.error(path)
-                                            logger.error(elements)
-                                            logger.error(targets)
-                                            raise Exception('%s FE was not matched, the label is lower cased' %label)
-                                        rule = "%s :- %s, %s." %(str_preds(make_pred('frame_element', pred, label.lower())),
-                                                                str_preds(make_pred('frame_related', target, frame.name.lower())),
-                                                                str_preds(path))
-                                        logger.debug("Rule: %s" %rule)
-                                        theory.append(rule)
-                                        break
-                    except IndexError as e:
-                        logger.error(e)
-                        continue
-    return theory
+    for i in fe_examples:
+        examples, frame = i
+        logger.debug('example | frame:  %s'%str(i))
+        if len(examples) > 0:
+            logger.info('Example: %s' %str(examples[0].str_no_annotation()))
+        for rule in rule_generator.get_rules(frame, *examples):
+            yield rule
+    logger.info('Made theory')
 
 
 
@@ -318,12 +341,14 @@ def make_frame_matching_rules(lus2frames, lu_pos2pred = lu_pos2pred, f_out = Non
 ##########################
 
 def parse_args(argv= argv, add_logger_args = lambda x: None):
-    parser = argparse.ArgumentParser(description = 'Tmp file that generate the deep rules')
-    parser.add_argument('--lfs_file', help = 'the path of file with the lfs (if the file does not exist, it will be created and filled)')
-    #parser.add_argument('--txt_file', help = 'the path of file with sentences to fill')
+    parser = argparse.ArgumentParser(description = 'KB generator')
     parser.add_argument('--out_file', help = 'the path to where to write the rules')
-    #parser.add_argument('-p', '--file_prefix', help = 'prefix of the experiment files')
-    #parser.add_argument('-v', '--verbosity', action='count', default=0, help = 'increase output verbosity')
+    parser.add_argument('--example_file', help = 'the path to where to write/read examples TODO')
+    parser.add_argument('-l', '--limit', help = 'max number of examples used')
+    parser.add_argument('-r', '--frame_related', action='store_true', default = False,
+                        help = 'output frame_related rules')
+    parser.add_argument('-e', '--frame_element', action='store_true', default = False,
+                        help = 'output frame_element rules')
     add_logger_args(parser)
     args = parser.parse_args()
     return args
@@ -340,61 +365,82 @@ def main(argv):
     logger.info('Starting FrameNet')
     parser = NetXMLParser()
     fn = parser.parse('framenet/fndata-1.7')
-    fes_keys = fn._fes.keys()
-    logger.info('Capturing examples')
-    examples = dict(zip(fes_keys, map(lambda fe: get_examples(fe,fn), fes_keys)))
 
-    logger.info('Starting Boxer')
-    boxer = BoxerLocalAPI(expand_predicates = True)
-    logger.info('Boxer started')
+    # lfs = None
+    # overwrite_lfs_file = False
+    # if args.lfs_file:
+    #     logger.info('Reading from %s' %args.lfs_file)
+    #     try:
+    #         with open(args.lfs_file, 'r') as f:
+    #             lfs = pickle.load(f)
+    #     except IOError:
+    #         overwrite_lfs_file = True
+    # if not lfs:
+    #     lfs = dict()
+    #     for count, (fe, example_list) in enumerate(examples.iteritems()):
+    #         lfs[fe] = [boxer.sentence2LF(example.str_no_annotation())
+    #                         for ex_list, _ in example_list for example in ex_list]
+    #         logger.info("%06.2f%%" %(100.*(count+1)/len(examples)))
+    #     if overwrite_lfs_file:
+    #         with open(args.lfs_file, 'w') as f:
+    #             pickle.dump(lfs, f)
 
-    lfs = None
-    overwrite_lfs_file = False
-    if args.lfs_file:
-        logger.info('Reading from %s' %args.lfs_file)
-        try:
-            with open(args.lfs_file, 'r') as f:
-                lfs = pickle.load(f)
-        except IOError:
-            overwrite_lfs_file = True
-    if not lfs:
-        lfs = dict()
-        for count, (fe, example_list) in enumerate(examples.iteritems()):
-            lfs[fe] = [boxer.sentence2LF(example.str_no_annotation())
-                            for ex_list, _ in example_list for example in ex_list]
-            logger.info("%06.2f%%" %(100.*(count+1)/len(examples)))
-        if overwrite_lfs_file:
-            with open(args.lfs_file, 'w') as f:
-                pickle.dump(lfs, f)
+    # logger.info('LFs are ready')
 
-    logger.info('LFs are ready')
+    if args.frame_related:
+        frame_matching_rules = make_frame_matching_rules(get_lus2frames(fn))
 
-    frame_matching_rules = make_frame_matching_rules(get_lus2frames(fn))
-
-    if args.out_file:
-        logger.info('Saving to %s' %args.out_file)
-        with open(args.out_file, 'w') as f:
+        if args.out_file:
+            logger.info('Saving to %s' %args.out_file)
+            stream = open(args.out_file, 'a')
+        else:
+            stream = stdout
+        with stream as f:
             f.write("%% Frame Matching Rules\n")
             for rule in frame_matching_rules:
                 f.write(rule)
                 f.write('\n')
-    else:
-        print "%% Frame Matching Rules"
-        for rule in frame_matching_rules:
-            print rule
 
-    theory = make_theory(lfs, examples)
-    if args.out_file:
-        logger.info('Saving to %s' %args.out_file)
-        with open(args.out_file, 'a') as f:
+    ########################
+    #                      #
+    #  Frame Element Rules #
+    #                      #
+    ########################
+    if args.frame_element:
+        fes_keys = fn._fes.keys()
+        examples = []
+        if args.example_file:
+            try:
+                with open(args.example_file, 'r') as f:
+                    pass
+            except: #TODO Not found error
+                pass
+        else:
+            logger.info('Capturing examples')
+            examples = []
+            for l in list(map(lambda fe: get_examples(fe,fn), fes_keys)):
+                examples.extend(l)
+
+        logger.info('Starting Boxer')
+        boxer = BoxerLocalAPI(expand_predicates = True)
+        logger.info('Boxer started')
+        if args.limit:
+            sliced_examples = examples[:int(args.limit)]
+        else:
+            sliced_examples = examples
+        logger.info('Ther are %d examples being considered' %len(sliced_examples))
+        theory = make_theory(RuleGenerator(boxer), sliced_examples)
+            
+        if args.out_file:
+            logger.info('Saving to %s' %args.out_file)
+            stream = open(args.out_file, 'a')
+        else:
+            stream = stdout
+        with stream as f:
             f.write("\n%% Deep Role Rules\n")
             for rule in theory:
                 f.write(rule)
                 f.write('\n')
-    else:
-        print "\n%% Deep Role Rules"
-        for rule in make_theory(lfs, examples):
-            print rule
 
 
 
