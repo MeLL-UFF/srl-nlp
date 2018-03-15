@@ -47,7 +47,9 @@ class RuleGenerator(object):
                         logger.debug('Path:%s' %str(lf))
                         try:
                             elements, targets = get_annotations(example, lf, get_abbrev(frame), get_lemma = self._get_lemma)
+                            logger.debug('Done Annotations:%s' %str(targets))
                             factors = get_factors(lf)
+                            logger.debug('Done Factors:%s' %str(factors))
                             for target in targets:
                                 for label, preds in elements.iteritems():
                                     for pred in preds:
@@ -225,7 +227,7 @@ def get_paths(predL, predR, factors, breadth = True):
             yield path
         visited.append(curr_pred)
         for literal in curr_pred.iterterms():
-            for term in factors.get(literal.get_pred(), []):
+            for term in set(factors.get(literal.get_pred(), [])):
                 if not term in visited:
                     frontier.append((term, path+[term]))
 
@@ -350,7 +352,7 @@ def parse_args(argv= argv, add_logger_args = lambda x: None):
     parser.add_argument('-e', '--frame_element', action='store_true', default = False,
                         help = 'output frame_element rules')
     add_logger_args(parser)
-    args = parser.parse_args()
+    args = parser.parse_args(argv[1:])
     return args
 
 def main(argv):

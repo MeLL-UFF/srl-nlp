@@ -313,7 +313,7 @@ def parse_args(argv = argv, add_logger_args = lambda x: None):
     parser = argparse.ArgumentParser(description = 'Runs the experiments defined in each folder (Aleph only right now)')
     parser.add_argument('dir_path', help = 'the path of the experiments')
     parser.add_argument('-p', '--file_prefix', help = 'prefix of the experiment files')
-    parser.add_argument('-v', '--verbosity', action='count', default=0, help = 'increase output verbosity')
+    #parser.add_argument('-v', '--verbosity', action='count', default=0, help = 'increase output verbosity')
     add_logger_args(parser)
     args = parser.parse_args(argv[1:])
     return args
