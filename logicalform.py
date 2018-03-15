@@ -96,6 +96,9 @@ class LF:
     def isleaf(self):
         return len(self.info) == 1
 
+    def __hash__(self):
+        return repr(self).__hash__()
+        
     def __eq__(self, other):
         if self is None or other is None:
             if self is None and other is None:

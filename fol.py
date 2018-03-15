@@ -306,6 +306,9 @@ class FOL:
                 return False
         return FOL._eq_predicate(self.info, other.info)
 
+    def __hash__(self):
+        return repr(self).__hash__()
+
     @staticmethod
     def _eq_predicate(l_list,r_list):
         if len(l_list) != len(r_list):
