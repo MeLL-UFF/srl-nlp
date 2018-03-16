@@ -1,7 +1,12 @@
 '''
 This file hold classes that facilitate rule manipulation
 '''
-
+from srl_nlp.framenet.framenet  import Description
+from srl_nlp.logicalform        import LF
+from srl_nlp.fol                import FOL
+from regex                      import compile
+from copy                       import deepcopy as copy
+import spacy
 
 ############################
 

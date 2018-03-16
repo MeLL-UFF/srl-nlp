@@ -1,15 +1,9 @@
 #!/bin/env python
 from srl_nlp.framenet.parse_xml import NetXMLParser
 from srl_nlp.rule_manipulation  import *
-from srl_nlp.framenet.framenet  import Description
 from srl_nlp.analysers.boxer    import BoxerLocalAPI
-from srl_nlp.logicalform        import LF
-from srl_nlp.fol                import FOL
-from regex                      import compile
-from copy                       import deepcopy as copy
 from sys                        import stdout
 from os                         import path
-import pickle
 import spacy
 
 #Logger
