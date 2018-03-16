@@ -1,8 +1,10 @@
 #!/bin/env python
 '''
 Description
-'''#TODO
+'''#TODO description
+
 from srl_nlp.analysers.process import Process
+from srl_nlp.rule_manipulation import *
 from srl_nlp.logicalform       import LF
 from logger_config             import config_logger, add_logger_args
 from ConfigParser              import ConfigParser
@@ -18,7 +20,7 @@ _package_directory = path.dirname(__file__)
 
 config.read(path.join(_package_directory, "external.conf"))
 
-class SemanticAnnotator:
+class SemanticAnnotator(object):
 
     def __init__(self, **params):
         pass
@@ -35,6 +37,8 @@ class SemanticAnnotator:
 
 class Annotator1(SemanticAnnotator, Process):
     '''Description of annotator 1'''
+    FRAME_RELATED_PRED = 'frame_related'
+    FRAME_ELEMENT_PRED = 'frame_element'
 
     def __init__(self, analyser, fr_kb_file, fe_kb_file, path_to_prolog = config.get('prolog_local','engine')):
         self.analyser = analyser
@@ -55,7 +59,7 @@ class Annotator1(SemanticAnnotator, Process):
     def _halt(self):
         return 'halt.'
 
-    def _script(self, *cmds):
+    def _script(self , *cmds):
         return "\n".join(cmds)
 
     def _open_a_file(self, name = None):
@@ -76,23 +80,46 @@ class Annotator1(SemanticAnnotator, Process):
                 out.append(lf)
         return out
 
+    #TODO
+    def _preds2example(self, sentence, script_out):
+        lines = []
+        for line in script_out.split('\n'):
+            # TODO handle comments
+            lines.append(line.strip)
+        lfs =  [LF(line) for line in lines]
+        for lf in lfs:
+            # TODO if lf is a frame related, store the frame, find the token linked with the term and try to match it in the sentence
+            if lf.get_pred() == Annotator1.FRAME_RELATED_PRED:
+                pass
+
+            # TODO if lf is a frame element related, store the fe, find the token linked with the term and try to match it in the sentence
+            if lf.get_pred() == Annotator1.FRAME_ELEMENT_PRED:
+                pass
+        example = None
+        return example
+
+    def parsing(self, script, sentence, header = '', footer = '', input_file = None):
+        lfs = self.analyser.sentence2LF(sentence)
+        lf = lfs[0]
+        input_file.write(header)
+        for pred in lf.iterterms():
+            logger.debug('PRED: {}'.format(str(pred)))
+            input_file.write(str(pred)+'\n')
+        input_file.write(footer)
+        input_file.flush()
+        input_file.seek(0)
+        logger.debug('\n"{}"\n'.format(script))
+        out, err = self._process(script)
+        return out, err
+
 
     def frameMatching(self, sentence, out_error = False, lf_file_name = None, **params):
-        #with NamedTemporaryFile() as lf_file:
         with self._open_a_file(lf_file_name) as lf_file:
-            lfs = self.analyser.sentence2LF(sentence)
-            lf = lfs[0]
-            for pred in lf.iterterms():
-                logger.debug('PRED: {}'.format(str(pred)))
-                lf_file.write(str(pred)+'\n')
-            lf_file.flush()
-            lf_file.seek(0)
             script = self._script(self._load_file(self.fr_kb_file),
                                   self._load_file(lf_file.name),
-                                  self._forall('frame_related', 2),
+                                  self._forall(Annotator1.FRAME_RELATED_PRED, 2),
                                   self._halt())
-            logger.debug('\n"{}"\n'.format(script))
-            out, err = self._process(script)
+            out, err = self.parsing(self, script, sentence, header = '', input_file = lf_file)
             if out_error:
                 return out, err
             else:
@@ -101,43 +128,25 @@ class Annotator1(SemanticAnnotator, Process):
     def frameElementMatching(self, sentence, fr_anno=[], out_error = False,
                              lf_file_name = None, **params):
         with self._open_a_file(lf_file_name) as lf_file:
-            lfs = self.analyser.sentence2LF(sentence)
-            lf = lfs[0]
-            lf_file.write('\n'.join(fr_anno)+'\n')
-            for pred in lf.iterterms():
-                logger.debug('PRED: {}'.format(str(pred)))
-                lf_file.write(str(pred)+'\n')
-            lf_file.flush()
-            lf_file.seek(0)
             script = self._script(self._load_file(self.fe_kb_file),
                                   self._load_file(lf_file.name),
-                                  self._forall('frame_element', 2),
+                                  self._forall(Annotator1.FRAME_ELEMENT_PRED, 2),
                                   self._halt())
-            logger.debug('\n"{}"\n'.format(script))
-            out, err = self._process(script)
+            out, err = self.parsing(self, script, sentence, header = '\n'.join(fr_anno) + '\n', input_file = lf_file)
             if out_error:
                 return out, err
             else:
                 return out
 
-    def matching(self, sentence, out_error = False,
-                 lf_file_name = None, **params):
+    def matching(self, sentence, out_error = False, lf_file_name = None, **params):
         with self._open_a_file(lf_file_name) as lf_file:
-            lfs = self.analyser.sentence2LF(sentence)
-            lf = lfs[0]
-            for pred in lf.iterterms():
-                logger.debug('PRED: {}'.format(str(pred)))
-                lf_file.write(str(pred)+'\n')
-            lf_file.flush()
-            lf_file.seek(0)
             script = self._script(self._load_file(self.fr_kb_file),
                                   self._load_file(self.fe_kb_file),
                                   self._load_file(lf_file.name),
-                                  self._forall('frame_related', 2),
-                                  self._forall('frame_element', 2),
+                                  self._forall(Annotator1.FRAME_RELATED_PRED, 2),
+                                  self._forall(Annotator1.FRAME_ELEMENT_PRED, 2),
                                   self._halt())
-            logger.debug('\n"{}"\n'.format(script))
-            out, err = self._process(script)
+            out, err = self.parsing(self, script, sentence, input_file = lf_file)
             if out_error:
                 return out, err
             else:
