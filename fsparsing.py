@@ -93,15 +93,18 @@ class Annotator1(SemanticAnnotator, Process):
                 out.append(lf)
         return out
 
-    #TODO _indexes_token_in_sentence
+
     def _indexes_token_in_sentence(self, token, sentence):
         '''Finds out if method can be found in the sentence, uses the nlp pipeline to lemmatize
 
         Returns the indexes of the given token in the sentence.
         If there is no matching, returns None'''
-        tokens = sentence.split(' ') #TODO use tokenizer
-        indexes = None
-        return indexes
+        token = token.decode()
+        tokens = self._nlp(sentence.decode())
+        for s_token in tokens:
+            if token == s_token.lemma_:
+                return s_token.idx + len(s_token)
+        return None
 
     def _indexes_term_in_sentence(self, link_term, lfs, sentence):
         factors = [get_factors(lf) for lf in lfs]
@@ -126,7 +129,6 @@ class Annotator1(SemanticAnnotator, Process):
         f_set_map = dict()
 
         for inf_lf in infered_lfs:
-            # TODO if lf is a frame related, store the frame, find the token linked with the term and try to match it in the sentence
             if inf_lf.get_pred() == Annotator1.FRAME_RELATED_PRED:
                 try:
                     link_term, frame_name, fe_name = inf_lf.iteritems()
@@ -144,7 +146,6 @@ class Annotator1(SemanticAnnotator, Process):
 
                             #logger.error('Token \'{token}\' not found in sentence \'{sent}\''.format(sent = sentence, token = token))
 
-            # TODO if lf is a frame element related, store the fe, find the token linked with the term and try to match it in the sentence
             if inf_lf.get_pred() == Annotator1.FRAME_ELEMENT_PRED:
                 try:
                     link_term, frame_name = inf_lf.iteritems()
@@ -182,7 +183,7 @@ class Annotator1(SemanticAnnotator, Process):
                                   self._load_file(lf_file.name),
                                   self._forall(Annotator1.FRAME_RELATED_PRED, 2),
                                   self._halt())
-            out, err = self.parsing(self, script, sentence, header = '', input_file = lf_file)
+            out, err = self.parsing(script, sentence, header = '', input_file = lf_file)
             if out_error:
                 return out, err
             else:
@@ -195,7 +196,7 @@ class Annotator1(SemanticAnnotator, Process):
                                   self._load_file(lf_file.name),
                                   self._forall(Annotator1.FRAME_ELEMENT_PRED, 2),
                                   self._halt())
-            out, err = self.parsing(self, script, sentence, header = '\n'.join(fr_anno) + '\n', input_file = lf_file)
+            out, err = self.parsing(script, sentence, header = '\n'.join(fr_anno) + '\n', input_file = lf_file)
             if out_error:
                 return out, err
             else:
@@ -209,7 +210,7 @@ class Annotator1(SemanticAnnotator, Process):
                                   self._forall(Annotator1.FRAME_RELATED_PRED, 2),
                                   self._forall(Annotator1.FRAME_ELEMENT_PRED, 2),
                                   self._halt())
-            out, err = self.parsing(self, script, sentence, input_file = lf_file)
+            out, err = self.parsing(script, sentence, input_file = lf_file)
             if out_error:
                 return out, err
             else:
@@ -274,4 +275,5 @@ if __name__ == '__main__':
         logger.info('Halted by the user')
     except OSError as e:
         logger.critical('Problem reading/writing files')
-        logger.exception(e)
+        logger.critical(e)
+        raise e

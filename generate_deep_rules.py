@@ -55,7 +55,7 @@ class RuleGenerator(object):
                                                 logger.error(elements)
                                                 logger.error(targets)
                                                 raise Exception('%s FE was not matched, the label is lower cased' %label)
-                                            rule = "%s :- %s, %s." %(str_preds(make_pred(self.FE_PRED, pred, label.lower())),
+                                            rule = "%s :- %s, %s." %(str_preds(make_pred(self.FE_PRED, pred, frame.name.lower(), label.lower())),
                                                                      str_preds(make_pred(self.FR_PRED, target, frame.name.lower())),
                                                                      str_preds(path))
                                             logger.debug("Rule: %s" %rule)
@@ -247,3 +247,4 @@ if __name__ == '__main__':
     except OSError as e:
         logger.critical('Problem reading/writing files')
         logger.exception(e)
+        raise e

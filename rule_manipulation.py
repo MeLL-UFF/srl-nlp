@@ -175,13 +175,14 @@ def get_paths(predL, predR, factors, breadth=True):
                     frontier.append((term, path + [term]))
 
 
-def make_pred(literal, pred, label):
+def make_pred(literal, pred, *terms):
     '''
     Returns a new LF predicate from the original pred, the literal and a label
     '''
     t = pred.iterterms().next()
+    terms = map(lambda x: x if isinstance(x, list) else [x], terms)
     out = LF()
-    out.info = [literal] + [t.info] + [[label]]
+    out.info = [literal] + [t.info] + terms
     return out
 
 
