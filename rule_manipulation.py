@@ -8,6 +8,10 @@ from regex                      import compile
 from copy                       import deepcopy as copy
 import spacy
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 ############################
 
 #   Get Deep Role Rules    #
@@ -51,7 +55,7 @@ def _additive_dict_update(d1, d2):
         d1[key] = val
 
 
-# TODO
+# TODO get_tokens_index
 def get_tokens_index(lf, tokenized, skip=['relation']):
     '''
     Returns:
@@ -187,7 +191,7 @@ def str_preds(preds, pattern=compile('^c(\d+)$'), x=['frame_element', 'frame_rel
     Converts a LF or a list of LFs into a string in a convenient way to be rendered in a rule
         LF -> str
         [LF] -> str
-    '''
+    '''#TODO improve description
     if not count:
         count = [0]
 

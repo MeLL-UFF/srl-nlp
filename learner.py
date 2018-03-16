@@ -167,7 +167,7 @@ class Aleph(Learner):
 
     @staticmethod
     def process_out(in_file_name):
-        #TODO
+        #TODO process_out
         catch_theory = compile('%\s*\[theory\].*')
         catch_theory_end = compile('\s*/\*.*')
         catch_accuracy = compile('\s*Accuracy\s*=\s*(\d*\.\d*)\s*')
@@ -247,7 +247,7 @@ class ProbFoil(Learner):
     def _has_necessary_files(self):
         '''Returns if the learner has all the files it requires to function
         '''
-        return True #TODO
+        return True #TODO _has_necessary_files
 
     def run_learning(self, out_file_name = None, **kargs):
         ''' Runs ProbFoil and process the output

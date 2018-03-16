@@ -80,7 +80,6 @@ class Document:
         similarities = []
         for i,(lsent,rsent) in enumerate(zip(lsents,rsents)):
             sim = (rsents._similar(lsents))
-            evaluation = 'EQ' if eq else 'DIFF'
             logger.debug('[{i}/{total}] Sim:{sim:6.2} sentences: \n\t{lsent} and \n\t {rsent}'\
                                 .format(i = i, total = len(rsents), lsent = lsent,
                                         rsent = rsent, sim = sim*100))
