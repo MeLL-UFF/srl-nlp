@@ -1,16 +1,17 @@
-'''
-This file hold classes that facilitate rule manipulation
-'''
-from srl_nlp.framenet.framenet  import Description
-from srl_nlp.logicalform        import LF
-from srl_nlp.fol                import FOL
-from regex                      import compile
-from copy                       import deepcopy as copy
-import spacy
-
+"""
+This file holds classes that facilitate rule manipulation
+"""
 import logging
+from copy import deepcopy as copy
+
+import spacy
+from regex import compile
+from srl_nlp.fol import FOL
+from srl_nlp.framenet.framenet import Description
+from srl_nlp.logicalform import LF
 
 logger = logging.getLogger(__name__)
+
 
 ############################
 
@@ -20,11 +21,11 @@ logger = logging.getLogger(__name__)
 
 
 def get_examples(target, fn):
-    '''
+    """
         Iterates over the fn frames that contain target as a Frame element and return every description element with the tag EXample
 
         Returns: list of (example, Frame) pairs
-    '''
+    """
     frames = fn.getFrameElementFrames(target)
     examples = []
     for frame in frames:
@@ -34,10 +35,10 @@ def get_examples(target, fn):
     return examples
 
 
-def get_preds(lf, token, skip=['relation']):
-    '''
+def get_preds(lf, token, skip=('relation',)):
+    """
     Returns: a list of predicates that contain the token
-    '''
+    """
     out = []
     if not lf.get_pred() in skip:
         for term in lf.iterterms():
@@ -56,8 +57,8 @@ def _additive_dict_update(d1, d2):
 
 
 # TODO get_tokens_index
-def get_tokens_index(lf, tokenized, skip=['relation']):
-    '''
+def get_tokens_index(lf, tokenized, skip=('relation',)):
+    """
     Returns:
         A dictionary of the form {term : [(i, token),...]},
         where term is a term of the lf and (i, tokens) are tuples
@@ -66,7 +67,7 @@ def get_tokens_index(lf, tokenized, skip=['relation']):
     Parameters:
         tokenized: list of strings
         skip: list of strings with the predicates to ignore
-    '''
+    """
     out = {}
     for i, token in enumerate(tokenized):
         if not lf.get_pred() in skip:
@@ -79,9 +80,14 @@ def get_tokens_index(lf, tokenized, skip=['relation']):
 
 
 def get_abbrev(frame):
-    '''
-    Returns a dictionary mapping abbreviation to Frame Element name
-    '''
+    """
+    Args:
+        frame:
+
+    Returns:
+         A dictionary mapping abbreviation to Frame Element name
+
+    """
     out = dict()
     for fe in frame.coreFEs + frame.peripheralFEs:
         if len(fe.abbrev) > 0:
@@ -89,18 +95,28 @@ def get_abbrev(frame):
     return out
 
 
-def get_annotations(example, lf, abbrev2fe={}, get_lemma=None):
-    '''
-    This function matches the example annotations against the given lf
+def get_annotations(example, lf, abbrev2fe=None, get_lemma=None):
+    """
+        This function matches the example annotations against the given lf
     (the lf must represent the example for this to make any sense)
 
-    Returns a tuple (fes_dict, taget_list), where
+    Args:
+        example:
+        lf:
+        abbrev2fe: dict
+        get_lemma:
+
+    Returns:
+        A tuple (fes_dict, taget_list), where
         fes_dict is a dictionary mapping Frame Element names to a predicate list
         target_list is a list of predicates that are target in this example
-    '''
+    """
+    # TODO
+    if abbrev2fe is None:
+        abbrev2fe = dict()
     fes = dict()
     target = []
-    if get_lemma == None:
+    if get_lemma is None:
         nlp = spacy.load('en_core_web_sm')
         get_lemma = lambda token: nlp(token.decode('utf-8'))[0].lemma_
 
@@ -137,9 +153,9 @@ def get_annotations(example, lf, abbrev2fe={}, get_lemma=None):
 
 
 def get_factors(lf, out=None):
-    '''
+    """
     Returns a mapping from the terms to predicate lists
-    '''
+    """
     if out == None:
         out = {}
     if FOL.is_operator(lf.get_pred()):
@@ -154,11 +170,11 @@ def get_factors(lf, out=None):
 
 
 def get_paths(predL, predR, factors, breadth=True):
-    '''
+    """
     Given two predicates in LF, and a mapping of their literals given
     by 'get_factors' this function yields the paths that can link
     those predicates.
-    '''
+    """
     frontier = [(predR, [])]
     visited = []
     while len(frontier):
@@ -176,9 +192,9 @@ def get_paths(predL, predR, factors, breadth=True):
 
 
 def make_pred(literal, pred, *terms):
-    '''
+    """
     Returns a new LF predicate from the original pred, the literal and a label
-    '''
+    """
     t = pred.iterterms().next()
     terms = map(lambda x: x if isinstance(x, list) else [x], terms)
     out = LF()
@@ -186,13 +202,13 @@ def make_pred(literal, pred, *terms):
     return out
 
 
-def str_preds(preds, pattern=compile('^c(\d+)$'), x=['frame_element', 'frame_related',
-                                                     'relation'], count=None):
-    '''
+def str_preds(preds, pattern=compile('^c(\d+)$'), x=('frame_element', 'frame_related',
+                                                     'relation'), count=None):
+    """
     Converts a LF or a list of LFs into a string in a convenient way to be rendered in a rule
         LF -> str
         [LF] -> str
-    '''#TODO improve description
+    """  # TODO improve description
     if not count:
         count = [0]
 
@@ -207,7 +223,6 @@ def str_preds(preds, pattern=compile('^c(\d+)$'), x=['frame_element', 'frame_rel
     generalize = []
     if isinstance(preds, LF):
         pred = copy(preds)
-        out = pred.get_pred()
         for literal in pred.iterterms():
             if literal.isleaf():
                 logger.debug("PRED::%s: update:%s" % (pred.get_pred(), not pred.get_pred() in x))
