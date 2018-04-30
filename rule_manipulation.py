@@ -65,6 +65,7 @@ def get_tokens_index(lf, tokenized, skip=('relation',)):
         with the index and tokens related to the predicate
 
     Parameters:
+        lf:
         tokenized: list of strings
         skip: list of strings with the predicates to ignore
     """
@@ -234,4 +235,4 @@ def str_preds(preds, pattern=compile('^c(\d+)$'), x=('frame_element', 'frame_rel
             literal.set_pred(new_const())
         return pred.__repr__(final_dot=False)
     else:
-        return ','.join(map(lambda pred: str_preds(pred, pattern, x, count), preds))
+        return ','.join(map(lambda p: str_preds(p, pattern, x, count), preds))

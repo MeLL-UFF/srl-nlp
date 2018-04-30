@@ -1,7 +1,7 @@
 #!/bin/env python
 """
-Description
-"""  # TODO description
+Script for running the Frame Semantic Parsing given some base knowledge
+"""
 
 import argparse
 import logging
@@ -73,8 +73,8 @@ class Annotator1(SemanticAnnotator, Process):
         return "\n".join(cmds)
 
     def _open_a_file(self, name=None):
-        'Opens the file, if no name is given, opens a NamedTemporaryFile'
-        if name != None:
+        """Opens the file, if no name is given, opens a NamedTemporaryFile"""
+        if name is not None:
             return open(name, 'wr')
         else:
             return NamedTemporaryFile()
@@ -173,7 +173,19 @@ class Annotator1(SemanticAnnotator, Process):
         out, err = self._process(script)
         return out, err
 
-    def frameMatching(self, sentence, out_error=False, lf_file_name=None, **params):
+    def frameMatching(self, sentence, out_error=False, lf_file_name=None):
+        """
+
+        Args:
+            sentence: the sentence to be annotated with frame information
+            out_error: If true, returns tuple (output, error), else it returns only the output
+            lf_file_name: file to where store results of the annotation
+
+        Returns:
+            If out_error is false, it returns a list of frame_related predicates.
+            If_error is true, then it returns a tuple with the list of predicates and the error output.
+
+        """
         with self._open_a_file(lf_file_name) as lf_file:
             script = self._script(self._load_file(self.fr_kb_file),
                                   self._load_file(lf_file.name),
@@ -214,12 +226,13 @@ class Annotator1(SemanticAnnotator, Process):
 
 
 def parse_args(argv=argv, add_logger_args=lambda x: None):
-    parser = argparse.ArgumentParser(description='Runs the experiments defined in each folder (Aleph only right now)')
+    parser = argparse.ArgumentParser(description='Runs the Boxer analysis and then the frame parsing on the sentence')
     # parser.add_argument('dir_path', help = 'the path of the experiments')
+
     parser.add_argument('sentence',
                         help='the sentence to be matched')
     parser.add_argument('-t', '--tmp_lf_file',
-                        help='save lf generated for inspection')
+                        help='save lf generated, for inspection')
     parser.add_argument('-f', '--frame_matching',
                         action='store_true', default=False,
                         help='show the frame matching process')
@@ -244,6 +257,8 @@ def main(argv):
     from srl_nlp.analysers.boxer import BoxerLocalAPI
     boxer = BoxerLocalAPI()
     anno = Annotator1(boxer, 'tmp_rules_kb_fr', 'tmp_rules_kb_fe')
+
+    print 'LF: %s\s' % boxer.sentence2LF(args.sentence)
 
     if args.frame_matching:
         print 'Frame Matching:'
