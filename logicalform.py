@@ -1,7 +1,10 @@
 import logging
+import math
 from copy import deepcopy as copy
 from sys import stderr
 
+import matplotlib.pyplot as plt
+import networkx as nx
 from fol import FOL
 
 logger = logging.getLogger(__name__)
@@ -140,3 +143,76 @@ class LF:
             dot = '.' if final_dot else ''
             out = LF._repr_aux(term, and_t, or_t, suppress_not) + dot
         return out
+
+
+def _fix_edge(edge):
+    edge = tuple(map(lambda x: x[0], edge))
+    if len(edge) == 1:
+        return edge + edge
+    if len(edge) > 1:
+        return edge[:2]
+    return edge
+
+
+def _plot_aux(edge_labels, g, pos):
+    """
+    Define all the parameters for a standard plot of an LF
+    Args:
+        edge_labels: dict of the form {edge:label}
+        g: a networkx graph
+        pos: position of nodes given by a networkx.layout method
+
+    Returns:
+        Nothing. The side effects of this methods consists of plotting the lf
+        graph into the current matplot.pyplot figure.
+    """
+    nx.draw_networkx_edge_labels(g, pos, edge_labels=edge_labels, font_size=5)
+    nx.draw_networkx(g, pos, node_size=100, font_size=5)
+    plt.axis('off')
+
+
+def plotLF(lf, fig_name=None, on_screen=True):
+    """
+    Plots the given lf to the screen and file.
+
+    Args:
+        lf: the lf to be ploted into a network graph
+        fig_name: name of the outpt_file (I recomend the extension svg).
+                  Optional. If left None, it is not gonna save the graph in any file
+        on_screen: boolean value. Try to plot on screen. Optional.
+
+    Returns:
+        networkx.graph and dict {edge:label} from the lf
+    """
+
+    frontier = [lf]
+    edges = []
+    labels = []
+
+    while len(frontier) > 0:
+        term = frontier.pop()
+        for child in term.iterterms():
+            if child.isleaf():
+                edges.append(_fix_edge(term.info[1:]))
+                if term.info[0] == 'relation':
+                    label = 'rel(%s)' % term.info[-1][0]
+                else:
+                    label = term.info[0]
+                labels.append(label)
+                logger.debug("TERM -> %s" % term)
+                break
+            else:
+                frontier.insert(0, child)
+
+    g = nx.Graph(edges)
+    edge_labels = {edge: label for (edge, label) in zip(edges, labels)}
+    pos = nx.fruchterman_reingold_layout(g, k=2 / math.sqrt(g.order()), scale=10)
+
+    if on_screen:
+        _plot_aux(edge_labels, g, pos)
+        plt.show()
+    if fig_name is not None:
+        _plot_aux(edge_labels, g, pos)
+        plt.savefig(fig_name)
+    plt.clf()
+    return g, edge_labels
