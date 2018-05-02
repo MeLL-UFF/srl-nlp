@@ -1,12 +1,14 @@
-from requests             import post
-from ConfigParser         import ConfigParser
-from srl_nlp.fol          import FOL
-from srl_nlp.logicalform  import LF
-from regex                import match, compile
-from os                   import path
-from process              import Process
-import json
 import logging
+from ConfigParser import ConfigParser
+from abc import abstractmethod
+from os import path
+from sys import stderr
+
+from process import Process
+from regex import match, compile
+from requests import post
+from srl_nlp.fol import FOL
+from srl_nlp.logicalform import LF
 
 logger = logging.getLogger(__name__)
 
@@ -17,8 +19,9 @@ config.read(path.join(_package_directory, "../external.conf"))
 
 TIME_OUT = 100
 
+
 class TokenizerLocalAPI(Process):
-    def __init__(self, path_to_bin = config.get('syntatic_local', 't'), *params):
+    def __init__(self, path_to_bin=config.get('syntatic_local', 't'), *params):
         if len(params) == 0:
             params = ('--stdin',)
         Process.__init__(self, path_to_bin, True, TIME_OUT, *params)
@@ -33,23 +36,23 @@ class TokenizerLocalAPI(Process):
 
 
 class CandCLocalAPI(Process):
-    def __init__(self, path_to_bin = config.get('semantic_local', 'c&c'),*params):
+    def __init__(self, path_to_bin=config.get('semantic_local', 'c&c'), *params):
         if len(params) == 0:
             params = ('--models', config.get('semantic_local', 'c&c_models'), '--candc-printer', 'boxer')
         Process.__init__(self, path_to_bin, False, TIME_OUT, *params)
 
     def _header_completed(self, out_list):
-        return sum(map( lambda x: (x == '\n'), out_list)) >= 2
+        return sum(map(lambda x: (x == '\n'), out_list)) >= 2
 
     def _process_completed(self, out_list):
-        return sum(map( lambda x: (x == '\n'), out_list)) >= 1
+        return sum(map(lambda x: (x == '\n'), out_list)) >= 1
 
     def parse(self, tokenized):
         out = ''
         for tokenized in map(' '.join, tokenized):
             tokenized = tokenized.strip()
             if len(tokenized) > 0:
-                tmp_out, err = self._process(tokenized.strip()+'\n')
+                tmp_out, err = self._process(tokenized.strip() + '\n')
                 if err:
                     # C&C writes info on the stderr, we want to ignore it
                     if not err.startswith('#'):
@@ -59,10 +62,13 @@ class CandCLocalAPI(Process):
 
 
 class BoxerAbstract:
-    '''Do not initialize this class. Use BoxerLocalAPI or BoxerWebAPI instead.
-    '''
+    """
+    Abstract Class
+
+    Do not initialize this class. Use BoxerLocalAPI or BoxerWebAPI instead.
+    """
     _expansion_patterns = [
-        #pattern:           lambda p_elems, terms: tuple([predicate, [term1], ..., [termN]],...)  
+        # pattern:           lambda p_elems, terms: tuple([predicate, [term1], ..., [termN]],...)
         (r'^pernam(\w*)',        lambda p_elems, terms: (['person']      + terms,
                                                          ['noun']        + terms + p_elems)),
         (r'^namnam(\w*)',        lambda p_elems, terms: (['person']      + terms,
@@ -71,6 +77,7 @@ class BoxerAbstract:
                                                          ['noun']        + terms + p_elems)),
         (r'^geonam\d?(\w*)',     lambda p_elems, terms: (['place']       + terms,
                                                          ['noun']        + terms + p_elems)),
+        (r'^timnam\d?(\w*)',     lambda p_elems, terms: (['time']        + terms + p_elems)),
         (r'^\w\d+(?:A|actor)',   lambda p_elems, terms: (['actor']       + terms,)),
         (r'^r\d+(?:T|t)heme',    lambda p_elems, terms: (['theme']       + terms,)),
         (r'^\w\d+(?:T|t)opic',   lambda p_elems, terms: (['topic']       + terms,)),
@@ -86,16 +93,29 @@ class BoxerAbstract:
         (r'^v\d+(.*)',           lambda p_elems, terms: (['verb']        + terms + p_elems,)),
     ]
 
+    @abstractmethod
     def __init__(self):
-        'abstract class, do not use this method'
-        assert True, 'You should not initialize this class'
+        """abstract class, do not use this method"""
+        self.expand_predicates = False
+        # assert True, 'You should not initialize this class'
+
+    @abstractmethod
+    def _parse_sentence(self, sentence):
+        return None
+
+    @abstractmethod
+    def _parsed2FOLstring(self, parsed):
+        return None
 
     def sentence2FOL(self, sentence, *extra_args):
-        parsed    = self._parse_sentence(sentence)
-        boxed =  self._parsed2FOLstring(parsed)
-        #print boxed
-        #return lines that do not start with '%%%', nor 'id' and are not empty
-        is_relevant = lambda x: not (x.startswith('id') or x.startswith('%%%')) and len(x) > 0
+        parsed = self._parse_sentence(sentence)
+        boxed = self._parsed2FOLstring(parsed)
+        # print boxed
+        # return lines that do not start with '%%%', nor 'id' and are not empty
+
+        def is_relevant(x):
+            return not (x.startswith('id') or x.startswith('%%%')) and len(x) > 0
+
         raw_fols = filter(is_relevant, boxed.split("\n"))
         fols = map(lambda x: FOL(x, *extra_args), raw_fols)
         special_char_pattern = compile('C(\d+)')
@@ -103,16 +123,16 @@ class BoxerAbstract:
             frontier = [fol.info]
             while len(frontier):
                 term = frontier.pop()
-                term[0] = special_char_pattern.sub(lambda x: 'c%s' %x.group(1), term[0])
+                term[0] = special_char_pattern.sub(lambda x: 'c%s' % x.group(1), term[0])
                 frontier.extend(term[1:])
-            logger.debug('Raw fol:',fol)
+            logger.debug('Raw fol:', fol)
         for fol in fols:
-            fol.info = fol.info[-1] #remove header
+            fol.info = fol.info[-1]  # remove header
         return fols
 
-    def FOL2LF(self, fol_list, expand_predicates, removeForAlls = True, **kargs):
+    def FOL2LF(self, fol_list, expand_predicates, removeForAlls=True, **kwargs):
         # raw_input()
-        to_LF = lambda x: LF(x, removeForAlls=removeForAlls, header = 'fol',**kargs)
+        to_LF = lambda x: LF(x, removeForAlls=removeForAlls, header='fol', **kwargs)
         if expand_predicates:
             parse = lambda x: to_LF(BoxerAbstract._expandFOLpredicates(x))
         else:
@@ -130,25 +150,25 @@ class BoxerAbstract:
             if matching:
                 pred_elems = map(lambda x: [x.lower()], matching.groups())
                 out = parser(pred_elems, list(args))
-                logger.debug(' {exp} :- {fol}'.format(exp = out, fol = fol))
+                logger.debug(' {exp} :- {fol}'.format(exp=out, fol=fol))
                 return out
         return None
 
     @staticmethod
-    def _expandFOLpredicates(fol, concatenator = FOL.AND):
-        if fol == None:
+    def _expandFOLpredicates(fol, concatenator=FOL.AND):
+        if fol is None:
             return None
         frontier = [fol.info]
         while len(frontier) > 0:
             term = frontier.pop()
             predicate = term[0]
             if FOL.is_special(predicate):
-                #print 'is special'
+                # print 'is special'
                 for pos, child in enumerate(term[1:]):
                     expansion = BoxerAbstract._expandFOLpredicate(child)
                     if expansion:
                         if len(expansion) > 1:
-                            replacement = [concatenator] #FOL.AND
+                            replacement = [concatenator]  # FOL.AND
                             chain_curr = replacement
                             for child_term in expansion[:-1]:
                                 if len(chain_curr) >= 2:
@@ -156,19 +176,19 @@ class BoxerAbstract:
                                     chain_curr = chain_curr[-1]
                                 chain_curr.append(child_term)
                             chain_curr.append(expansion[-1])
-                            term[pos+1] = replacement
+                            term[pos + 1] = replacement
                         else:
-                            term[pos+1] = expansion[0]
+                            term[pos + 1] = expansion[0]
 
                     else:
                         frontier.append(child)
-        #print ">>",fol
+        # print ">>",fol
         return fol
 
-    def sentence2LF(self, sentence, source = None, id = None, expand_predicates = None,**kargs):
+    def sentence2LF(self, sentence, source=None, id=None, expand_predicates=None, **kargs):
         if expand_predicates == None:
             expand_predicates = self.expand_predicates
-        if not (source == None or id == None):
+        if not (source is None or id is None):
             fol = self.sentence2FOL(sentence, source, id)
         else:
             fol = self.sentence2FOL(sentence)
@@ -176,40 +196,41 @@ class BoxerAbstract:
 
 
 class BoxerLocalAPI(Process, BoxerAbstract):
-    def __init__(self, tokenizer   = None,
-                 ccg_parser        = None,
-                 expand_predicates = True,
-                 path_to_bin       = config.get('semantic_local', 'boxer'), *params):
+    def __init__(self, tokenizer=None,
+                 ccg_parser=None,
+                 expand_predicates=True,
+                 path_to_bin=config.get('semantic_local', 'boxer'), *params):
         if len(params) == 0:
             params = ('--stdin', '--semantics', 'fol')
         Process.__init__(self, path_to_bin, True, TIME_OUT, *params)
 
-        if tokenizer   == None:
-            tokenizer  = TokenizerLocalAPI()
-        if ccg_parser  == None:
+        if tokenizer is None:
+            tokenizer = TokenizerLocalAPI()
+        if ccg_parser is None:
             ccg_parser = CandCLocalAPI()
 
-        self.name        = 'Boxer'
-        self.ccg_parser  = ccg_parser
-        self.tokenizer   = tokenizer
+        self.name = 'Boxer'
+        self.ccg_parser = ccg_parser
+        self.tokenizer = tokenizer
         self.expand_predicates = expand_predicates
 
     def _parsed2FOLstring(self, parsed):
         out, err = self._process(parsed)
         if err:
             # Boxer throws a silly error every time (a bug), we want to ignore it
-            if not "No source location" in err:
+            if "No source location" not in err:
                 print >> stderr, 'Boxer error: {0}'.format(err)
         return out.decode('utf-8').encode("utf-8")
 
     def _parse_sentence(self, sentence):
         tokenized = self.tokenizer.tokenize(sentence)
-        parsed    = self.ccg_parser.parse(tokenized)
+        parsed = self.ccg_parser.parse(tokenized)
         return parsed
 
 
 class BoxerWebAPI(BoxerAbstract):
-    def __init__(self, url = config.get('semantic_soap', 'boxer'), expand_predicates = True):
+    def __init__(self, url=config.get('semantic_soap', 'boxer'), expand_predicates=True):
+        BoxerAbstract.__init__(self)
         self.url = url
         self.name = 'boxer'
         self.expand_predicates = expand_predicates
@@ -218,4 +239,4 @@ class BoxerWebAPI(BoxerAbstract):
         return sentence
 
     def _parsed2FOLstring(self, parsed):
-        return  post(self.url, data = parsed).text.strip()
+        return post(self.url, data=parsed).text.strip()

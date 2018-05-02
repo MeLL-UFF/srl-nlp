@@ -1,6 +1,7 @@
 problog>=2.1
 probfoil>=2.1
 configparser>=3.5.0
+requests>=2.18.4
 spacy>=1.8.2
 Distance>=0.1.3
 
