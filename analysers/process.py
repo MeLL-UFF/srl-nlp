@@ -44,7 +44,7 @@ class Process(object):
                     out.append(self._proc.stdout.readline())
                     logger.debug('{proc} line: {out}'.format(proc=self._proc_name,
                                                              out=repr(out[-1])))
-                except IOError as e:
+                except IOError:
                     time.sleep(0.1)
                     count = count + 1
                     continue
