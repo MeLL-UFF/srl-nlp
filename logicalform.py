@@ -1,11 +1,13 @@
 import logging
 import math
 from copy import deepcopy as copy
+from os import path
 from sys import stderr
 
 import matplotlib.pyplot as plt
 import networkx as nx
 from fol import FOL
+from networkx.drawing.nx_pydot import write_dot
 
 logger = logging.getLogger(__name__)
 
@@ -178,7 +180,7 @@ def plotLF(lf, fig_name=None, on_screen=True):
     Args:
         lf: the lf to be ploted into a network graph
         fig_name: name of the outpt_file (I recomend the extension svg).
-                  Optional. If left None, it is not gonna save the graph in any file
+                  Optional. If left None, it is not gonna save the graph in any file.
         on_screen: boolean value. Try to plot on screen. Optional.
 
     Returns:
@@ -204,15 +206,52 @@ def plotLF(lf, fig_name=None, on_screen=True):
             else:
                 frontier.insert(0, child)
 
-    g = nx.Graph(edges)
+    g = nx.Graph()
     edge_labels = {edge: label for (edge, label) in zip(edges, labels)}
+    g.add_edge()
+    for edge, label in zip(edges, labels):
+        g.add_edge(edge[0], edge[1], label=label)
     pos = nx.fruchterman_reingold_layout(g, k=2 / math.sqrt(g.order()), scale=10)
 
     if on_screen:
         _plot_aux(edge_labels, g, pos)
         plt.show()
     if fig_name is not None:
-        _plot_aux(edge_labels, g, pos)
-        plt.savefig(fig_name)
+        _, fig_ext = path.splitext(fig_name)
+        if fig_ext.lower() == '.dot':
+            write_dot(g, fig_name)
+        else:
+            _plot_aux(edge_labels, g, pos)
+            plt.savefig(fig_name)
     plt.clf()
     return g, edge_labels
+
+
+# def lf2dot(lf, file_name=None):
+#     frontier = [lf]
+#     edges = []
+#     labels = []
+#
+#     while len(frontier) > 0:
+#         term = frontier.pop()
+#         for child in term.iterterms():
+#             if child.isleaf():
+#                 edges.append(_fix_edge(term.info[1:]))
+#                 if term.info[0] == 'relation':
+#                     label = 'rel(%s)' % term.info[-1][0]
+#                 else:
+#                     label = term.info[0]
+#                 labels.append(label)
+#                 logger.debug("TERM -> %s" % term)
+#                 break
+#             else:
+#                 frontier.insert(0, child)
+#
+#     nodes = set([edge[0] for edge in edges] + [edge[1] for edge in edges])
+#     with open(file_name, 'w') as out_file:
+#         out_file.write('graph "" {\n')
+#         for node in nodes:
+#             out_file.write("{};\n".format(node))
+#         for edge, label in zip(edges, labels):
+#             out_file.write('{}--{} [label="{}"];\n'.format(edge[0], edge[1], label))
+#         out_file.write("}")
