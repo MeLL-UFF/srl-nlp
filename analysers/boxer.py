@@ -69,28 +69,28 @@ class BoxerAbstract:
     """
     _expansion_patterns = [
         # pattern:           lambda p_elems, terms: tuple([predicate, [term1], ..., [termN]],...)
-        (r'^pernam(\w*)',        lambda p_elems, terms: (['person']      + terms,
-                                                         ['noun']        + terms + p_elems)),
-        (r'^namnam(\w*)',        lambda p_elems, terms: (['person']      + terms,
-                                                         ['noun']        + terms + p_elems)),
-        (r'^orgnam(\w*)',        lambda p_elems, terms: (['organization']+ terms,
-                                                         ['noun']        + terms + p_elems)),
-        (r'^geonam\d?(\w*)',     lambda p_elems, terms: (['place']       + terms,
-                                                         ['noun']        + terms + p_elems)),
-        (r'^timnam\d?(\w*)',     lambda p_elems, terms: (['time']        + terms + p_elems)),
-        (r'^\w\d+(?:A|actor)',   lambda p_elems, terms: (['actor']       + terms,)),
-        (r'^r\d+(?:T|t)heme',    lambda p_elems, terms: (['theme']       + terms,)),
-        (r'^\w\d+(?:T|t)opic',   lambda p_elems, terms: (['topic']       + terms,)),
-        (r'^r\d+(\w*)',          lambda p_elems, terms: (['relation']    + terms + p_elems,)),
-        (r'^n\d+numeral',        lambda p_elems, terms: (['numeral']     + terms,)),
-        (r'^n\d+(.*)',           lambda p_elems, terms: (['noun']        + terms + p_elems,)),
-        (r'^t_X+(\d+)',          lambda p_elems, terms: (['number']      + terms + p_elems,)),
-        (r'^c(\d+)number',       lambda p_elems, terms: (['noun']        + terms + p_elems,)),
-        (r'^c\d+numeral',        lambda p_elems, terms: (['numeral']     + terms,)),
-        (r'^c\d+(.*)',           lambda p_elems, terms: (['cnoun']       + terms + p_elems,)),
-        (r'^a\d+(.*)',           lambda p_elems, terms: (['adjective']   + terms + p_elems,)),
-        (r'^v\d+c64placeholder', lambda p_elems, terms: (['action']      + terms,)),
-        (r'^v\d+(.*)',           lambda p_elems, terms: (['verb']        + terms + p_elems,)),
+        (r'^pernam(\w*)', lambda p_elems, terms: (['person'] + terms,
+                                                  ['noun'] + terms + p_elems)),
+        (r'^namnam(\w*)', lambda p_elems, terms: (['person'] + terms,
+                                                  ['noun'] + terms + p_elems)),
+        (r'^orgnam(\w*)', lambda p_elems, terms: (['organization'] + terms,
+                                                  ['noun'] + terms + p_elems)),
+        (r'^geonam\d?(\w*)', lambda p_elems, terms: (['place'] + terms,
+                                                     ['noun'] + terms + p_elems)),
+        (r'^timnam\d?(\w*)', lambda p_elems, terms: (['time'] + terms + p_elems)),
+        (r'^\w\d+(?:A|actor)', lambda p_elems, terms: (['actor'] + terms,)),
+        (r'^r\d+(?:T|t)heme', lambda p_elems, terms: (['theme'] + terms,)),
+        (r'^\w\d+(?:T|t)opic', lambda p_elems, terms: (['topic'] + terms,)),
+        (r'^r\d+(\w*)', lambda p_elems, terms: (['relation'] + terms + p_elems,)),
+        (r'^n\d+numeral', lambda p_elems, terms: (['numeral'] + terms,)),
+        (r'^n\d+(.*)', lambda p_elems, terms: (['noun'] + terms + p_elems,)),
+        (r'^t_X+(\d+)', lambda p_elems, terms: (['number'] + terms + p_elems,)),
+        (r'^c(\d+)number', lambda p_elems, terms: (['noun'] + terms + p_elems,)),
+        (r'^c\d+numeral', lambda p_elems, terms: (['numeral'] + terms,)),
+        (r'^c\d+(.*)', lambda p_elems, terms: (['cnoun'] + terms + p_elems,)),
+        (r'^a\d+(.*)', lambda p_elems, terms: (['adjective'] + terms + p_elems,)),
+        (r'^v\d+c64placeholder', lambda p_elems, terms: (['action'] + terms,)),
+        (r'^v\d+(.*)', lambda p_elems, terms: (['verb'] + terms + p_elems,)),
     ]
 
     @abstractmethod
@@ -110,6 +110,7 @@ class BoxerAbstract:
     def sentence2FOL(self, sentence, *extra_args):
         parsed = self._parse_sentence(sentence)
         boxed = self._parsed2FOLstring(parsed)
+
         # print boxed
         # return lines that do not start with '%%%', nor 'id' and are not empty
 
@@ -130,9 +131,12 @@ class BoxerAbstract:
             fol.info = fol.info[-1]  # remove header
         return fols
 
-    def FOL2LF(self, fol_list, expand_predicates, removeForAlls=True, **kwargs):
+    def FOL2LF(self, fol_list, expand_predicates, removeForAlls=True, remove_eq=True, **kwargs):
         # raw_input()
         to_LF = lambda x: LF(x, removeForAlls=removeForAlls, header='fol', **kwargs)
+
+        if remove_eq:
+            to_LF = lambda x: self._remove_eq(to_LF(x))
         if expand_predicates:
             parse = lambda x: to_LF(BoxerAbstract._expandFOLpredicates(x))
         else:
@@ -186,13 +190,39 @@ class BoxerAbstract:
         return fol
 
     def sentence2LF(self, sentence, source=None, id=None, expand_predicates=None, **kargs):
-        if expand_predicates == None:
+        if expand_predicates is None:
             expand_predicates = self.expand_predicates
         if not (source is None or id is None):
             fol = self.sentence2FOL(sentence, source, id)
         else:
             fol = self.sentence2FOL(sentence)
         return self.FOL2LF(fol, expand_predicates, **kargs)
+
+    def _replace_all(self, lf, old_term, new_term):
+        frontier = [lf.info]
+        while len(frontier):
+            curr = frontier.pop()
+            if curr[0] == old_term:
+                curr[0] = new_term
+            frontier.extend(curr[1:])
+
+    def _remove_eq(self, lf, eq_term='eq'):
+        frontier = [lf.info]
+        while len(frontier):
+            curr = frontier.pop()
+            pred = curr[0]
+            terms = curr[1:]
+            if pred == eq_term:
+                old_term = terms[1]
+                new_term = terms[0]
+                self._replace_all(lf, old_term, new_term)
+            frontier.extend(curr[1:])
+        frontier = [lf.info]
+        while len(frontier):
+            curr = frontier.pop()
+            curr[:] = [child for child in curr if child[0] != eq_term]
+            frontier.extend(curr[1:])  # TODO fix it
+        pass
 
 
 class BoxerLocalAPI(Process, BoxerAbstract):
