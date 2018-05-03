@@ -133,16 +133,15 @@ class BoxerAbstract:
 
     def FOL2LF(self, fol_list, expand_predicates, removeForAlls=True, remove_eq=True, **kwargs):
         # raw_input()
-        to_LF = lambda x: LF(x, removeForAlls=removeForAlls, header='fol', **kwargs)
+        def to_lf(fol, rem_eq, expand_pred):
+            lf = LF(fol, removeForAlls=removeForAlls, header='fol', **kwargs)
+            if expand_pred:
+                lf = BoxerAbstract._expandFOLpredicates(lf)
+            if rem_eq:
+                self._remove_eq(lf)
+            return lf
 
-        if remove_eq:
-            to_LF = lambda x: self._remove_eq(to_LF(x))
-        if expand_predicates:
-            parse = lambda x: to_LF(BoxerAbstract._expandFOLpredicates(x))
-        else:
-            parse = to_LF
-        out = map(parse, fol_list)
-        # raw_input()
+        out = map(lambda x: to_lf(x, remove_eq, expand_predicates), fol_list)
         return out
 
     @staticmethod
@@ -202,7 +201,8 @@ class BoxerAbstract:
         frontier = [lf.info]
         while len(frontier):
             curr = frontier.pop()
-            if curr[0] == old_term:
+            pred = curr[0]
+            if pred == old_term:
                 curr[0] = new_term
             frontier.extend(curr[1:])
 
@@ -210,11 +210,11 @@ class BoxerAbstract:
         frontier = [lf.info]
         while len(frontier):
             curr = frontier.pop()
-            pred = curr[0]
             terms = curr[1:]
+            pred = curr[0]
             if pred == eq_term:
-                old_term = terms[1]
-                new_term = terms[0]
+                old_term = terms[1][0]
+                new_term = terms[0][0]
                 self._replace_all(lf, old_term, new_term)
             frontier.extend(curr[1:])
         frontier = [lf.info]
