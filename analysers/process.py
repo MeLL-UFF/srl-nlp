@@ -90,7 +90,7 @@ class Process(object):
     def _process(self, input_text, tries=3):
         logger.info('{proc}: "{input}" tries: {tries}'.format(proc=self._proc_name, input=input_text, tries=tries))
         if self._proc.stdin.closed:
-            logger.deg('{proc}: popen, process was closed'.format(proc=self._proc_name))
+            logger.debug('{proc}: popen, process was closed'.format(proc=self._proc_name))
             self._init_popen()
 
         if self._disposable:
