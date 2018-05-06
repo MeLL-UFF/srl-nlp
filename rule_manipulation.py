@@ -15,6 +15,62 @@ logger = logging.getLogger(__name__)
 
 ############################
 
+#          Utils           #
+
+############################
+
+def replace_all(lf, old_term, new_term):
+    """
+
+    Args:
+        lf: Lf to be modified in-place
+        old_term: the term to be replaced in all predicates
+        new_term: the term to substitute the old_term in all the predicates of the lf
+
+    Returns:
+        Nothing. This method changes the lf in-place
+    """
+    frontier = [lf.info]
+    while len(frontier):
+        curr = frontier.pop()
+        pred = curr[0]
+        if pred == old_term:
+            curr[0] = new_term
+        frontier.extend(curr[1:])
+
+
+def remove_eq(lf, eq_term='eq'):
+    """
+    Remove the equality predicates and traverses the lf to bind all the constants that should be equal.
+    The eq_term predicate must be binary, and the second term of it will be replaced by the first one in every predicate in the lf.
+    When there are multiple eq_term predicates the final result might not be easy to predict but it is going to be correct.
+
+    Args:
+        lf: LF to have its eq predicates removed and the constants matched
+        eq_term: equality predicate
+
+    Returns:
+        Nothing. This method changes the lf in-place
+    """
+    frontier = [lf.info]
+    while len(frontier):
+        curr = frontier.pop()
+        terms = curr[1:]
+        pred = curr[0]
+        if pred == eq_term:
+            old_term = terms[1][0]
+            new_term = terms[0][0]
+            replace_all(lf, old_term, new_term)
+        frontier.extend(curr[1:])
+    frontier = [lf.info]
+    while len(frontier):
+        curr = frontier.pop()
+        curr[:] = [curr[0]] + [child for child in curr[1:] if child[0] != eq_term]
+        frontier.extend(curr[1:])
+
+
+############################
+
 #   Get Deep Role Rules    #
 
 ############################

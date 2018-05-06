@@ -7,6 +7,7 @@ from sys import stderr
 from process import Process
 from regex import match, compile
 from requests import post
+from rule_manipulation import remove_eq
 from srl_nlp.fol import FOL
 from srl_nlp.logicalform import LF
 
@@ -140,7 +141,7 @@ class BoxerAbstract:
             if expand_pred:
                 lf = BoxerAbstract._expandFOLpredicates(lf)
             if rem_eq:
-                self._remove_eq(lf)
+                remove_eq(lf)
             return lf
 
         out = map(lambda x: to_lf(x, remove_eq, expand_predicates), fol_list)
@@ -198,33 +199,6 @@ class BoxerAbstract:
         else:
             fol = self.sentence2FOL(sentence)
         return self.FOL2LF(fol, expand_predicates, **kargs)
-
-    def _replace_all(self, lf, old_term, new_term):
-        frontier = [lf.info]
-        while len(frontier):
-            curr = frontier.pop()
-            pred = curr[0]
-            if pred == old_term:
-                curr[0] = new_term
-            frontier.extend(curr[1:])
-
-    def _remove_eq(self, lf, eq_term='eq'):
-        frontier = [lf.info]
-        while len(frontier):
-            curr = frontier.pop()
-            terms = curr[1:]
-            pred = curr[0]
-            if pred == eq_term:
-                old_term = terms[1][0]
-                new_term = terms[0][0]
-                self._replace_all(lf, old_term, new_term)
-            frontier.extend(curr[1:])
-        frontier = [lf.info]
-        while len(frontier):
-            curr = frontier.pop()
-            curr[:] = [curr[0]] + [child for child in curr[1:] if child[0] != eq_term]
-            frontier.extend(curr[1:])
-        pass
 
 
 class BoxerLocalAPI(Process, BoxerAbstract):
