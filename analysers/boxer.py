@@ -45,7 +45,9 @@ class CandCLocalAPI(Process):
         return sum(map(lambda x: (x == '\n'), out_list)) >= 2
 
     def _process_completed(self, out_list):
-        return sum(map(lambda x: (x == '\n'), out_list)) >= 1
+        opening = sum(map(lambda line: line.count('('), out_list))
+        closing = sum(map(lambda line: line.count(')'), out_list))
+        return opening == closing and sum(map(lambda x: (x == '\n'), out_list)) >= 1
 
     def parse(self, tokenized):
         out = ''
@@ -77,13 +79,13 @@ class BoxerAbstract:
                                                   ['noun'] + terms + p_elems)),
         (r'^geonam\d?(\w*)', lambda p_elems, terms: (['place'] + terms,
                                                      ['noun'] + terms + p_elems)),
-        (r'^timnam\d?(\w*)', lambda p_elems, terms: (['time'] + terms + p_elems)),
+        (r'^timnam\d?(\w*)', lambda p_elems, terms: (['time'] + terms + p_elems,)),
         (r'^\w\d+(?:A|actor)', lambda p_elems, terms: (['actor'] + terms,)),
         (r'^r\d+(?:T|t)heme', lambda p_elems, terms: (['theme'] + terms,)),
         (r'^\w\d+(?:T|t)opic', lambda p_elems, terms: (['topic'] + terms,)),
         (r'^r\d+(\w*)', lambda p_elems, terms: (['relation'] + terms + p_elems,)),
         (r'^n\d+numeral', lambda p_elems, terms: (['numeral'] + terms,)),
-        (r'^n\d+(.*)', lambda p_elems, terms: (['noun'] + terms + p_elems,)),
+        (r'^n\d(.*)', lambda p_elems, terms: (['noun'] + terms + p_elems,)),
         (r'^t_X+(\d+)', lambda p_elems, terms: (['number'] + terms + p_elems,)),
         (r'^c(\d+)number', lambda p_elems, terms: (['noun'] + terms + p_elems,)),
         (r'^c\d+numeral', lambda p_elems, terms: (['numeral'] + terms,)),
@@ -126,7 +128,7 @@ class BoxerAbstract:
                 term = frontier.pop()
                 term[0] = special_char_pattern.sub(lambda x: 'c%s' % x.group(1), term[0])
                 frontier.extend(term[1:])
-            logger.debug('Raw fol:', fol)
+            logger.debug('Raw fol: %s', fol)
         for fol in fols:
             fol.info = fol.info[-1]  # remove header
         return fols
@@ -220,8 +222,8 @@ class BoxerAbstract:
         frontier = [lf.info]
         while len(frontier):
             curr = frontier.pop()
-            curr[:] = [child for child in curr if child[0] != eq_term]
-            frontier.extend(curr[1:])  # TODO fix it
+            curr[:] = [curr[0]] + [child for child in curr[1:] if child[0] != eq_term]
+            frontier.extend(curr[1:])
         pass
 
 

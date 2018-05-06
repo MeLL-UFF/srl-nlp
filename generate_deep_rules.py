@@ -10,11 +10,13 @@ from sys import argv as _argv
 from sys import stdout
 
 # Logger
-from logger_config import config_logger, add_logger_args
+import logging
+from logger_config import config_logger, add_logger_args as _add_logger_args
 # Analysers
 from srl_nlp.analysers.boxer import BoxerLocalAPI
 from srl_nlp.framenet.parse_xml import NetXMLParser
-from srl_nlp.rule_manipulation import *
+from srl_nlp.rule_manipulation import spacy, get_annotations, get_factors, make_pred, str_preds, get_paths, get_abbrev, \
+    get_examples
 
 logger = logging.getLogger(__name__)
 
@@ -80,9 +82,9 @@ def make_theory(rule_generator, fe_examples):
     """
     Returns a iterator of strings where each string is a prolog rule.
     """
-    for i in fe_examples:
+    for idx, i in enumerate(fe_examples):
         examples, frame = i
-        logger.debug('example | frame:  %s' % str(i))
+        logger.debug('[{idx}] example | frame:  {i}'.format(idx=idx, i=str(i)))
         if len(examples) > 0:
             logger.info('Example: %s' % str(examples[0].str_no_annotation()))
         for rule in rule_generator.get_rules(frame, *examples):
@@ -151,13 +153,14 @@ def make_frame_matching_rules(lus2frames, lu_pos_to_pred=lu_pos2pred, f_out=None
 
 def parse_args(argv=_argv, add_logger_args=lambda x: None):
     parser = argparse.ArgumentParser(description='KB generator')
-    parser.add_argument('--out_file', help='the path to where to write the rules')
-    parser.add_argument('--example_file', help='the path to where to write/read examples TODO')
-    parser.add_argument('-l', '--limit', help='max number of examples used')
+    parser.add_argument('--out_file',
+                        help='The path to where to write the rules. If none, the rules are going to be printed on screen')
+    parser.add_argument('--example_file', help='The path to where to write/read examples TODO')
+    parser.add_argument('-l', '--limit', help='Max number of examples used')
     parser.add_argument('-r', '--frame_related', action='store_true', default=False,
-                        help='output frame_related rules')
+                        help='Create frame_related rules')
     parser.add_argument('-e', '--frame_element', action='store_true', default=False,
-                        help='output frame_element rules')
+                        help='Create frame_element rules')
     add_logger_args(parser)
     args = parser.parse_args(argv[1:])
     return args
@@ -166,12 +169,12 @@ def parse_args(argv=_argv, add_logger_args=lambda x: None):
 def main(argv):
     """
     Process the arguments in order to return the theory.
-    The theory is the union of the set of the deep role rulas and the
+    The theory is the union of the set of the deep role rules and the
     set of the frame matching rules.
     """
-    args = parse_args(argv, add_logger_args)
+    args = parse_args(argv, _add_logger_args)
     config_logger(args)
-    # logger.info(args)
+    logger.info(args)
     logger.info('Starting FrameNet')
     parser = NetXMLParser()
     fn = parser.parse('framenet/fndata-1.7')
@@ -198,12 +201,14 @@ def main(argv):
     # logger.info('LFs are ready')
 
     if args.frame_related:
+        logger.info('Initialization of frame matching rule inference')
         frame_matching_rules = make_frame_matching_rules(get_lus2frames(fn))
 
         if args.out_file:
             logger.info('Saving to %s' % args.out_file)
             stream = open(args.out_file, 'a')
         else:
+            logger.info('Writing to stdout')
             stream = stdout
         with stream as f:
             f.write("%% Frame Matching Rules\n")
@@ -217,10 +222,11 @@ def main(argv):
     #                      #
     ########################
     if args.frame_element:
-        fes_keys = fn._fes.keys()
+        fes_keys = fn._fes.keys()  # TODO avoid accessing private member
         examples = []
         if args.example_file:
             try:
+                logger.info('Read examples from %s' % args.example_file)
                 with open(args.example_file, 'r') as f:
                     examples = pickle.load(f)
             except IOError as ex:
@@ -238,7 +244,7 @@ def main(argv):
             sliced_examples = examples[:int(args.limit)]
         else:
             sliced_examples = examples
-        logger.info('Ther are %d examples being considered' % len(sliced_examples))
+        logger.info('There are %d examples being considered' % len(sliced_examples))
         theory = make_theory(RuleGenerator(boxer), sliced_examples)
 
         if args.out_file:
