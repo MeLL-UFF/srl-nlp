@@ -39,7 +39,7 @@ def replace_all(lf, old_term, new_term):
         frontier.extend(curr[1:])
 
 
-def remove_eq(lf, eq_term='eq'):
+def remove_eq(lf, eq_term):
     """
     Remove the equality predicates and traverses the lf to bind all the constants that should be equal.
     The eq_term predicate must be binary, and the second term of it will be replaced by the first one in every predicate in the lf.
@@ -67,6 +67,13 @@ def remove_eq(lf, eq_term='eq'):
         curr = frontier.pop()
         curr[:] = [curr[0]] + [child for child in curr[1:] if child[0] != eq_term]
         frontier.extend(curr[1:])
+
+
+def _additive_dict_update(d1, d2):
+    for key in d2:
+        val = d1.get(key, [])
+        val.extend(d2[key])
+        d1[key] = val
 
 
 ############################
@@ -105,25 +112,18 @@ def get_preds(lf, token, skip=('relation',)):
     return out
 
 
-def _additive_dict_update(d1, d2):
-    for key in d2:
-        val = d1.get(key, [])
-        val.extend(d2[key])
-        d1[key] = val
-
-
-# TODO get_tokens_index
 def get_tokens_index(lf, tokenized, skip=('relation',)):
     """
-    Returns:
-        A dictionary of the form {term : [(i, token),...]},
-        where term is a term of the lf and (i, tokens) are tuples
-        with the index and tokens related to the predicate
 
     Parameters:
         lf:
         tokenized: list of strings
         skip: list of strings with the predicates to ignore
+
+    Returns:
+        A dictionary of the form {term : [(i, token),...]},
+        where term is a term of the lf and (i, tokens) are tuples
+        with the index and tokens related to the predicate
     """
     out = {}
     for i, token in enumerate(tokenized):
