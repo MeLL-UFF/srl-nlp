@@ -311,7 +311,7 @@ class Layer:
         return True
 
     def __str__(self):
-        params_str = str(self.params) if len(self.params) > 0 else ''
+        #params_str = str(self.params) if len(self.params) > 0 else ''
         labels = '\n'.join(map(str, self.annotations))
         return '<Layer \'{name}\'>{anno}</Layer>'.format(name=self.name, anno=labels)
 
