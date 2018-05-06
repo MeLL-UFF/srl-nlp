@@ -9,9 +9,9 @@ from ConfigParser import ConfigParser
 from json import dump
 from os import path, walk as walkdir
 from subprocess import PIPE, Popen as popen
-from sys import argv
+from sys import argv as _argv
 
-from logger_config import config_logger, add_logger_args
+from logger_config import config_logger, add_logger_args as _add_logger_args
 from probfoil import probfoil
 from probfoil.data import DataFile
 from probfoil.score import accuracy, precision, recall
@@ -316,7 +316,7 @@ def _runProbFoil(dir, file_list, prefix=None):
     learner.run_learning('out.txt')
 
 
-def parse_args(argv=argv, add_logger_args=lambda x: None):
+def parse_args(argv=_argv, add_logger_args=lambda x: None):
     parser = argparse.ArgumentParser(description='Runs the experiments defined in each folder (Aleph only right now)')
     parser.add_argument('dir_path', help='the path of the experiments')
     parser.add_argument('-p', '--file_prefix', help='prefix of the experiment files')
@@ -327,7 +327,7 @@ def parse_args(argv=argv, add_logger_args=lambda x: None):
 
 
 def main(argv):
-    args = parse_args(argv, add_logger_args)
+    args = parse_args(argv, _add_logger_args)
     config_logger(args)
     logger.info('Starting at %s', args.dir_path)
     run_tree(args.dir_path, _runAleph, args.file_prefix)
@@ -336,7 +336,7 @@ def main(argv):
 
 if __name__ == '__main__':
     try:
-        main(argv)
+        main(_argv)
     except KeyboardInterrupt:
         logger.info('Halted by the user')
     except OSError as e:
