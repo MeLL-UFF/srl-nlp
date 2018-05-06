@@ -134,17 +134,17 @@ class BoxerAbstract:
             fol.info = fol.info[-1]  # remove header
         return fols
 
-    def FOL2LF(self, fol_list, expand_predicates, removeForAlls=True, remove_eq=True, **kwargs):
+    def FOL2LF(self, fol_list, expand_predicates, removeForAlls=True, removeeq=True, **kwargs):
         # raw_input()
         def to_lf(fol, rem_eq, expand_pred):
             lf = LF(fol, removeForAlls=removeForAlls, header='fol', **kwargs)
             if expand_pred:
                 lf = BoxerAbstract._expandFOLpredicates(lf)
             if rem_eq:
-                remove_eq(lf)
+                remove_eq(lf, 'eq')
             return lf
 
-        out = map(lambda x: to_lf(x, remove_eq, expand_predicates), fol_list)
+        out = map(lambda x: to_lf(x, removeeq, expand_predicates), fol_list)
         return out
 
     @staticmethod
