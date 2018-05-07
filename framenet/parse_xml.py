@@ -179,8 +179,8 @@ class FrameXMLParser:
                 definition = self._parse_description(child)
                 # print 'TEXT:', definition#child.text
 
-        return Frame(name=name, description=definition, coreFEs=coreFEs,
-                     peripheralFEs=peripheralFEs, LUs=LUs, id=id, **relations)
+        return Frame(name=name, description=definition, core_fes=coreFEs,
+                     peripheral_fes=peripheralFEs, lus=LUs, id=id, **relations)
 
 
 class NetXMLParser:
