@@ -168,7 +168,7 @@ def get_annotations(example, lf, abbrev2fe=None, get_lemma=None):
         fes_dict is a dictionary mapping Frame Element names to a predicate list
         target_list is a list of predicates that are target in this example
     """
-    # TODO
+    # TODO check this
     if abbrev2fe is None:
         abbrev2fe = dict()
     fes = dict()
@@ -213,7 +213,7 @@ def get_factors(lf, out=None):
     """
     Returns a mapping from the terms to predicate lists
     """
-    if out == None:
+    if out is None:
         out = {}
     if FOL.is_operator(lf.get_pred()):
         for term in lf.iterterms():

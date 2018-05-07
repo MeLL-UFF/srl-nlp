@@ -55,10 +55,11 @@ class LexicalUnit:
 
 class Description:
     class Label(object):
-        # name = 'l'
-        # shortname = 'Label'
+        name = 'l'
+        shortname = 'Label'
+
         def __init__(self, content=None, escapeHTML=False, **attribs):
-            if content == None:
+            if content is None:
                 self.content = []
             else:
                 self.content = content
@@ -114,7 +115,7 @@ class Description:
         def add_element(self, element):
             self.content.append(element)
 
-        def set_attribs(self, **atribs):
+        def set_attribs(self, **attribs):
             self.attribs = attribs
 
         def str_no_annotation(self):
@@ -127,8 +128,7 @@ class Description:
                         text = elem
                     out = out + text
             except TypeError as e:
-                print self
-                print elem
+                logger.error(str(self))
                 raise e
             return out
 
@@ -193,7 +193,7 @@ class Description:
         self.tags[element.name].append(element)
 
     def get_elements(self, element_name):
-        '''Returns a list of elements that match element_name'''
+        """Returns a list of elements that match element_name"""
         return self.tags.get(element_name, [])
 
     def has_special_annotation(self):
@@ -249,9 +249,12 @@ class Frame:
             return str(self)
 
     class Relation:
-        def __init__(self, name, frames=[]):
+        def __init__(self, name, frames=None):
             self.name = name
-            self.frames = frames
+            if frames is None:
+                self.frames = []
+            else:
+                self.frames = frames
 
         def __str__(self):
             # return '<Frame "%s" %s>' %(self.name, dir(self))
@@ -268,60 +271,76 @@ class Frame:
             else:
                 return self.name == other.name
 
-    def __init__(self, name='', description='', coreFEs=[],
-                 peripheralFEs=[], LUs=[], id=None, **relations):
+    def __init__(self, name='', description='', core_fes=None,
+                 peripheral_fes=None, lus=None, id=None, **relations):
         # TODO exceptions
-        assert name != None  # None type is not an acceptable name
+        assert name is not None  # None type is not an acceptable name
         self.name = name
         self.description = description
-        self.coreFEs = coreFEs
-        self.peripheralFEs = peripheralFEs
-        self.LUs = LUs
+
+        if core_fes is None:
+            self.coreFEs = []
+        else:
+            self.coreFEs = core_fes
+
+        if peripheral_fes is None:
+            self.peripheralFEs = []
+        else:
+            self.peripheralFEs = peripheral_fes
+
+        if lus is None:
+            self.LUs = []
+        else:
+            self.LUs = lus
+
         self.id = id
         self.relations = relations
 
     def hasFEinCore(self, fe):
-        '''Check if fe is in the frame as a core Frame Element'''
+        """Check if fe is in the frame as a core Frame Element"""
         return fe in self.coreFEs
 
     def hasFEnotInCore(self, fe):
-        '''Check if fe is in the frame as a peripheral Frame Element'''
+        """Check if fe is in the frame as a peripheral Frame Element"""
         return fe in self.peripheralFEs
 
     def __str__(self):
         # return '<Frame "%s" %s>' %(self.name, dir(self))
         return '<Frame "%s">' % self.name
 
-    def _in_transitive_closure(self, relationName, other, investigated=[]):
-        '''Checks if a given frame, other, can be reached by a transitive closure of the relation.'''
+    def _in_transitive_closure(self, relation_name, other, investigated=None):
+        """Checks if a given frame, other, can be reached by a transitive closure of the relation."""
+        if investigated is None:
+            investigated = []
         investigated.append(self)
-        for relation in self.relations:
-            if relation.name == relationName:
+        for relation in self.relations.values():
+            if relation.name == relation_name:
                 if other in relation.frames:
                     return True
                 else:
                     for child in relation.frames:
-                        if not child in investigated:
-                            if self._in_transitive_closure(relationName, other, investigated):
+                        if child not in investigated:
+                            if self._in_transitive_closure(relation_name, other, investigated):
                                 return True
         return False
 
-    def in_transitive_closure(self, relationName, other):
-        '''
+    def in_transitive_closure(self, relation_name, other):
+        """
         Checks if a given frame, other, can be reached by a transitive closure of
-        the relation.'''
-        return self._in_transitive_closure(relationName, other, [])
+        the relation.
+        """
+        return self._in_transitive_closure(relation_name, other)
 
     def __hash__(self):
         return self.name.__hash__()
 
     def __eq__(self, other):
-        '''
+        """
         Two Frames are equal if they have the same name, the same Core Frame Elements,
         and the same Peripheral Frame elements.
-        '''
-        if other == None:
-            return self == None
+        """
+        if other is None:
+            return self is None
 
         eq_core = [fe in other.coreFEs for fe in self.coreFEs] + \
                   [fe in self.coreFEs for fe in other.coreFEs]
@@ -342,10 +361,10 @@ class Net:
                        'sorensen': distance.sorensen}
 
     def __init__(self, frames):
-        '''FrameNet python API
+        """FrameNet python API
 
         frames: A list of Frames or a dictionary where the names are the keys
-        '''
+        """
         if type(frames) != dict:  # if the user passes a list of frames instead of a dict then convert it
             frames = dict(zip(map(lambda x: x.name, frames), frames))
         self.frames = frames
@@ -361,7 +380,7 @@ class Net:
                 self._fes2frames[fe].append(frame)
 
     def _update_frame_references(self, frame):
-        '''Uses the self.frames dict to replace the strings representing Frames by actual Frames'''
+        """Uses the self.frames dict to replace the strings representing Frames by actual Frames"""
         getRel = lambda x: x if isinstance(x, Frame) else self.frames[x]
         for relation in frame.relations.itervalues():
             relation.frames = map(getRel, relation.frames)
@@ -370,7 +389,7 @@ class Net:
         return self.frames.itervalues()
 
     def __getitem__(self, item):
-        '''Returns the Frames in the FrameNet by name or id, if item is a name or integer
+        """Returns the Frames in the FrameNet by name or id, if item is a name or integer
            If item is a slice, then:
 
            self[word:qtd] = self.getMostSimilarFrames(word, qtd)
@@ -378,7 +397,7 @@ class Net:
                 distace is a string
            self[word:qtd:threshold] = self.getMostSimilarFrames(word, qtd, threshold = threshold)
                 threshold is an float in the interval [0, 1.0]
-        '''
+        """
         if type(item) == slice:
             token = item.start
             limit = item.stop
@@ -404,7 +423,7 @@ class Net:
     #     return None ##TODO
 
     def getMostSimilarFrames(self, word, qtd=3, threshold=1, distance='levenshtein'):
-        '''
+        """
         Return an ordered list of the most similar Frames using the specified distance:
 
         Implemented distances:
@@ -415,7 +434,7 @@ class Net:
 
         self.getMostSimilarFrames(str, int, float, string) ->
                     [ (socore1, Frame1), ..., (socoreN, FrameN)] # N <= qtd
-        '''
+        """
         top_values = []
         metric = self._word_distances[distance]
         distance = lambda x: metric(x.name, word)
@@ -434,24 +453,24 @@ class Net:
         return top_values
 
     def __len__(self):
-        '''Number of Frames in the Network'''
+        """Number of Frames in the Network"""
         return len(self.frames)
 
     def getFrameElement(self, name):
-        '''Returns the Frame Elements in the FrameNet by name'''
+        """Returns the Frame Elements in the FrameNet by name"""
         try:
             return self._fes[name]
         except KeyError as e:
             raise KeyError('\'{item}\' is not a valid Frame Element name in this FrameNet'.format(item=name))
 
     def getFrameElementFrames(self, fe, coreFEs=True, peripheralFEs=True):
-        '''Get all frames where the given fe is a Frame Element
+        """Get all frames where the given fe is a Frame Element
         
         coreFEs: boolean value, if set True then Frames where fe is a core element will be returned
         peripheralFEs: boolean value, if set True then Frames where fe is a non-core element will be returned
         
         Returns a list of frames
-        '''
+        """
         if not isinstance(fe, Frame.Element):
             fe = self._fes[fe]
         frames = self._fes2frames[fe]

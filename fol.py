@@ -104,20 +104,24 @@ class FOL:
                 token += l
                 continue
             if l in sep:
-                if len(token) > 0: queue.append(token.strip())
+                if len(token) > 0:
+                    queue.append(token.strip())
+                if include_sep:
+                    queue.append(l)
                 token = ''
-                if include_sep: queue.append(l)
             else:
                 token += l
-        if len(token) > 0: queue.append(token.strip())
-        if queue[-1] == '.': queue.pop()
+        if len(token) > 0:
+            queue.append(token.strip())
+        if queue[-1] == '.':
+            queue.pop()
 
         # print "\n@@:", text
         assert not str_flag, 'Parsing FOL: String not terminated'
         # print ')):', queue
         return queue
 
-    def skolemize(self, header='fol', removeForAlls=False, ignore=['@placeholder'], **kargs):
+    def skolemize(self, header='fol', removeForAlls=False, ignore=('@placeholder',), **kargs):
         """This method converts the FOL to its Skolem form.
 
         has_header: defines if the first predicate should be ignored
@@ -186,7 +190,6 @@ class FOL:
 
             This operation respect negation. It does not move any operator accross a negation.
         """
-        complement_op = FOL.AND if op == FOL.OR else FOL.AND
         if FOL.is_quantifier(term[0]):
             for child in (term[1:]):
                 FOL._push_operand(child, op)
@@ -195,7 +198,7 @@ class FOL:
                 FOL._push_operand(child, op)
             for pos, child in enumerate(term[1:]):
                 if FOL.is_operator(child[0]):
-                    if (child[0] != FOL.NOT):
+                    if child[0] != FOL.NOT:
                         if term[0] == child[0]:
                             if aggregate:
                                 term.pop(pos + 1)
@@ -234,8 +237,9 @@ class FOL:
     @staticmethod
     def _push_quantifiers(term, root=None):
         """Moves all quantifiers to the begining of the formula."""
+        current = None
         try:
-            if root == None:
+            if root is None:
                 root = term
             if len(term) >= 2:
                 frontier = [term]
@@ -257,7 +261,6 @@ class FOL:
             raise e
         return term
 
-    # tries to strip all quantifiers and operations from negation
     @staticmethod
     def _push_negation(term):
         """Moves all negation to the 'leaf' terms."""
@@ -310,15 +313,27 @@ class FOL:
 
     @staticmethod
     def _eq_predicate(l_list, r_list):
+        """
+        Checks if predicates are equivalent:
+            l_list == r_list
+
+        Args:
+            l_list: left hand predicate
+            r_list: right hand predicate
+
+        Returns:
+            Boolean value.
+
+        """
         if len(l_list) != len(r_list):
             return False
 
-        for l, r in zip(l_list, r_list):
-            if str(l) and str(r):
-                if l != r:
+        for l_term, r_term in zip(l_list, r_list):
+            if str(l_term) and str(r_term):
+                if l_term != r_term:
                     return False
             else:
-                return FOL._eq_predicate(l, r)
+                return FOL._eq_predicate(l_term, r_term)
         return True
 
     def __repr__(self):

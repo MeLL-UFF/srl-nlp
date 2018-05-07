@@ -1,11 +1,10 @@
 #!/bin/env python
 
 import argparse
-import logging
-import pickle
-import xml.etree.ElementTree  as XMLTree
-from sys import argv
+import xml.etree.ElementTree as XMLTree
+from sys import argv as _argv
 
+from logger_config import add_logger_args as _add_logger_args, config_logger
 from srl_nlp.framenet.corpus import *
 
 logger = logging.getLogger(__name__)
@@ -69,7 +68,7 @@ class FNXMLAdapter:
         sentence = Sentence(id=id, text=text, annotation_sets=annotation_sets)
         return sentence
 
-    def _parse_annoset(self, xml_node, filter=['FE'], **params):
+    def _parse_annoset(self, xml_node, filter=('FE',), **params):
         logger.debug('AnnoSet[{}]:{}'.format(xml_node.tag, xml_node.attrib))
         assert self._TAG_PREFIX + 'annotationSet' == xml_node.tag
         layers = []
@@ -77,7 +76,7 @@ class FNXMLAdapter:
             assert self._TAG_PREFIX + 'layer' == layer.tag
             try:
                 layer = self._parse_layer(layer)
-                if not filter or layer.name in filter:
+                if not filter or (layer.name in filter):
                     layers.append(layer)
             except IndexError:
                 continue
@@ -124,9 +123,9 @@ class FNXMLAdapter:
         return anno
 
     def parseXML(self, xml_item):
-        '''
+        """
         Returns a list of documents
-        '''
+        """
         if isinstance(xml_item, XMLTree.Element):
             root = xml_item
         else:
@@ -136,7 +135,7 @@ class FNXMLAdapter:
     def doc2XML(self, doc, xml_file=None):
         root = self._doc2XML(doc)
         tree = XMLTree.ElementTree(root)
-        if xml_file != None:
+        if xml_file is not None:
             tree.write(xml_file, encoding='utf-8', xml_declaration=True)
         else:
             return XMLTree.tostring(tree, encoding='utf-8')
@@ -188,7 +187,7 @@ class FNXMLAdapter:
     def _layer2XML(self, layer):
         xml_layer = XMLTree.Element('layer')
         xml_layer.attrib = {'name': layer.name}
-        if layer.rank != None:
+        if layer.rank is not None:
             xml_layer.attrib['rank'] = layer.rank
         for label in layer:
             xml_layer.append(self._anno2XML(label))
@@ -201,7 +200,7 @@ class FNXMLAdapter:
                            'itype': anno.itype,
                            'name': anno.name}
         for key, val in xml_anno.attrib.items():
-            if val == None:
+            if val is None:
                 del (xml_anno.attrib[key])
         return xml_anno
 
@@ -212,8 +211,8 @@ class SemEval07XMLAdapter(FNXMLAdapter):
     _TAG_PREFIX = ''
 
     def __init__(self, **params):
+        FNXMLAdapter.__init__(self, **params)
         self.params = params
-        # TODO
 
     def _parse_document(self, xml_node):
         id = xml_node.attrib['ID']
@@ -268,9 +267,9 @@ class SemEval07XMLAdapter(FNXMLAdapter):
         return anno_set
 
     def parseXML(self, xml_item):
-        '''
+        """
         Returns a list of documents
-        '''
+        """
         if isinstance(xml_item, XMLTree.Element):
             root = xml_item
         else:
@@ -292,7 +291,7 @@ PARSERS_AVAILABLE = {'semeval': SemEval07XMLAdapter,
                      'framenet': FNXMLAdapter}
 
 
-def parse_args(argv=argv, add_logger_args=lambda x: None):
+def parse_args(argv=_argv, add_logger_args=lambda x: None):
     parser = argparse.ArgumentParser(description='Parses the semeval07 and framenet format into Documment')
     parser.add_argument('input_file', help='File to be parsed')
     parser.add_argument('-o', '--output_file', help='File to write the pickle serialization')
@@ -308,7 +307,7 @@ def parse_args(argv=argv, add_logger_args=lambda x: None):
 
 
 def main(argv):
-    args = parse_args(argv, add_logger_args)
+    args = parse_args(argv, _add_logger_args)
     config_logger(args)
     logger.info('Loading XML file')
     with open(args.input_file, 'r') as f:
@@ -335,12 +334,12 @@ def main(argv):
                 if converted != sentence.text:
                     logger.critical("{sent} was not properly processed".format(sent=sentence))
 
-    if args.output_file != None:
+    if args.output_file is not None:
         logger.info('Writing pickle file')
         with open(args.output_file, 'wb') as f:
             pickle.dump(docs, f)
 
-    if args.output_xml_file != None:
+    if args.output_xml_file is not None:
         logger.info('Writing XML file')
         with open(args.output_xml_file, 'w') as f:
             doc = docs[0]  # TODO iterate over the list
@@ -349,7 +348,7 @@ def main(argv):
 
 if __name__ == '__main__':
     try:
-        main(argv)
+        main(_argv)
     except KeyboardInterrupt:
         logger.info('Halted by the user')
     except OSError as e:

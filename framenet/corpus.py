@@ -18,7 +18,7 @@ class Document:
         self.name = name
         self.corpus = corpus
         self.corpusID = corpusID
-        if sentences == None:
+        if sentences is None:
             self.sentences = []
         else:
             self.sentences = sentences
@@ -80,7 +80,7 @@ class Document:
         rsents = sorted(other.sentences, key=get_id)
         similarities = []
         for i, (lsent, rsent) in enumerate(zip(lsents, rsents)):
-            sim = (rsents._similar(lsents))
+            sim = (rsents._similar(lsents))  # TODO
             logger.debug('[{i}/{total}] Sim:{sim:6.2} sentences: \n\t{lsent} and \n\t {rsent}' \
                          .format(i=i, total=len(rsents), lsent=lsent,
                                  rsent=rsent, sim=sim * 100))
@@ -100,7 +100,7 @@ class Sentence:
         self.id = id
         self.text = text
         self.params = params
-        if (annotation_sets == None):
+        if (annotation_sets is None):
             self.annotation_sets = []
         else:
             self.annotation_sets = annotation_sets
@@ -230,13 +230,13 @@ class AnnotationSet:
         self.luName = luName
         self.status = status
         self.params = params
-        if (layers is None):
+        if layers is None:
             self.layers = []
         else:
             self.layers = layers
 
     def is_frame(self):
-        return (self.frameName != None) or (self.frameID != None)
+        return (self.frameName is not None) or (self.frameID is not None)
 
     def get_fes(self):
         return list(filter(Annotation.is_fe, self.layers))
@@ -247,11 +247,8 @@ class AnnotationSet:
     def __len__(self):
         return len(self.layers)
 
-    def __iter__(self):
-        return self.layers.__iter__()
-
     def __hash__(self):
-        return (self.id, self.frameID, self.frameName, \
+        return (self.id, self.frameID, self.frameName,
                 self.luID, self.luName, self.status).__hash__()
 
     def __eq__(self, other):
@@ -287,7 +284,7 @@ class Layer:
     def __init__(self, name, rank=None, annotations=None, **params):
         self.name = name
         self.rank = rank
-        if annotations == None:
+        if annotations is None:
             self.annotations = []
         else:
             self.annotations = annotations
@@ -311,7 +308,7 @@ class Layer:
         return True
 
     def __str__(self):
-        #params_str = str(self.params) if len(self.params) > 0 else ''
+        # params_str = str(self.params) if len(self.params) > 0 else ''
         labels = '\n'.join(map(str, self.annotations))
         return '<Layer \'{name}\'>{anno}</Layer>'.format(name=self.name, anno=labels)
 
@@ -330,10 +327,10 @@ class Annotation:
         pass
 
     def is_fe(self):
-        return self.name != None  # TODO
+        return self.name is not None  # TODO
 
     def is_subannotation(self, other):
-        # if self.itype != None or other.itype != None:
+        # if self.itype is not None or other.itype is not None:
         #    return False
         try:
             if self.start >= other.start and self.end <= other.end:
@@ -363,14 +360,14 @@ class Annotation:
         ??? (APos):
             ????
         """
-        return self.itype != None
+        return self.itype is not None
 
     def __hash__(self):
         return (self.start, self.end, self.name).__hash__()
 
     def __eq__(self, other):
-        return (self.start == self.start and \
-                self.end == self.end and \
+        return (self.start == self.start and
+                self.end == self.end and
                 self.name == self.name)  # TODO
 
     def _similar(self, other):
