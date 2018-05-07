@@ -102,13 +102,13 @@ def get_preds(lf, token, skip=('relation',)):
     """
     Returns: a list of predicates that contain the token
     """
-    out = []
+    out = set()
     if not lf.get_pred() in skip:
         for term in lf.iterterms():
             if term.get_pred() == token:
-                out.append(lf)
+                out.add(term)
             else:
-                out.extend(get_preds(term, token))
+                out.update(get_preds(term, token))
     return out
 
 
@@ -168,7 +168,7 @@ def get_annotations(example, lf, abbrev2fe=None, get_lemma=None):
         fes_dict is a dictionary mapping Frame Element names to a predicate list
         target_list is a list of predicates that are target in this example
     """
-    # TODO check this
+    # TODO check if it works okay when we have the same instance of predicates (conjunctions)
     if abbrev2fe is None:
         abbrev2fe = dict()
     fes = dict()
