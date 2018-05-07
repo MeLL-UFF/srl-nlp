@@ -3,20 +3,20 @@
 
 # Utils
 import argparse
+# Logger
+import logging
 import pickle
 from ConfigParser import ConfigParser
 from os import path
 from sys import argv as _argv
 from sys import stdout
 
-# Logger
-import logging
 from logger_config import config_logger, add_logger_args as _add_logger_args
 # Analysers
 from srl_nlp.analysers.boxer import BoxerLocalAPI
 from srl_nlp.framenet.parse_xml import NetXMLParser
-from srl_nlp.rule_manipulation import spacy, get_annotations, get_factors, make_pred, str_preds, get_paths, get_abbrev, \
-    get_examples
+from srl_nlp.rule_manipulation import spacy, get_annotations, get_factors, make_pred
+from srl_nlp.rule_manipulation import str_preds, get_paths, get_abbrev, get_examples
 
 logger = logging.getLogger(__name__)
 
@@ -64,8 +64,8 @@ class RuleGenerator(object):
                                             rule = "%s :- %s, %s." % (
                                                 str_preds(make_pred(self.FE_PRED,
                                                                     pred,
-                                                                    frame.name.lower(),
-                                                                    label.lower())),
+                                                                    label.lower(),
+                                                                    frame.name.lower())),
                                                 str_preds(make_pred(self.FR_PRED,
                                                                     target,
                                                                     frame.name.lower())),
@@ -80,11 +80,13 @@ class RuleGenerator(object):
 
 def make_theory(rule_generator, fe_examples):
     """
-    Returns a iterator of strings where each string is a prolog rule.
+    Returns an iterator of strings where each string is a ProLog rule.
     """
     for idx, i in enumerate(fe_examples):
+        if idx < 229:
+            continue
         examples, frame = i
-        logger.debug('[{idx}] example | frame:  {i}'.format(idx=idx, i=str(i)))
+        logger.info('[{idx}] example | frame:  {i}'.format(idx=idx, i=str(i)))
         if len(examples) > 0:
             logger.info('Example: %s' % str(examples[0].str_no_annotation()))
         for rule in rule_generator.get_rules(frame, *examples):
@@ -152,9 +154,11 @@ def make_frame_matching_rules(lus2frames, lu_pos_to_pred=lu_pos2pred, f_out=None
 ##########################
 
 def parse_args(argv=_argv, add_logger_args=lambda x: None):
-    parser = argparse.ArgumentParser(description='KB generator')
-    parser.add_argument('--out_file',
-                        help='The path to where to write the rules. If none, the rules are going to be printed on screen')
+    parser = argparse.ArgumentParser(description='KB generator. Writes the union of the set of the deep '
+                                                 'role rules and the set of the frame matching rules.')
+    parser.add_argument('out_file',
+                        help='The path to where to write the rules. '
+                             'If none, the rules are going to be printed on screen')
     parser.add_argument('--example_file', help='The path to where to write/read examples TODO')
     parser.add_argument('-l', '--limit', help='Max number of examples used')
     parser.add_argument('-r', '--frame_related', action='store_true', default=False,
