@@ -15,7 +15,6 @@ class FNXMLAdapter:
 
     def __init__(self, **params):
         self.params = params
-        # TODO
 
     def _parse_document(self, xml_node):
         doc_args = {}
@@ -63,7 +62,7 @@ class FNXMLAdapter:
                 text = child.text
             if child.tag == self._TAG_PREFIX + 'annotationSet':
                 anno_set = self._parse_annoset(child)
-                if anno_set.is_frame():  # TODO use other annotations
+                if anno_set.is_frame():
                     annotation_sets.append(anno_set)
         sentence = Sentence(id=id, text=text, annotation_sets=annotation_sets)
         return sentence
@@ -173,7 +172,7 @@ class FNXMLAdapter:
         xml_text = XMLTree.Element('text')
         xml_text.text = sent.text
         xml_sent.append(xml_text)
-        for annoSet in sent.annotation_sets:  # TODO
+        for annoSet in sent.annotation_sets:
             xml_sent.append(self._anno_set2XML(annoSet))
         return xml_sent
 
@@ -243,7 +242,6 @@ class SemEval07XMLAdapter(FNXMLAdapter):
         annos = []
         for layers in xml_node:
             for layer in layers:
-                # TODO assert layer has type layer
                 try:
                     annos.append(self._parse_annotation(layer))
                 except IndexError:
@@ -342,8 +340,8 @@ def main(argv):
     if args.output_xml_file is not None:
         logger.info('Writing XML file')
         with open(args.output_xml_file, 'w') as f:
-            doc = docs[0]  # TODO iterate over the list
-            adapter.doc2XML(doc, xml_file=f)
+            for doc in docs:
+                adapter.doc2XML(doc, xml_file=f)
 
 
 if __name__ == '__main__':
