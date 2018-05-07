@@ -4,7 +4,6 @@ Script for running the Frame Semantic Parsing given some base knowledge
 """
 
 import argparse
-import logging
 from ConfigParser import ConfigParser
 from os import path
 from sys import argv
@@ -13,7 +12,6 @@ from tempfile import NamedTemporaryFile
 from logger_config import config_logger, add_logger_args
 from srl_nlp.analysers.process import Process
 from srl_nlp.framenet.corpus import Sentence, Annotation, AnnotationSet, Layer
-from srl_nlp.logicalform import LF
 from srl_nlp.rule_manipulation import *
 
 logger = logging.getLogger(__name__)
@@ -105,7 +103,7 @@ class Annotator1(SemanticAnnotator, Process):
 
     def _indexes_term_in_sentence(self, link_term, lfs, sentence):
         factors = [get_factors(lf) for lf in lfs]
-        for term, predicate in factors.items():
+        for term, predicate in factors:
             if term == link_term:
                 if predicate.get_pred() in self.analyser.DEFINITION_TERMS:
                     _, token = predicate.iteritems()
@@ -127,7 +125,7 @@ class Annotator1(SemanticAnnotator, Process):
         for inf_lf in infered_lfs:
             if inf_lf.get_pred() == Annotator1.FRAME_RELATED_PRED:
                 try:
-                    link_term, frame_name, fe_name = inf_lf.iteritems()
+                    link_term, frame_name, fe_name = inf_lf.iterterms()
                     assert link_term.isleaf() and frame_name.isleaf() and fe_name.isleaf()
                 except ValueError as e:  # Not correct number of predicates
                     logger.error(e)
@@ -145,10 +143,11 @@ class Annotator1(SemanticAnnotator, Process):
 
             if inf_lf.get_pred() == Annotator1.FRAME_ELEMENT_PRED:
                 try:
-                    link_term, frame_name = inf_lf.iteritems()
-                except ValueError as e:  # Not correct number of predicates
-                    logger.error(e)
+                    link_term, frame_name = inf_lf.iterterms()
+                except ValueError as ex:  # Not correct number of predicates
+                    logger.error(ex)
                     logger.error('Invalid frame matching \'{}\''.format(inf_lf))
+                    raise ex
                 token_index = self._indexes_term_in_sentence(link_term, lfs, sentence)
                 if token_index:
                     start, end = token_index
@@ -197,7 +196,7 @@ class Annotator1(SemanticAnnotator, Process):
             else:
                 return out
 
-    def frameElementMatching(self, sentence, fr_anno=[], out_error=False,
+    def frameElementMatching(self, sentence, fr_anno=tuple(), out_error=False,
                              lf_file_name=None, **params):
         with self._open_a_file(lf_file_name) as lf_file:
             script = self._script(self._load_file(self.fe_kb_file),
@@ -243,6 +242,10 @@ def parse_args(argv=argv, add_logger_args=lambda x: None):
                         action='store_true', default=False,
                         help='show the matching of both')
 
+    parser.add_argument('--kb_fe', default='tmp_rules_kb_fe',
+                        help='path to frame element knowledge base')
+    parser.add_argument('--kb_fr', default='tmp_rules_kb_fr',
+                        help='path to frame matching knowledge base')
     # parser.add_argument('-i', '--stdin', action='store_true', default=False, help = 'increase output verbosity')
     add_logger_args(parser)
     args = parser.parse_args(argv[1:])
@@ -256,7 +259,7 @@ def main(argv):
 
     from srl_nlp.analysers.boxer import BoxerLocalAPI
     boxer = BoxerLocalAPI()
-    anno = Annotator1(boxer, 'tmp_rules_kb_fr', 'tmp_rules_kb_fe')
+    anno = Annotator1(boxer, args.kb_fr, args.kb_fe)
 
     print 'LF: %s\s' % boxer.sentence2LF(args.sentence)
 
