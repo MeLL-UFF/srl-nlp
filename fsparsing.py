@@ -114,7 +114,6 @@ class Annotator1(SemanticAnnotator, Process):
         """Method that generates an example from the output of the prolog script"""
         lines = []
         for line in script_out.split('\n'):
-            # TODO handle comments in the end of the line
             line = line.strip()
             if len(line) > 0 and not line.startswith('%'):
                 lines.append(line)

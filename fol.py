@@ -154,7 +154,7 @@ class FOL:
             logger.debug('PrenexForm child: %s', child)
             if len(child) < 2:
                 if child[0] in constants:
-                    child[0] = 'c%s' % constants.index(child[0])  # TODO universal constants
+                    child[0] = 'c%s' % constants.index(child[0])
             else:
                 frontier.extend(child[1:])
 
