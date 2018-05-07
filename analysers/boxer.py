@@ -48,14 +48,15 @@ class CandCLocalAPI(Process):
     def _process_completed(self, out_list):
         opening = sum(map(lambda line: line.count('('), out_list))
         closing = sum(map(lambda line: line.count(')'), out_list))
-        return opening == closing and sum(map(lambda x: (x == '\n'), out_list)) >= 1
+        return opening == closing and opening > 0
+        # return opening == closing and sum(map(lambda x: (x == '\n'), out_list)) >= 1
 
-    def parse(self, tokenized):
+    def parse(self, tokenized_sentences):
         out = ''
-        for tokenized in map(' '.join, tokenized):
-            tokenized = tokenized.strip()
-            if len(tokenized) > 0:
-                tmp_out, err = self._process(tokenized.strip() + '\n')
+        for tokenized_sentence in tokenized_sentences:
+            sentence = ' '.join(tokenized_sentence).strip()
+            if len(sentence) > 0:
+                tmp_out, err = self._process(sentence + '\n')
                 if err:
                     # C&C writes info on the stderr, we want to ignore it
                     if not err.startswith('#'):
