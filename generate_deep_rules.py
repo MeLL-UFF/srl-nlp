@@ -83,8 +83,6 @@ def make_theory(rule_generator, fe_examples):
     Returns an iterator of strings where each string is a ProLog rule.
     """
     for idx, i in enumerate(fe_examples):
-        if idx < 229:
-            continue
         examples, frame = i
         logger.info('[{idx}] example | frame:  {i}'.format(idx=idx, i=str(i)))
         if len(examples) > 0:
