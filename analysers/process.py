@@ -50,8 +50,8 @@ class Process(object):
                     continue
                 if stop_condition(out):
                     break
-            logger.info('{proc} count: {time}'.format(proc=self._proc_name,
-                                                      time=count))
+            logger.warning('{proc} count: {time}'.format(proc=self._proc_name,
+                                                         time=count))
             assert self._time_out is None or count < self._time_out
         return out
 
@@ -85,7 +85,7 @@ class Process(object):
         return out
 
     def _err_handler(self, err):
-        logger.debug('Error:"%s"' % err)
+        logger.debug('StdError:"%s"' % err)
 
     def _process(self, input_text, tries=3):
         logger.info('{proc}: "{input}" tries: {tries}'.format(proc=self._proc_name, input=input_text, tries=tries))
@@ -110,6 +110,8 @@ class Process(object):
                     self._init_popen()
                     out, err = self._process(input_text, tries=tries - 1)
                 else:
+                    logger.error('{proc}: failed at input "{input}"'.format(proc=self._proc_name,
+                                                                            input=input_text))
                     raise e
         self._err_handler(err)
         logger.debug('{proc} out: {out}'.format(proc=self._proc_name,
