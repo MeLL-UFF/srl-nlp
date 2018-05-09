@@ -70,6 +70,16 @@ def remove_eq(lf, eq_term):
 
 
 def _additive_dict_update(d1, d2):
+    """
+        Extends all values in d1 that match keys with values in d2
+    Args:
+        d1: dictionary whose items are lists
+        d2: dictionary whose items are iterables
+
+    Returns:
+        Nothing, the change is do inplace in d1
+
+    """
     for key in d2:
         val = d1.get(key, [])
         val.extend(d2[key])
@@ -85,7 +95,8 @@ def _additive_dict_update(d1, d2):
 
 def get_examples(target, fn):
     """
-        Iterates over the fn frames that contain target as a Frame element and return every description element with the tag EXample
+        Iterates over the fn frames that contain target as a Frame element and
+        returns every description element with the tag EXample
 
         Returns: list of (example, Frame) pairs
     """
@@ -106,7 +117,7 @@ def get_preds(lf, token, skip=('relation',)):
     if not lf.get_pred() in skip:
         for term in lf.iterterms():
             if term.get_pred() == token:
-                out.add(term)
+                out.add(lf)
             else:
                 out.update(get_preds(term, token))
     return out
@@ -136,7 +147,7 @@ def get_tokens_index(lf, tokenized, skip=('relation',)):
     return out
 
 
-def get_abbrev(frame):
+def get_abbrev(frame, lower_case=True):
     """
     Args:
         frame:
@@ -148,7 +159,10 @@ def get_abbrev(frame):
     out = dict()
     for fe in frame.coreFEs + frame.peripheralFEs:
         if len(fe.abbrev) > 0:
-            out[fe.abbrev] = fe.name
+            if lower_case:
+                out[fe.abbrev.lower()] = fe.name
+            else:
+                out[fe.abbrev] = fe.name
     return out
 
 
