@@ -7,7 +7,7 @@ from sys import stderr
 from process import Process
 from regex import match, compile
 from requests import post
-from rule_manipulation import remove_eq
+from rule_utils import remove_eq
 from srl_nlp.fol import FOL
 from srl_nlp.logicalform import LF
 
@@ -87,9 +87,10 @@ class BoxerAbstract:
         (r'^\w\d+(?:T|t)opic', lambda p_elems, terms: (['topic'] + terms,)),
         (r'^r\d+(\w*)', lambda p_elems, terms: (['relation'] + terms + p_elems,)),
         (r'^n\d+numeral', lambda p_elems, terms: (['numeral'] + terms,)),
-        (r'^n\d(.*)', lambda p_elems, terms: (['noun'] + terms + p_elems,)),
+        (r'^n\d(\d+)$', lambda p_elems, terms: (['number'] + terms + p_elems,)),
+        (r'^n\d+(.*)', lambda p_elems, terms: (['noun'] + terms + p_elems,)),
         (r'^t_X+(\d+)', lambda p_elems, terms: (['number'] + terms + p_elems,)),
-        (r'^c(\d+)number', lambda p_elems, terms: (['noun'] + terms + p_elems,)),
+        (r'^c(\d+)number', lambda p_elems, terms: (['number'] + terms + p_elems,)),
         (r'^c\d+numeral', lambda p_elems, terms: (['numeral'] + terms,)),
         (r'^c\d+(.*)', lambda p_elems, terms: (['cnoun'] + terms + p_elems,)),
         (r'^a\d+(.*)', lambda p_elems, terms: (['adjective'] + terms + p_elems,)),
@@ -112,17 +113,22 @@ class BoxerAbstract:
         return None
 
     def sentence2FOL(self, sentence, *extra_args):
-        parsed = self._parse_sentence(sentence)
-        boxed = self._parsed2FOLstring(parsed)
 
-        # print boxed
-        # return lines that do not start with '%%%', nor 'id' and are not empty
+        try:
+            parsed = self._parse_sentence(sentence)
+            boxed = self._parsed2FOLstring(parsed)
 
-        def is_relevant(x):
-            return not (x.startswith('id') or x.startswith('%%%')) and len(x) > 0
+            logger.debug("Boxed: {b}".format(b=boxed))
 
-        raw_fols = filter(is_relevant, boxed.split("\n"))
-        fols = map(lambda x: FOL(x, *extra_args), raw_fols)
+            # return lines that do not start with '%%%', nor 'id' and are not empty
+            def is_relevant(x):
+                return not (x.startswith('id') or x.startswith('%%%')) and len(x) > 0
+
+            raw_fols = filter(is_relevant, boxed.split("\n"))
+            fols = map(lambda x: FOL(x, *extra_args), raw_fols)
+        except AssertionError:
+            fols = []
+
         special_char_pattern = compile('C(\d+)')
         for fol in fols:
             frontier = [fol.info]

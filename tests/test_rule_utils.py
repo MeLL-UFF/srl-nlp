@@ -1,5 +1,5 @@
 from logicalform import LF
-from rule_utils import _additive_dict_update, make_pred
+from rule_utils import _additive_dict_update, make_pred, replace_all
 
 
 # parser = NetXMLParser()
@@ -7,7 +7,25 @@ from rule_utils import _additive_dict_update, make_pred
 
 
 def test_replace_all():
-    assert False
+    tests = [
+        ['AND', ['test', ['A'], ['B']], ['test1', 'B', 'C']],
+        ['AND', ['test', ['A'], ['B']], ['test1', 'B', 'C']]
+    ]
+    consts = [
+        ('A', 'a'),
+        ('test1', 'test')
+    ]
+    corrects = [
+        ['AND', ['test', ['a'], ['B']], ['test1', 'B', 'C']],
+        ['AND', ['test', ['A'], ['B']], ['test', 'B', 'C']]
+    ]
+    for idx, (test, const, correct) in enumerate(zip(tests, consts, corrects)):
+        lf_test = LF()
+        lf_test.info = test
+        lf_correct = LF()
+        lf_correct.info = correct
+        replace_all(lf_test, *const)
+        assert lf_test == lf_correct, idx
 
 
 def test_remove_eq():

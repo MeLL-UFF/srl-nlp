@@ -150,7 +150,8 @@ def get_tokens_index(lf, tokenized, skip=('relation',)):
 def get_abbrev(frame, lower_case=True):
     """
     Args:
-        frame:
+        frame: A Frame from a FrameNet object
+        lower_case: boolean value. If true, it converts the frame abbreviation to lower case
 
     Returns:
          A dictionary mapping abbreviation to Frame Element name
@@ -168,14 +169,14 @@ def get_abbrev(frame, lower_case=True):
 
 def get_annotations(example, lf, abbrev2fe=None, get_lemma=None):
     """
-        This function matches the example annotations against the given lf
+    This function matches the example annotations against the given lf
     (the lf must represent the example for this to make any sense)
 
     Args:
         example:
-        lf:
-        abbrev2fe: dict
-        get_lemma:
+        lf:  a lf representation of the example
+        abbrev2fe: dict of abbreviations to frame element names
+        get_lemma: function that retorns the lemma of given token
 
     Returns:
         A tuple (fes_dict, taget_list), where
@@ -211,7 +212,7 @@ def get_annotations(example, lf, abbrev2fe=None, get_lemma=None):
                     raise e
                 for literal in literals:
                     for pred in pred_stack:
-                        pred = abbrev2fe.get(pred, pred)
+                        pred = abbrev2fe.get(pred.lower(), pred)
                         if pred == 'target' or pred == 't':
                             target.append(literal)
                         elif pred == 'fex':
@@ -264,7 +265,8 @@ def get_paths(predL, predR, factors, breadth=True):
 
 def make_pred(literal, pred, *terms):
     """
-    Returns a new LF predicate from the original pred, the literal and a label
+    Returns a new LF predicate from the original pred, the literal and a label.
+    Only the first term of pred is used in the final predicate
     """
     t = pred.iterterms().next()
     terms = map(lambda x: x if isinstance(x, list) else [x], terms)
