@@ -12,3 +12,4 @@ wordnet/**
 GILPS/**
 **.pkl
 .idea/**
+.ipynb_checkpoints/**
