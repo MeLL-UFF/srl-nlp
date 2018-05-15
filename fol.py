@@ -180,15 +180,19 @@ class FOL:
 
     @staticmethod
     def _push_operand(term, op, aggregate=True):
-        """ Move all the operands of the same kind of op to the 'leaves'.
+        """
+        Move all the operands of the same kind of op to the 'leaves'.
+        This operation respect negation. It does not move any operator across a negation.
 
-            Params:
-                term: the term to be changed, usually something like 'fol.info'
-                op: the kind of operator to be pushed: FOL.AND or FOL.OR
-                aggregate: allows the aggregation of same kind operators:
-                           and(a,and(b,c)) -> and(a,b,c)
+        Args:
+            term: the term to be changed, usually something like 'fol.info'
+            op: the kind of operator to be pushed: FOL.AND or FOL.OR
+            aggregate: allows the aggregation of same kind operators:
+                       and(a,and(b,c)) -> and(a,b,c)
 
-            This operation respect negation. It does not move any operator accross a negation.
+        Returns:
+            Boolean value stating if a change was made or not.
+
         """
         if FOL.is_quantifier(term[0]):
             for child in (term[1:]):
@@ -223,20 +227,21 @@ class FOL:
     def push_operand(self, op, aggregate=True):
         """
         Move all the operands of the same kind of op to the 'leaves'.
+        This operation respects negation. It does not move any operator across a negation.
 
-            Params:
-                term: the term to be changed, usually something like 'fol.info'
-                op: the kind of operator to be pushed: FOL.AND or FOL.OR
-                aggregate: allows the aggregation of same kind operators:
-                           and(a,and(b,c)) -> and(a,b,c)
+        Args:
+            op: the kind of operator to be pushed: FOL.AND or FOL.OR
+            aggregate: allows the aggregation of same kind operators:
+                       and(a,and(b,c)) -> and(a,b,c)
 
-            This operation respects negation. It does not move any operator accross a nagation.
+        Returns:
+            Nothing, change in-place.
         """
         FOL._push_operand(self.info, op, aggregate)
 
     @staticmethod
     def _push_quantifiers(term, root=None):
-        """Moves all quantifiers to the begining of the formula."""
+        """Moves all quantifiers to the beginning of the formula."""
         current = None
         try:
             if root is None:

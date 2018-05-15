@@ -1,5 +1,14 @@
-#!/bin/env python
+#!/bin/env python2
+"""
+This script creates a simple theory from FrameNet that can be further revised.
+"""
 
+__author__ = "Breno W. Carvalho"
+__copyright__ = "Copyright 2018"
+__credits__ = ["Breno W. Carvalho", "Bernardo Goncalves", "Aline Marins Paes"]
+__license__ = "GPL"
+__email__ = "brenocarvalho@id.uff.br"
+__status__ = "Prototype"
 
 # Utils
 import argparse
@@ -7,6 +16,7 @@ import argparse
 import logging
 import pickle
 from ConfigParser import ConfigParser
+from functools import partial
 from os import path
 from sys import argv as _argv
 from sys import stdout
@@ -15,8 +25,8 @@ from logger_config import config_logger, add_logger_args as _add_logger_args
 # Analysers
 from srl_nlp.analysers.boxer import BoxerLocalAPI
 from srl_nlp.framenet.parse_xml import NetXMLParser
-from srl_nlp.rule_manipulation import spacy, get_annotations, get_factors, make_pred
-from srl_nlp.rule_manipulation import str_preds, get_paths, get_abbrev, get_examples
+from srl_nlp.rule_utils import spacy, get_annotations, get_factors, make_pred
+from srl_nlp.rule_utils import str_preds, get_paths, get_abbrev, get_examples
 
 logger = logging.getLogger(__name__)
 
@@ -31,13 +41,14 @@ class RuleGenerator(object):
     FE_PRED = 'frame_element'
     FR_PRED = 'frame_related'
 
-    def __init__(self, *analysers, **params):
+    def __init__(self, *analysers):
         self.analysers = analysers
         nlp = spacy.load('en_core_web_sm')
         self._get_lemma = lambda token: nlp(token.decode('utf-8'))[0].lemma_
 
     def get_rules(self, frame, *examples):
         """Generates FrameElement rules"""
+        x = (self.FR_PRED, self.FE_PRED, 'relation')
         for analyser in self.analysers:
             for example in examples:
                 lfs = analyser.sentence2LF(example.str_no_annotation())
@@ -56,6 +67,7 @@ class RuleGenerator(object):
                                         for term_path in get_paths(pred, target, factors):
                                             if label[:1].islower():
                                                 logger.error(example)
+                                                logger.error(example)
                                                 logger.error(term_path)
                                                 logger.error(elements)
                                                 logger.error(targets)
@@ -65,11 +77,11 @@ class RuleGenerator(object):
                                                 str_preds(make_pred(self.FE_PRED,
                                                                     pred,
                                                                     label.lower(),
-                                                                    frame.name.lower())),
+                                                                    frame.name.lower()), x=x),
                                                 str_preds(make_pred(self.FR_PRED,
                                                                     target,
-                                                                    frame.name.lower())),
-                                                str_preds(term_path))
+                                                                    frame.name.lower()), x=x),
+                                                str_preds(term_path, x=x))
                                             logger.debug("Rule: %s" % rule)
                                             yield rule
                                             break
@@ -113,6 +125,16 @@ lu_pos2pred = {'A': 'adjective',
 
 
 def get_lus2frames(framenet):
+    """
+    Returns a mapping of Lexical Units to sets of Frames in all FrameNet
+
+    Args:
+        framenet: a FrameNet Object (any version of it from this package will work)
+
+    Returns:
+        Dctionary of the form of Lexical Units as keys and sets of Frames related to the LU as values.
+
+    """
     lus2frames = dict()
     for frame in framenet:
         for lu in frame.LUs:
@@ -123,6 +145,18 @@ def get_lus2frames(framenet):
 
 
 def make_frame_matching_rules(lus2frames, lu_pos_to_pred=lu_pos2pred, f_out=None):
+    """
+    Method to generate simple Frame Matching rules based on Lexical Units
+
+    Args:
+        lus2frames:
+        lu_pos_to_pred:
+        f_out: file to receive the list of rules
+
+    Returns:
+        If f_out is not None, returns the list of rues that matches frames to sentences.
+        Otherwise, write it to f_out and returns Nothing
+    """
     out = []
 
     def handle_name(name):
@@ -147,6 +181,34 @@ def make_frame_matching_rules(lus2frames, lu_pos_to_pred=lu_pos2pred, f_out=None
                 pass
     if not f_out:
         return out
+
+
+def get_all_examples(fn, example_file_name=None):
+    """
+    Tries to read the examples from file or to generate them from the FrameNet fn if no file is found.
+
+    Args:
+        fn: a FrameNet Object (any version of it from this package will work)
+        example_file_name: file to try to read the examples from
+
+    Returns:
+        List of examples. An example is a pair (list of Frame Element Examples, Frame).
+
+    """
+    examples = []
+    if example_file_name:
+        try:
+            logger.info('Read examples from %s' % example_file_name)
+            with open(example_file_name, 'r') as f:
+                examples = pickle.load(f)
+        except IOError as ex:
+            logger.error('Exception reading \'%s\': %s' % (example_file_name, ex))
+    else:
+        logger.info('Capturing examples')
+        examples = []
+        for l in list(map(partial(get_examples, fn=fn), fn.fe_names)):
+            examples.extend(l)
+    return examples
 
 
 ##########################
@@ -181,27 +243,6 @@ def main(argv):
     parser = NetXMLParser()
     fn = parser.parse('framenet/fndata-1.7')
 
-    # lfs = None
-    # overwrite_lfs_file = False
-    # if args.lfs_file:
-    #     logger.info('Reading from %s' %args.lfs_file)
-    #     try:
-    #         with open(args.lfs_file, 'r') as f:
-    #             lfs = pickle.load(f)
-    #     except IOError:
-    #         overwrite_lfs_file = True
-    # if not lfs:
-    #     lfs = dict()
-    #     for count, (fe, example_list) in enumerate(examples.iteritems()):
-    #         lfs[fe] = [boxer.sentence2LF(example.str_no_annotation())
-    #                         for ex_list, _ in example_list for example in ex_list]
-    #         logger.info("%06.2f%%" %(100.*(count+1)/len(examples)))
-    #     if overwrite_lfs_file:
-    #         with open(args.lfs_file, 'w') as f:
-    #             pickle.dump(lfs, f)
-
-    # logger.info('LFs are ready')
-
     if args.frame_related:
         logger.info('Initialization of frame matching rule inference')
         frame_matching_rules = make_frame_matching_rules(get_lus2frames(fn))
@@ -224,20 +265,7 @@ def main(argv):
     #                      #
     ########################
     if args.frame_element:
-        fes_keys = fn._fes.keys()  # TODO avoid accessing private member
-        examples = []
-        if args.example_file:
-            try:
-                logger.info('Read examples from %s' % args.example_file)
-                with open(args.example_file, 'r') as f:
-                    examples = pickle.load(f)
-            except IOError as ex:
-                logger.error('Exception reading \'%s\': %s' % (args.example_file, ex))
-        else:
-            logger.info('Capturing examples')
-            examples = []
-            for l in list(map(lambda fe: get_examples(fe, fn), fes_keys)):
-                examples.extend(l)
+        examples = get_all_examples(fn, args.example_file)
 
         logger.info('Starting Boxer')
         boxer = BoxerLocalAPI(expand_predicates=True)
