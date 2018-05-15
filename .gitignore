@@ -13,3 +13,4 @@ GILPS/**
 **.pkl
 .idea/**
 .ipynb_checkpoints/**
+**/*.log
