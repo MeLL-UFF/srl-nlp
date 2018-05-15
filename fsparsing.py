@@ -12,7 +12,7 @@ from tempfile import NamedTemporaryFile
 from logger_config import config_logger, add_logger_args
 from srl_nlp.analysers.process import Process
 from srl_nlp.framenet.corpus import Sentence, Annotation, AnnotationSet, Layer
-from srl_nlp.rule_manipulation import *
+from srl_nlp.rule_utils import *
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ class SemanticAnnotator(object):
         pass
 
 
-class Annotator1(SemanticAnnotator, Process):
+class PrologAnnotator(SemanticAnnotator, Process):
     """Description of annotator 1"""
     FRAME_RELATED_PRED = 'frame_related'
     FRAME_ELEMENT_PRED = 'frame_element'
@@ -122,7 +122,7 @@ class Annotator1(SemanticAnnotator, Process):
         f_set_map = dict()
 
         for inf_lf in infered_lfs:
-            if inf_lf.get_pred() == Annotator1.FRAME_RELATED_PRED:
+            if inf_lf.get_pred() == PrologAnnotator.FRAME_RELATED_PRED:
                 try:
                     link_term, frame_name, fe_name = inf_lf.iterterms()
                     assert link_term.isleaf() and frame_name.isleaf() and fe_name.isleaf()
@@ -140,7 +140,7 @@ class Annotator1(SemanticAnnotator, Process):
 
                     # logger.error('Token \'{token}\' not found in sentence \'{sent}\''.format(sent = sentence, token = token))
 
-            if inf_lf.get_pred() == Annotator1.FRAME_ELEMENT_PRED:
+            if inf_lf.get_pred() == PrologAnnotator.FRAME_ELEMENT_PRED:
                 try:
                     link_term, frame_name = inf_lf.iterterms()
                 except ValueError as ex:  # Not correct number of predicates
@@ -159,15 +159,15 @@ class Annotator1(SemanticAnnotator, Process):
 
     def parsing(self, script, sentence, header='', footer='', input_file=None):
         lfs = self.analyser.sentence2LF(sentence)
-        lf = lfs[0]
         input_file.write(header)
-        for pred in lf.iterterms():
-            logger.debug('PRED: {}'.format(str(pred)))
-            input_file.write(str(pred) + '\n')
+        for lf in lfs:
+            for pred in lf.split():
+                logger.debug('PRED: {}'.format(str(pred)))
+                input_file.write(str(pred) + '\n')
         input_file.write(footer)
         input_file.flush()
         input_file.seek(0)
-        logger.debug('\n"{}"\n'.format(script))
+        logger.debug('\n"Parsing:\n{}"\n'.format(script))
         out, err = self._process(script)
         return out, err
 
@@ -187,7 +187,7 @@ class Annotator1(SemanticAnnotator, Process):
         with self._open_a_file(lf_file_name) as lf_file:
             script = self._script(self._load_file(self.fr_kb_file),
                                   self._load_file(lf_file.name),
-                                  self._forall(Annotator1.FRAME_RELATED_PRED, 2),
+                                  self._forall(PrologAnnotator.FRAME_RELATED_PRED, 2),
                                   self._halt())
             out, err = self.parsing(script, sentence, header='', input_file=lf_file)
             if out_error:
@@ -200,7 +200,7 @@ class Annotator1(SemanticAnnotator, Process):
         with self._open_a_file(lf_file_name) as lf_file:
             script = self._script(self._load_file(self.fe_kb_file),
                                   self._load_file(lf_file.name),
-                                  self._forall(Annotator1.FRAME_ELEMENT_PRED, 2),
+                                  self._forall(PrologAnnotator.FRAME_ELEMENT_PRED, 3),
                                   self._halt())
             out, err = self.parsing(script, sentence, header='\n'.join(fr_anno) + '\n', input_file=lf_file)
             if out_error:
@@ -213,8 +213,8 @@ class Annotator1(SemanticAnnotator, Process):
             script = self._script(self._load_file(self.fr_kb_file),
                                   self._load_file(self.fe_kb_file),
                                   self._load_file(lf_file.name),
-                                  self._forall(Annotator1.FRAME_RELATED_PRED, 2),
-                                  self._forall(Annotator1.FRAME_ELEMENT_PRED, 2),
+                                  self._forall(PrologAnnotator.FRAME_RELATED_PRED, 2),
+                                  self._forall(PrologAnnotator.FRAME_ELEMENT_PRED, 3),
                                   self._halt())
             out, err = self.parsing(script, sentence, input_file=lf_file)
             if out_error:
@@ -241,10 +241,12 @@ def parse_args(argv=argv, add_logger_args=lambda x: None):
                         action='store_true', default=False,
                         help='show the matching of both')
 
-    parser.add_argument('--kb_fe', default='tmp_rules_kb_fe',
-                        help='path to frame element knowledge base')
-    parser.add_argument('--kb_fr', default='tmp_rules_kb_fr',
-                        help='path to frame matching knowledge base')
+    parser.add_argument('-K', '--kb_path', default='.',
+                        help='path to knowledge base files')
+    parser.add_argument('-E', '--kb_fe', default='kb_fe',
+                        help='relative path to frame element knowledge base')
+    parser.add_argument('-R', '--kb_fr', default='kb_fr',
+                        help='relative path to path to frame matching knowledge base')
     # parser.add_argument('-i', '--stdin', action='store_true', default=False, help = 'increase output verbosity')
     add_logger_args(parser)
     args = parser.parse_args(argv[1:])
@@ -258,7 +260,9 @@ def main(argv):
 
     from srl_nlp.analysers.boxer import BoxerLocalAPI
     boxer = BoxerLocalAPI()
-    anno = Annotator1(boxer, args.kb_fr, args.kb_fe)
+    kb_fr_path = path.join(args.kb_path, args.kb_fr)
+    kb_fe_path = path.join(args.kb_path, args.kb_fe)
+    anno = PrologAnnotator(boxer, kb_fr_path, kb_fe_path)
 
     print 'LF: %s\s' % boxer.sentence2LF(args.sentence)
 
