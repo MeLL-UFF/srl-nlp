@@ -63,7 +63,6 @@ class FrameXMLParser:
 
         description = Description(escapeHTML=escapeHTML)
         label_stack = [description]
-        text_buffer = ''
         content = None
 
         logger.debug('SENTENCE:%s', xmlNode.text)
@@ -76,7 +75,7 @@ class FrameXMLParser:
                 name = name.strip()
                 # logger.debug(label_stack, '*', len(label_stack))
                 label_buffer = label_stack[-1]
-                if content != None:
+                if content is not None:
                     label_buffer.add_text(content)
                     content = None
                 if tag.startswith(end_tag_marker):
@@ -116,7 +115,7 @@ class FrameXMLParser:
         attrib = xmlNode.attrib
         for key in attrib:
             attrib[key] = attrib[key].encode('utf-8')
-        text = xmlNode.text if xmlNode.text != None else ''
+        text = xmlNode.text if xmlNode.text is not None else ''
         le = Lexeme(name=attrib['name'],
                     pos=attrib['POS'],
                     breakBefore=attrib['breakBefore'],

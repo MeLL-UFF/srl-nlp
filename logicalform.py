@@ -136,9 +136,10 @@ class LF:
         return out
 
     def __repr__(self, and_t=',', or_t=';', suppress_not=False, final_dot=True):
-        """Return a str representation of the LF
         """
-        if self.info == None or len(self.info) < 1:
+        Return a str representation of the LF
+        """
+        if self.info is None or len(self.info) < 1:
             out = ''
         else:
             term = self.info
@@ -208,7 +209,6 @@ def plotLF(lf, fig_name=None, on_screen=True):
 
     g = nx.Graph()
     edge_labels = {edge: label for (edge, label) in zip(edges, labels)}
-    g.add_edge()
     for edge, label in zip(edges, labels):
         g.add_edge(edge[0], edge[1], label=label)
     pos = nx.fruchterman_reingold_layout(g, k=2 / math.sqrt(g.order()), scale=10)
