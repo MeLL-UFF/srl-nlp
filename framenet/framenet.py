@@ -1,6 +1,6 @@
 import logging
 
-import distance
+import distance as _dist
 
 logger = logging.getLogger(__name__)
 
@@ -355,15 +355,17 @@ class Frame:
 
 
 class Net:
-    _word_distances = {'levenshtein': lambda x, y: distance.levenshtein(x, y, normalized=True),
+    _word_distances = {'levenshtein': lambda x, y: _dist.levenshtein(x, y, normalized=True),
                        # 'hamming': distance.hamming #the two strings must have the same length
-                       'jaccard': distance.jaccard,
-                       'sorensen': distance.sorensen}
+                       'jaccard': _dist.jaccard,
+                       'sorensen': _dist.sorensen}
 
     def __init__(self, frames):
-        """FrameNet python API
+        """
+        FrameNet python API
 
-        frames: A list of Frames or a dictionary where the names are the keys
+        Args:
+            frames: A list of Frames or a dictionary where the names are the keys
         """
         if type(frames) != dict:  # if the user passes a list of frames instead of a dict then convert it
             frames = dict(zip(map(lambda x: x.name, frames), frames))
@@ -455,6 +457,15 @@ class Net:
     def __len__(self):
         """Number of Frames in the Network"""
         return len(self.frames)
+
+    @property
+    def fe_names(self):
+        """
+
+        Returns: The list od all Frame Element names
+
+        """
+        return self._fes.keys()
 
     def getFrameElement(self, name):
         """Returns the Frame Elements in the FrameNet by name"""
