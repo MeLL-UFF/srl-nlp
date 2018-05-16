@@ -89,6 +89,7 @@ class FOL:
         token = ''
         str_flag = False
         escape_flag = False
+        text = text.strip()
         for l in text:
             if l == str_marker and not escape_flag:
                 if str_flag:
@@ -104,8 +105,9 @@ class FOL:
                 token += l
                 continue
             if l in sep:
+                token = token.strip()
                 if len(token) > 0:
-                    queue.append(token.strip())
+                    queue.append(token)
                 if include_sep:
                     queue.append(l)
                 token = ''
@@ -121,7 +123,7 @@ class FOL:
         # print ')):', queue
         return queue
 
-    def skolemize(self, header='fol', removeForAlls=False, ignore=('@placeholder',), **kargs):
+    def skolemize(self, header='fol', removeForAlls=False, ignore=('@placeholder',)):
         """This method converts the FOL to its Skolem form.
 
         has_header: defines if the first predicate should be ignored
