@@ -35,7 +35,7 @@ class LF:
                 fol.convert2PrenexForm()
                 logger.debug('PRENEX FOL: %s', fol)
                 # print '*', fol
-                fol.skolemize(**kargs)
+                fol.skolemize()
                 logger.debug('SKOLEMIZED FOL: %s', fol)
                 fol.push_operand(FOL.OR)
                 self.info = fol.info
