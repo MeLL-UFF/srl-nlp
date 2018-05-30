@@ -290,7 +290,7 @@ PARSERS_AVAILABLE = {'semeval': SemEval07XMLAdapter,
 
 
 def parse_args(argv=_argv, add_logger_args=lambda x: None):
-    parser = argparse.ArgumentParser(description='Parses the semeval07 and framenet format into Documment')
+    parser = argparse.ArgumentParser(description='Parses the semeval07 and framenet format into the Corpus format')
     parser.add_argument('input_file', help='File to be parsed')
     parser.add_argument('-o', '--output_file', help='File to write the pickle serialization')
     parser.add_argument('-c', '--check_examples', action='store_true',
