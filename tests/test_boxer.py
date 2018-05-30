@@ -5,17 +5,18 @@ from unittest import TestCase
 
 from analysers.boxer import BoxerLocalAPI, BoxerWebAPI
 from fol import FOL
-
-
 # Local API
+from nose.tools import assert_equals
+
+
 class TestBoxerLocalAPI(TestCase):
     def test_parse_sentence_to_fol(self):
         sentence = 'John is running even faster this time around.'
         boxer = BoxerLocalAPI()
         fol = boxer.sentence2FOL(sentence)
         assert str(fol) == '[some(A,some(B,some(C,and(and(n1time(B),and(a1around(A),and(r1Theme(A,B),' + \
-               'pernamjohn(C)))),some(D,some(E,and(r1Time(E,B),and(r1even(E),and(a1faster(D),' + \
-               'and(r1Manner(E,D),and(r1Actor(E,C),v1run(E)))))))))))).]'
+                           'pernamjohn(C)))),some(D,some(E,and(r1Time(E,B),and(r1even(E),and(a1faster(D),' + \
+                           'and(r1Manner(E,D),and(r1Actor(E,C),v1run(E)))))))))))).]'
 
     def test_parse_sentence(self):
         sentence = 'John is running even faster this time around.'
@@ -41,6 +42,28 @@ class TestBoxerLocalAPI(TestCase):
                     "\n       t(n\\n, 'around', 'around', 'RB', 'I-ADVP', 'O')))))),"
                     "\n  t(period, '.', '.', '.', 'O', 'O'))).")
         assert parsed == expected
+
+    def test_get_matching_tokens(self):
+        in_list = ['Bob was arrested by the police']
+        out_token_list = [
+            {'bob': 'Bob', 'by': 'by', 'be': 'was', 'arrest': 'arrested', 'the': 'the', 'police': 'police'}]
+        out_idx_list = [
+            {'bob': (0, 0), 'by': (0, 3), 'be': (0, 1), 'arrest': (0, 2), 'the': (0, 4), 'police': (0, 5)}]
+        out_pos_list = [
+            {'bob': (1, 4), 'by': (18, 20), 'be': (5, 8), 'arrest': (9, 17), 'the': (21, 24), 'police': (25, 31)}]
+        boxer = BoxerLocalAPI()
+
+        for in_test, test in zip(in_list, out_token_list):
+            output = boxer.get_matching_tokens(in_test, output="token")
+            assert_equals(output, test)
+
+        for in_test, test_idx in zip(in_list, out_idx_list):
+            output = boxer.get_matching_tokens(in_test, output="token_pos")
+            assert_equals(output, test_idx)
+
+        for in_test, test_idx in zip(in_list, out_pos_list):
+            output = boxer.get_matching_tokens(in_test, output="pos")
+            assert_equals(output, test_idx)
 
 
 # Web API

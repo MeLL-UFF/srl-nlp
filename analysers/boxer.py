@@ -176,7 +176,6 @@ class BoxerAbstract:
             term = frontier.pop()
             predicate = term[0]
             if FOL.is_special(predicate):
-                # print 'is special'
                 for pos, child in enumerate(term[1:]):
                     expansion = BoxerAbstract._expandFOLpredicate(child)
                     if expansion:
@@ -195,7 +194,6 @@ class BoxerAbstract:
 
                     else:
                         frontier.append(child)
-        # print ">>",fol
         return fol
 
     def sentence2LF(self, sentence, source=None, id=None, expand_predicates=None, **kargs):
@@ -207,8 +205,21 @@ class BoxerAbstract:
             fol = self.sentence2FOL(sentence)
         return self.FOL2LF(fol, expand_predicates, **kargs)
 
+    @abstractmethod
+    def get_matching_tokens(self, sentence):
+        """
+
+        Args:
+            sentence:
+
+        Returns:
+            The list of matching terms to each token in the sentence
+        """
+        pass
+
 
 class BoxerLocalAPI(Process, BoxerAbstract):
+
     def __init__(self, tokenizer=None,
                  ccg_parser=None,
                  expand_predicates=True,
@@ -240,6 +251,60 @@ class BoxerLocalAPI(Process, BoxerAbstract):
         parsed = self.ccg_parser.parse(tokenized)
         return parsed
 
+    def get_matching_tokens(self, sentence, output="token"):
+        """
+
+        Args:
+            sentence: string with  one or more sentences to be matched against
+            output: If output equals "token-pos", the returned dictionary will
+                    map each token to a tuple (sentence_count, token_count)
+                    If output equals "pos", the returned dictionary will
+                    map each token to a tuple (start, end).
+                    If output equals "token", the returned dictionary will
+                    map each token to the respective token in the sentence.
+
+        Returns:
+            The matching of tokens to sentence tokens.
+        """
+        tokenized = self.tokenizer.tokenize(sentence)
+        parsed = self.ccg_parser.parse(tokenized)
+        left_padding = '.*?'
+        sep = r",\s*"
+        get_token = r"'(.*?)'"
+        skip_token = r"'.*?'"
+        right_padding = r"\)+(?:,|.)"
+
+        pattern = compile(left_padding +
+                          get_token + sep +
+                          get_token + sep +
+                          skip_token + sep +
+                          skip_token + sep +
+                          skip_token +
+                          right_padding)
+
+        out = dict()
+        for line in parsed.split('\n'):
+            matching = pattern.match(line)
+            if matching:
+                value, key = matching.groups()
+                key = key.lower()
+                if output == 'token_pos':
+                    for s_idx, tk_sent in enumerate(tokenized):
+                        if value in tk_sent:
+                            value = (s_idx, tk_sent.index(value))
+                elif output == 'pos':
+                    for s_idx, tk_sent in enumerate(tokenized):
+                        if value in tk_sent:
+                            start = sentence.index(value)+1
+                            end = start+len(value)
+                            value = (start, end)
+                elif output == 'token':
+                    pass
+                else:
+                    raise Exception("Invalid option for output")
+                out[key] = value
+        return out
+
 
 class BoxerWebAPI(BoxerAbstract):
     def __init__(self, url=config.get('semantic_soap', 'boxer'), expand_predicates=True):
@@ -253,3 +318,5 @@ class BoxerWebAPI(BoxerAbstract):
 
     def _parsed2FOLstring(self, parsed):
         return post(self.url, data=parsed).text.strip()
+
+    # TODO def get_matching_tokens in BoxerWebAPI
