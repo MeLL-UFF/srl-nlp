@@ -213,7 +213,7 @@ class BoxerAbstract:
         return self.FOL2LF(fol, expand_predicates, **kargs)
 
     @abstractmethod
-    def get_matching_tokens(self, sentence):
+    def get_matching_tokens(self, sentence, output):
         """
 
         Args:
@@ -302,8 +302,11 @@ class BoxerLocalAPI(Process, BoxerAbstract):
                 elif output == 'pos':
                     for s_idx, tk_sent in enumerate(tokenized):
                         if value in tk_sent:
-                            start = sentence.index(value)+1
-                            end = start+len(value)
+                            t_idx = tk_sent.index(value)
+                            # Heuristic for retrieving the token position in the sentence
+                            padding = sum([len(t) for t in tk_sent[0:t_idx]])
+                            start = padding + sentence[padding:].index(value)
+                            end = start + len(value) - 1
                             value = (start, end)
                 elif output == 'token':
                     pass
