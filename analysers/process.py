@@ -88,25 +88,25 @@ class Process(object):
         logger.debug('StdError:"%s"' % err)
 
     def _process(self, input_text, tries=3):
-        logger.info('{proc}: "{input}" tries: {tries}'.format(proc=self._proc_name, input=input_text, tries=tries))
+        logger.debug('{proc} input_text: "{input}" tries: {tries}'.format(proc=self._proc_name, input=input_text, tries=tries))
         if self._proc.stdin.closed:
             logger.debug('{proc}: popen, process was closed'.format(proc=self._proc_name))
             self._init_popen()
 
         if self._disposable:
-            logger.info('{proc}: process is disposable'.format(proc=self._proc_name))
+            logger.debug('{proc}: process is disposable'.format(proc=self._proc_name))
             out, err = self._proc.communicate(input_text)
         else:
             err = []
             try:
                 self._proc.stdin.write(input_text)
                 self._proc.stdin.flush()
-                logger.info('{proc}:  input: {input}'.format(proc=self._proc_name,
+                logger.debug('{proc}:  input: {input}'.format(proc=self._proc_name,
                                                              input=repr(input_text)))
                 out = self._read_line(stop_condition=self._process_completed)
             except (AssertionError, IOError) as e:
                 if tries > 0:
-                    logger.info('Another try:')
+                    logger.debug('Another try:')
                     self._init_popen()
                     out, err = self._process(input_text, tries=tries - 1)
                 else:
@@ -117,5 +117,5 @@ class Process(object):
         logger.debug('{proc} out: {out}'.format(proc=self._proc_name,
                                                 out=repr(out)))
         out = self._process_output(''.join(out))
-        logger.info('{proc}: finished'.format(proc=self._proc_name))
+        logger.debug('{proc}: finished'.format(proc=self._proc_name))
         return out, err
