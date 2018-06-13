@@ -1,4 +1,5 @@
-#!/bin/python
+#!/bin/env python2
+
 '''
 Parses the XML files from FrameNet
 '''

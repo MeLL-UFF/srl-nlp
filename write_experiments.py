@@ -1,4 +1,4 @@
-#!/bin/python
+#!/bin/env python2
 
 """
 This module is designed to generate or update all the experiments based on the current state of the 'process_docs.py' module.

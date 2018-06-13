@@ -1,4 +1,5 @@
-#!/bin/python
+#!/bin/env python2
+
 """
 Runs the pipeline in a predefined format of documents
 """

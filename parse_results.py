@@ -1,4 +1,5 @@
-#!/bin/python
+#!/bin/env python2
+
 """
 Parses the ourput of an experiment tree (Aleph only right now)
 """
