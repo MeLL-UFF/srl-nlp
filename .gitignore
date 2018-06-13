@@ -14,3 +14,4 @@ GILPS/**
 .idea/**
 .ipynb_checkpoints/**
 **/*.log
+*.xml
