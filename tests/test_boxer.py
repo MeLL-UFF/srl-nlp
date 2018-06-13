@@ -50,7 +50,7 @@ class TestBoxerLocalAPI(TestCase):
         out_idx_list = [
             {'bob': (0, 0), 'by': (0, 3), 'be': (0, 1), 'arrest': (0, 2), 'the': (0, 4), 'police': (0, 5)}]
         out_pos_list = [
-            {'bob': (1, 4), 'by': (18, 20), 'be': (5, 8), 'arrest': (9, 17), 'the': (21, 24), 'police': (25, 31)}]
+            {'bob': (0, 2), 'by': (17, 18), 'be': (4, 6), 'arrest': (8, 15), 'the': (20, 22), 'police': (24, 29)}]
         boxer = BoxerLocalAPI()
 
         for in_test, test in zip(in_list, out_token_list):

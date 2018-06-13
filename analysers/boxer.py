@@ -31,16 +31,23 @@ class TokenizerLocalAPI(Process):
         out, err = self._process(text.strip())
         if err:
             print >> stderr, 'Tokenizer error: {0}'.format(err)
-        tokenized = out.decode('utf-8').encode("utf-8")
+        tokenized = out
         sentences = tokenized.split('\n')
         return [sentence.split(" ") for sentence in sentences]
 
 
 class CandCLocalAPI(Process):
-    def __init__(self, path_to_bin=config.get('semantic_local', 'c&c'), *params):
+    def __init__(self, path_to_bin=config.get('semantic_local', 'c&c'), min_timeout=3, *params):
         if len(params) == 0:
             params = ('--models', config.get('semantic_local', 'c&c_models'), '--candc-printer', 'boxer')
+        self._min_timeout = min_timeout
         Process.__init__(self, path_to_bin, False, TIME_OUT, *params)
+
+    def _init_popen(self):
+        self._time_out = TIME_OUT
+        out = Process._init_popen(self)
+        self._time_out = self._min_timeout
+        return out
 
     def _header_completed(self, out_list):
         return sum(map(lambda x: (x == '\n'), out_list)) >= 2
@@ -62,7 +69,7 @@ class CandCLocalAPI(Process):
                     if not err.startswith('#'):
                         print >> stderr, 'Parser error: {0}'.format(err)
                 out = out + tmp_out
-        return out.decode('utf-8').encode("utf-8")
+        return out
 
 
 class BoxerAbstract:
@@ -244,7 +251,7 @@ class BoxerLocalAPI(Process, BoxerAbstract):
             # Boxer throws a silly error every time (a bug), we want to ignore it
             if "No source location" not in err:
                 print >> stderr, 'Boxer error: {0}'.format(err)
-        return out.decode('utf-8').encode("utf-8")
+        return out
 
     def _parse_sentence(self, sentence):
         tokenized = self.tokenizer.tokenize(sentence)
