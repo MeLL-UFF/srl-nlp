@@ -1,15 +1,17 @@
-#!/bin/env python
+#!/bin/env python2
 """
 Script for running the Frame Semantic Parsing given some base knowledge
 """
 
 import argparse
 from ConfigParser import ConfigParser
+from abc import abstractmethod
 from os import path
-from sys import argv
+from sys import argv as _argv
 from tempfile import NamedTemporaryFile
 
-from logger_config import config_logger, add_logger_args
+# from framenet.adapter import SemEval07XMLAdapter
+from logger_config import timeit, config_logger, add_logger_args as _add_logger_args
 from srl_nlp.analysers.process import Process
 from srl_nlp.framenet.corpus import Sentence, Annotation, AnnotationSet, Layer
 from srl_nlp.rule_utils import *
@@ -27,13 +29,30 @@ class SemanticAnnotator(object):
     def __init__(self, **params):
         pass
 
+    @abstractmethod
     def frameMatching(self, sentence, **params):
         pass
 
+    @abstractmethod
     def frameElementMatching(self, sentence, annotations, **params):
         pass
 
+    @abstractmethod
     def matching(self, sentence, **params):
+        pass
+
+    @abstractmethod
+    def sem_annotations(self, sentence, lfs, **kwargs):
+        """
+        
+        Args:
+            sentence: 
+            lfs: lfs with annotations to be matched and processed
+            **kwargs: 
+
+        Returns:
+
+        """  # TODO finish doc
         pass
 
 
@@ -126,17 +145,17 @@ class PrologAnnotator(SemanticAnnotator, Process):
                 try:
                     link_term, frame_name, fe_name = inf_lf.iterterms()
                     assert link_term.isleaf() and frame_name.isleaf() and fe_name.isleaf()
-                except ValueError as e:  # Not correct number of predicates
-                    logger.error(e)
+                except ValueError as ex:  # Not correct number of predicates
+                    logger.error(ex)
                     logger.error('Invalid frame element matching \'{}\''.format(inf_lf))
-                    raise e
+                    raise ex
                 token_index = self._indexes_term_in_sentence(link_term, lfs, sentence)
                 if token_index:
                     start, end = token_index
                     anno = Annotation(start=start, end=end, name=fe_name)
                     layer = Layer(name='FE', annotations=[anno])
                     f_set_map.setdefault(frame_name,
-                                         AnnotationSet(0, frameName=frame_name, status='auto')).layers.append(layer)
+                                         AnnotationSet(0, frame_name=frame_name, status='auto')).layers.append(layer)
 
                     # logger.error('Token \'{token}\' not found in sentence \'{sent}\''.format(sent = sentence, token = token))
 
@@ -153,7 +172,7 @@ class PrologAnnotator(SemanticAnnotator, Process):
                     anno = Annotation(start=start, end=end, name='Target')
                     layer = Layer(name='Target', annotations=[anno])
                     f_set_map.setdefault(frame_name,
-                                         AnnotationSet(0, frameName=frame_name, status='auto')).layers.append(layer)
+                                         AnnotationSet(0, frame_name=frame_name, status='auto')).layers.append(layer)
 
         return Sentence(id=0, text=sentence, annotation_sets=list(f_set_map.items()))
 
@@ -175,7 +194,7 @@ class PrologAnnotator(SemanticAnnotator, Process):
         """
 
         Args:
-            sentence: the sentence to be annotated with frame information
+            sentence: String, the sentence to be annotated with frame information
             out_error: If true, returns tuple (output, error), else it returns only the output
             lf_file_name: file to where store results of the annotation
 
@@ -222,8 +241,63 @@ class PrologAnnotator(SemanticAnnotator, Process):
             else:
                 return out
 
+    def sem_annotations(self, sentence, lfs, **kwargs):
+        # TODO change frame_element(Var, FE, Frame) to frame_element(Var, FE, Var_frame)
+        # TODO implement the interval closing
+        # Get dictionaries to perform matching
+        matching = self.analyser.get_matching_tokens(sentence, output="pos")
+        sentence_lfs = self.analyser.sentence2LF(sentence)
+        matching1 = dict()
+        count = 0
+        for lf in sentence_lfs:
+            for pred in lf.split():
+                for child in pred.iterterms():
+                    if child.get_pred() in matching:
+                        matching1[pred.iterterms().next()] = matching[child.get_pred()]
+                        break
+        # Run through lfs to get the info
+        frs = dict()
+        for lf in lfs:
+            for pred in lf.split():
+                for child in pred.iterterms():
+                    if child in matching1:
+                        if pred.get_pred() == 'frame_related':
+                            frame_name = pred.info[-1][0]
+                            frame = frs.get(frame_name, AnnotationSet(id="%07d" % count, frame_name=frame_name, status="Breno"))
+                            layer = Layer(name="Target")
+                            start, end = matching1[child]
+                            layer.annotations.append(Annotation(name="Target", start=start, end=end))
+                            frame.layers.append(layer)
+                            frs[frame_name] = frame
+                            count = count + 1
+                        break
 
-def parse_args(argv=argv, add_logger_args=lambda x: None):
+        for lf in lfs:
+            for pred in lf.split():
+                for child in pred.iterterms():
+                    if child in matching1:
+                        if pred.get_pred() == 'frame_element':
+                            frame_name = pred.info[3][0]
+                            fe_name = pred.info[2][0]
+                            if frame_name in frs:
+                                frame = frs[frame_name]
+                                layers = [layer for layer in frame.layers if layer.name == "FE"]
+                                if len(layers) > 0:
+                                    layer = layers[0]
+                                else:
+                                    layer = Layer(name="FE")
+                                    frame.layers.append(layer)
+                                start, end = matching1[child]
+                                layer.annotations.append(Annotation(start=start, end=end, name=fe_name))
+                            else:
+                                # TODO better handle this exception
+                                # raise Exception("Oh fork, this frame element ({fe}) is orphan.".format(fe=fe_name))
+                                logger.error("Oh fork, this frame element ({fe}) is orphan.".format(fe=fe_name))
+                                break
+        return frs
+
+
+def parse_args(argv, add_logger_args=lambda x: None):
     parser = argparse.ArgumentParser(description='Runs the Boxer analysis and then the frame parsing on the sentence')
     # parser.add_argument('dir_path', help = 'the path of the experiments')
 
@@ -234,12 +308,16 @@ def parse_args(argv=argv, add_logger_args=lambda x: None):
     parser.add_argument('-f', '--frame_matching',
                         action='store_true', default=False,
                         help='show the frame matching process')
-    parser.add_argument('-e', '--frame_element_matching',
+    parser.add_argument('-e', '--frame_element_matching',  # TODO pass frame related annotations
                         action='store_true', default=False,
                         help='show the frame element matching process')
     parser.add_argument('-m', '--matching',
                         action='store_true', default=False,
                         help='show the matching of both')
+
+    parser.add_argument('-x', '--eval_format',
+                        action='store_true', default=False,
+                        help='return the matchings in the SemEval format')
 
     parser.add_argument('-K', '--kb_path', default='.',
                         help='path to knowledge base files')
@@ -253,8 +331,9 @@ def parse_args(argv=argv, add_logger_args=lambda x: None):
     return args
 
 
+@timeit
 def main(argv):
-    args = parse_args(argv, add_logger_args)
+    args = parse_args(argv, _add_logger_args)
     config_logger(args)
     logger.info('Starting')
 
@@ -264,7 +343,7 @@ def main(argv):
     kb_fe_path = path.join(args.kb_path, args.kb_fe)
     anno = PrologAnnotator(boxer, kb_fr_path, kb_fe_path)
 
-    print 'LF: %s\s' % boxer.sentence2LF(args.sentence)
+    print 'LF: %s' % boxer.sentence2LF(args.sentence)
 
     if args.frame_matching:
         print 'Frame Matching:'
@@ -283,13 +362,16 @@ def main(argv):
         out, err = anno.matching(args.sentence, out_error=True, lf_file_name=args.tmp_lf_file)
         logger.debug(err)
         print '\'%s\n\'' % '\n'.join(map(str, out))
+        # semeval_parser = SemEval07XMLAdapter()
+        # for f_name, annoset in anno.sem_annotations(args.sentence, out).items():
+        #     print "Frame:{f_name}\n\t{anno}".format(f_name=f_name, anno=semeval_parser._anno_set2XML(annoset))
 
     logger.info('Done')
 
 
 if __name__ == '__main__':
     try:
-        main(argv)
+        main(_argv)
     except KeyboardInterrupt:
         logger.info('Halted by the user')
     except OSError as e:
