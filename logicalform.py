@@ -112,7 +112,7 @@ class LF:
                 return True
             else:
                 return False
-        return FOL._eq_predicate(self.info, other.info)
+        return FOL.equals_predicate(self.info, other.info)
 
     @staticmethod
     def _repr_aux(term, and_t, or_t, supress_not):

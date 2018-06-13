@@ -1,8 +1,9 @@
 #!/bin/env python2
 
-'''
+"""
 Parses the XML files from FrameNet
-'''
+"""
+
 import argparse
 import logging
 import xml.etree.ElementTree as XMLTree
@@ -10,7 +11,7 @@ from os import path, listdir as ls
 from re import compile, DOTALL
 from sys import argv
 
-from framenet import *
+from framenet.framenet import Lexeme, LexicalUnit, Frame, Net, Description
 from srl_nlp.logger_config import config_logger, add_logger_args
 
 logger = logging.getLogger(__name__)

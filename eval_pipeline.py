@@ -3,14 +3,14 @@
 """
 
 """
-
+import argparse
 from sys import argv as _argv
 
 from analysers.boxer import BoxerLocalAPI
 from framenet.adapter import PARSERS_AVAILABLE
-from framenet.corpus import *
-from logger_config import add_logger_args as _add_logger_args
-from srl_nlp.fsparsing import *
+from framenet.corpus import Paragraph, Document, Sentence
+from fsparsing import PrologAnnotator
+from logger_config import add_logger_args as _add_logger_args, config_logger
 
 logger = logging.getLogger(__name__)
 

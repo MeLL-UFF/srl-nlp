@@ -11,14 +11,14 @@ def test_someA_with_a_and():
     """some(A, and(b, a(c)))"""
     f1 = FOL('some(A, and(b, a(c)))').info
     l1 = ['some', ['A'], ['and', ['b'], ['a', ['c']]]]
-    assert FOL._eq_predicate(f1, l1)
+    assert FOL.equals_predicate(f1, l1)
 
 
 def test_someA_allBwith_a_and():
     """some(A, all(B, and(b, a(c))))"""
     f1 = FOL('some(A, all(B, and(b, a(c))))').info
     l1 = ['some', ['A'], ['all', ['B'], ['and', ['b'], ['a', ['c']]]]]
-    assert FOL._eq_predicate(f1, l1)
+    assert FOL.equals_predicate(f1, l1)
 
 
 class TestFOL(TestCase):

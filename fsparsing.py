@@ -4,6 +4,8 @@ Script for running the Frame Semantic Parsing given some base knowledge
 """
 
 import argparse
+import spacy
+import logging
 from ConfigParser import ConfigParser
 from abc import abstractmethod
 from os import path
@@ -12,9 +14,10 @@ from tempfile import NamedTemporaryFile
 
 # from framenet.adapter import SemEval07XMLAdapter
 from logger_config import timeit, config_logger, add_logger_args as _add_logger_args
+from logicalform import LF
+from rule_utils import get_factors
 from srl_nlp.analysers.process import Process
 from srl_nlp.framenet.corpus import Sentence, Annotation, AnnotationSet, Layer
-from srl_nlp.rule_utils import *
 
 logger = logging.getLogger(__name__)
 

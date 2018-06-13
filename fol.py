@@ -313,13 +313,13 @@ class FOL:
                 return True
             else:
                 return False
-        return FOL._eq_predicate(self.info, other.info)
+        return FOL.equals_predicate(self.info, other.info)
 
     def __hash__(self):
         return repr(self).__hash__()
 
     @staticmethod
-    def _eq_predicate(l_list, r_list):
+    def equals_predicate(l_list, r_list):
         """
         Checks if predicates are equivalent:
             l_list == r_list
@@ -340,7 +340,7 @@ class FOL:
                 if l_term != r_term:
                     return False
             else:
-                return FOL._eq_predicate(l_term, r_term)
+                return FOL.equals_predicate(l_term, r_term)
         return True
 
     def __repr__(self):

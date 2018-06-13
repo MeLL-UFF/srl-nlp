@@ -1,12 +1,9 @@
 #!/bin/env python2
-
-import argparse
 import xml.etree.ElementTree as XMLTree
-from sys import argv as _argv
 
-from logger_config import add_logger_args as _add_logger_args, config_logger
+from framenet.corpus import Document, Sentence, AnnotationSet, Annotation, Paragraph, Layer
 from rule_utils import not_none_to_str
-from srl_nlp.framenet.corpus import *
+import logging
 
 logger = logging.getLogger(__name__)
 
@@ -225,7 +222,8 @@ class FNXMLAdapter(object):
         return xml_anno
 
 
-######------------------------------
+# --------------------------------------------
+
 
 class SemEval07XMLAdapter(FNXMLAdapter):
     _TAG_PREFIX = ''
@@ -413,63 +411,68 @@ class SemEval07XMLAdapter(FNXMLAdapter):
 PARSERS_AVAILABLE = {'semeval': SemEval07XMLAdapter,
                      'framenet': FNXMLAdapter}
 
-
-def parse_args(argv=_argv, add_logger_args=lambda x: None):
-    parser = argparse.ArgumentParser(description='Parses the semeval07 and framenet format into the Corpus format')
-    parser.add_argument('input_file', help='File to be parsed')
-    parser.add_argument('-o', '--output_file', help='File to write the pickle serialization')
-    parser.add_argument('-c', '--check_examples', action='store_true',
-                        help='check if all examples are a perfect parsing of the respective sentence')
-    # parser.add_argument('-t', '--examples_as_text', help = 'Convert the examples to text before printing')
-    parser.add_argument('-x', '--output_xml_file', help='XML File to write the information extracted')
-    parser.add_argument("-p", "--parser", choices=PARSERS_AVAILABLE.keys(),
-                        help='Parser for the appropriate kind of file')
-    add_logger_args(parser)
-    args = parser.parse_args(argv[1:])
-    return args
-
-
-def main(argv):
-    args = parse_args(argv, _add_logger_args)
-    config_logger(args)
-    logger.info('Loading XML file')
-    with open(args.input_file, 'r') as f:
-        tree = XMLTree.parse(f)
-    logger.info('XML tree ready')
-    root = tree.getroot()
-
-    adapter = PARSERS_AVAILABLE.get(args.parser, SemEval07XMLAdapter)()
-
-    logger.info('Parsing XML tree')
-    try:
-        docs = adapter.parseXML(root)
-    except KeyError:
-        raise KeyError('Consider using another parser type by using the option --parser')
-    logger.info('Done parsing XML tree')
-
-    if args.check_examples:
-        for doc in docs:
-            for sentence in doc:
-                converted = sentence.get_fn_example().str_no_annotation()
-                print converted
-                print sentence.get_fn_example()
-                # raw_input()
-                if converted != sentence.text:
-                    logger.critical("{sent} was not properly processed".format(sent=sentence))
-
-    if args.output_file is not None:
-        logger.info('Writing pickle file')
-        with open(args.output_file, 'wb') as f:
-            pickle.dump(docs, f)
-
-    if args.output_xml_file is not None:
-        logger.info('Writing XML file')
-        with open(args.output_xml_file, 'w') as f:
-            for doc in docs:
-                adapter.doc2XML(doc, xml_file=f)
-
-
 if __name__ == '__main__':
+    import argparse
+    import pickle
+    from sys import argv as _argv
+    from logger_config import add_logger_args as _add_logger_args, config_logger
+
+
+    def parse_args(argv=_argv, add_logger_args=lambda x: None):
+        parser = argparse.ArgumentParser(description='Parses the semeval07 and framenet format into the Corpus format')
+        parser.add_argument('input_file', help='File to be parsed')
+        parser.add_argument('-o', '--output_file', help='File to write the pickle serialization')
+        parser.add_argument('-c', '--check_examples', action='store_true',
+                            help='check if all examples are a perfect parsing of the respective sentence')
+        # parser.add_argument('-t', '--examples_as_text', help = 'Convert the examples to text before printing')
+        parser.add_argument('-x', '--output_xml_file', help='XML File to write the information extracted')
+        parser.add_argument("-p", "--parser", choices=PARSERS_AVAILABLE.keys(),
+                            help='Parser for the appropriate kind of file')
+        add_logger_args(parser)
+        args = parser.parse_args(argv[1:])
+        return args
+
+
+    def main(argv):
+        args = parse_args(argv, _add_logger_args)
+        config_logger(args)
+        logger.info('Loading XML file')
+        with open(args.input_file, 'r') as f:
+            tree = XMLTree.parse(f)
+        logger.info('XML tree ready')
+        root = tree.getroot()
+
+        adapter = PARSERS_AVAILABLE.get(args.parser, SemEval07XMLAdapter)()
+
+        logger.info('Parsing XML tree')
+        try:
+            docs = adapter.parseXML(root)
+        except KeyError:
+            raise KeyError('Consider using another parser type by using the option --parser')
+        logger.info('Done parsing XML tree')
+
+        if args.check_examples:
+            for doc in docs:
+                for sentence in doc:
+                    converted = sentence.get_fn_example().str_no_annotation()
+                    print converted
+                    print sentence.get_fn_example()
+                    # raw_input()
+                    if converted != sentence.text:
+                        logger.critical("{sent} was not properly processed".format(sent=sentence))
+
+        if args.output_file is not None:
+            logger.info('Writing pickle file')
+            with open(args.output_file, 'wb') as f:
+                pickle.dump(docs, f)
+
+        if args.output_xml_file is not None:
+            logger.info('Writing XML file')
+            with open(args.output_xml_file, 'w') as f:
+                for doc in docs:
+                    adapter.doc2XML(doc, xml_file=f)
+
+
     try:
         main(_argv)
     except KeyboardInterrupt:
