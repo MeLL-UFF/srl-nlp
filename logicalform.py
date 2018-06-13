@@ -147,6 +147,58 @@ class LF:
             out = LF._repr_aux(term, and_t, or_t, suppress_not) + dot
         return out
 
+    def plotLF(self, fig_name=None, on_screen=True):
+        """
+        Plots the given lf to the screen and file.
+
+        Args:
+            self: the lf to be plotted into a network graph
+            fig_name: name of the output_file (I recommend the extension svg).
+                      Optional. If left None, it is not gonna save the graph in any file.
+            on_screen: boolean value. Try to plot on screen. Optional.
+
+        Returns:
+            networkx.graph and dict {edge:label} from the lf
+        """
+        # TODO choose the plot engine instead of infer it
+        frontier = [self]
+        edges = []
+        labels = []
+
+        while len(frontier) > 0:
+            term = frontier.pop()
+            for child in term.iterterms():
+                if child.isleaf():
+                    edges.append(_fix_edge(term.info[1:]))
+                    if term.info[0] == 'relation':
+                        label = 'rel(%s)' % term.info[-1][0]
+                    else:
+                        label = term.info[0]
+                    labels.append(label)
+                    logger.debug("TERM -> %s" % term)
+                    break
+                else:
+                    frontier.insert(0, child)
+
+        g = nx.DiGraph()
+        edge_labels = {edge: label for (edge, label) in zip(edges, labels)}
+        for edge, label in zip(edges, labels):
+            g.add_edge(edge[0], edge[1], label=label)
+        pos = nx.fruchterman_reingold_layout(g, k=2 / math.sqrt(g.order()), scale=10)
+
+        if on_screen:
+            _plot_aux(edge_labels, g, pos)
+            plt.show()
+        if fig_name is not None:
+            _, fig_ext = path.splitext(fig_name)
+            if fig_ext.lower() == '.dot':
+                write_dot(g, fig_name)
+            else:
+                _plot_aux(edge_labels, g, pos)
+                plt.savefig(fig_name)
+        plt.clf()
+        return g, edge_labels
+
 
 def _fix_edge(edge):
     edge = tuple(map(lambda x: x[0], edge))
@@ -174,57 +226,6 @@ def _plot_aux(edge_labels, g, pos):
     plt.axis('off')
 
 
-def plotLF(lf, fig_name=None, on_screen=True):
-    """
-    Plots the given lf to the screen and file.
-
-    Args:
-        lf: the lf to be ploted into a network graph
-        fig_name: name of the outpt_file (I recomend the extension svg).
-                  Optional. If left None, it is not gonna save the graph in any file.
-        on_screen: boolean value. Try to plot on screen. Optional.
-
-    Returns:
-        networkx.graph and dict {edge:label} from the lf
-    """
-
-    frontier = [lf]
-    edges = []
-    labels = []
-
-    while len(frontier) > 0:
-        term = frontier.pop()
-        for child in term.iterterms():
-            if child.isleaf():
-                edges.append(_fix_edge(term.info[1:]))
-                if term.info[0] == 'relation':
-                    label = 'rel(%s)' % term.info[-1][0]
-                else:
-                    label = term.info[0]
-                labels.append(label)
-                logger.debug("TERM -> %s" % term)
-                break
-            else:
-                frontier.insert(0, child)
-
-    g = nx.Graph()
-    edge_labels = {edge: label for (edge, label) in zip(edges, labels)}
-    for edge, label in zip(edges, labels):
-        g.add_edge(edge[0], edge[1], label=label)
-    pos = nx.fruchterman_reingold_layout(g, k=2 / math.sqrt(g.order()), scale=10)
-
-    if on_screen:
-        _plot_aux(edge_labels, g, pos)
-        plt.show()
-    if fig_name is not None:
-        _, fig_ext = path.splitext(fig_name)
-        if fig_ext.lower() == '.dot':
-            write_dot(g, fig_name)
-        else:
-            _plot_aux(edge_labels, g, pos)
-            plt.savefig(fig_name)
-    plt.clf()
-    return g, edge_labels
 
 
 # def lf2dot(lf, file_name=None):
