@@ -12,23 +12,23 @@ logger = logging.getLogger(__name__)
 class Document:
     aggregations = {'SENTENCE_AVERAGE': lambda l: float(sum(l)) / len(l)}
 
-    def __init__(self, id, corpus='', corpusID=None, name='', desc='', sentences=None, **params):
+    def __init__(self, id, corpus='', corpus_id=None, name='', desc='', elements=None, **params):
         self.id = id
         self.desc = desc
         self.name = name
         self.corpus = corpus
-        self.corpusID = corpusID
-        if sentences is None:
-            self.sentences = []
+        self.corpusID = corpus_id
+        if elements is None:
+            self.elements = []
         else:
-            self.sentences = sentences
+            self.elements = elements
         self.params = params
 
     def add_sentence(self, sentence):
-        self.sentences.append(sentence)
+        self.elements.append(sentence)
 
     def get_sentences(self):
-        return self.sentences
+        return self.elements
 
     @staticmethod
     def loadPickle(file):
@@ -39,18 +39,18 @@ class Document:
         pickle.dump(self, file)
 
     def __len__(self):
-        return len(self.sentences)
+        return len(self.elements)
 
     def __iter__(self):
-        return self.sentences.__iter__()
+        return self.elements.__iter__()
 
     def __eq__(self, other):
         if self.id != other.id or self.desc != other.desc:
             return False
-        if len(self.sentences) != len(other.sentences):
+        if len(self.elements) != len(other.sentences):
             return False
         get_id = lambda sent: sent.id
-        lsents = sorted(self.sentences, key=get_id)
+        lsents = sorted(self.elements, key=get_id)
         rsents = sorted(other.sentences, key=get_id)
         if len(lsents) != len(rsents):
             return False
@@ -70,13 +70,13 @@ class Document:
             logger.debug('Diff ids: \'{id1}\' and \'{id2}\''.format(id1=self.id,
                                                                     id2=other.id))
             return False
-        if len(self.sentences) != len(other.sentences):
+        if len(self.elements) != len(other.sentences):
             logger.debug(('Diff quantity of sentences: id(\'{id1}\'):{len1}'
                           'and id(\'{id2}\'):{len2}').format(id1=self.id, id2=other.id),
                          len1=len(self), len2=len(other))
             return False
         get_id = lambda sent: sent.id
-        lsents = sorted(self.sentences, key=get_id)
+        lsents = sorted(self.elements, key=get_id)
         rsents = sorted(other.sentences, key=get_id)
         similarities = []
         for i, (lsent, rsent) in enumerate(zip(lsents, rsents)):
@@ -89,21 +89,73 @@ class Document:
         return aggregation(similarities)
 
     def __str__(self):
-        return 'Doc[{id}]:\'{desc}\' ({sent} sentences)'.format(id=self.id, desc=self.desc, sent=len(self.sentences))
+        return 'Doc[{id}]:\'{desc}\' ({elem} elements)'.format(id=self.id, desc=self.desc, elem=len(self.elements))
+
+    def __repr__(self):
+        return str(self)
+
+
+class Paragraph:
+    def __init__(self, id, sentences=None):
+        self.id = id
+        if sentences is None:
+            self.sentences = []
+        else:
+            self.sentences = sentences
+
+    def __len__(self):
+        return len(self.sentences)
+
+    def __iter__(self):
+        return self.sentences.__iter__()
+
+    def __eq__(self, other):
+        if self.id != other.id:
+            return False
+        if self.sentences != other.sentences:
+            return False
+        return True
+
+    def _similar(self, other, fn=None):
+        if self.id != other.id:
+            return False
+        # TODO
+        return True
+
+    def __str__(self):
+        return 'Paragraph[{id}]:length={n_sent}'.format(id=self.id, n_sent=len(self.sentences))
 
     def __repr__(self):
         return str(self)
 
 
 class Sentence:
-    def __init__(self, id, text, annotation_sets=[], **params):
+    def __init__(self, id, text, annotation_sets=None, parts_of_speech=None, **params):
+        """
+
+        Args:
+            id:
+            text:
+            annotation_sets:
+            parts_of_speech: a list of pairs. Each pair is the position of one token in the sentence.
+                            If the text is viewed as a python string, the position of a token text[start,end] would be the pair (start, end+1)
+            **params:
+        """
         self.id = id
         self.text = text
         self.params = params
-        if (annotation_sets is None):
+
+        if annotation_sets is None:
             self.annotation_sets = []
         else:
             self.annotation_sets = annotation_sets
+
+        if parts_of_speech is None:
+            self.parts_of_speech = []
+        else:
+            self.parts_of_speech = parts_of_speech
+        # TODO should I remove annotations that cross word spans?
+        self.remove_invalid_labels() # TODO Move this to adapter
 
     def __len__(self):
         return len(self.text)
@@ -123,6 +175,16 @@ class Sentence:
             return self.text[item]
         # logger.debug('Item is confusing ')
         return
+
+    def remove_invalid_labels(self):
+        # starts, ends = zip(*self.parts_of_speech)
+        for anno_set in self.annotation_sets:
+            for layer in anno_set:
+                old_len = len(layer.annotations)
+                layer.annotations = [anno for anno in layer if (anno.start, anno.end) in self.parts_of_speech]
+                # layer.annotations = [anno for anno in layer if anno.start in starts and anno.end in ends and anno.start <= anno.end]
+                if old_len != len(layer.annotations):
+                    logger.warning('There are invalid annotations in this sentence ({s_id})'.format(s_id=self.id))
 
     def _order_by_pos(self, anno_list, in_place):
         # TODO documentation
@@ -221,13 +283,13 @@ class Sentence:
 
 
 class AnnotationSet:
-    def __init__(self, id, frameID=None, frameName=None, luID=None,
-                 luName=None, status=None, layers=None, **params):
+    def __init__(self, id, frame_id=None, frame_name=None, lu_id=None,
+                 lu_name=None, status=None, layers=None, **params):
         self.id = id
-        self.frameID = frameID
-        self.frameName = frameName
-        self.luID = luID
-        self.luName = luName
+        self.frameID = frame_id
+        self.frameName = frame_name
+        self.luID = lu_id
+        self.luName = lu_name
         self.status = status
         self.params = params
         if layers is None:
@@ -239,7 +301,7 @@ class AnnotationSet:
         return (self.frameName is not None) or (self.frameID is not None)
 
     def get_fes(self):
-        return list(filter(Annotation.is_fe, self.layers))
+        return list(filter(Annotation.is_fe, self.layers))  # FixMe
 
     def __iter__(self):
         return self.layers.__iter__()
@@ -270,7 +332,7 @@ class AnnotationSet:
     def __str__(self):
         params_str = str(self.params) if len(self.params) > 0 else ''
         if self.is_frame():
-            return '<Frame \'{fr}\'>{anno}{params}</Frame>'.format(fr=self.frameName, anno=str(self.layers)[1:],
+            return '<Frame \'{fr}\'>{anno}{params}</Frame>'.format(fr=self.frameName, anno=str(self.layers),
                                                                    params=params_str)
         else:
             return '<AnnoSet>{anno}{params}</AnnoSet>'.format(anno=str(self.layers)[1:], params=params_str)
@@ -294,14 +356,11 @@ class Layer:
         return self.annotations.__iter__()
 
     def __eq__(self, other):
-        if self.id != other.id or \
-                self.name != other.name or \
-                self.rank != other.rank:
+        if self.name != other.name or self.rank != other.rank:
             return False
-        for anno1, anno2 in zip(self.annotations, other.annotations):
-            # TODO
-            pass
-        return True
+        self_anno_set = set(self.annotations)
+        other_anno_set = set(other.annotations)
+        return self_anno_set == other_anno_set
 
     def _similar(self, other, fn=None):
         # TODO
