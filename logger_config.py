@@ -1,5 +1,5 @@
 import logging
-from datetime import time
+from time import time
 
 logger = logging.getLogger(__name__)
 
@@ -22,9 +22,9 @@ def config_logger(args):
 
 def _timeit(foo, level):
     def timer(*args, **kwargs):
-        start_time = time.time()
+        start_time = time()
         foo(*args, **kwargs)
-        elapsed_time = time.time() - start_time
+        elapsed_time = time() - start_time
 
         logger.log(level, '{{{foo}}} Elapsed time: {time} ms'.format(foo=foo.func_name, time=elapsed_time))
 
