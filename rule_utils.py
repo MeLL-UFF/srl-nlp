@@ -19,6 +19,11 @@ logger = logging.getLogger(__name__)
 
 ############################
 
+def not_none_to_str(obj):
+    if obj is not None:
+        return str(obj)
+    return obj
+
 def replace_all(lf, old_term, new_term):
     """
 
