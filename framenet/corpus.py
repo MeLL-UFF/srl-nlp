@@ -1,5 +1,3 @@
-#!/bin/env python2
-
 import logging
 import pickle
 from copy import copy
