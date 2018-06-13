@@ -7,7 +7,7 @@ framenet/zip
 **.txt
 .cache/**
 tmp*
-usp-code/**
+usp_code/**
 wordnet/**
 GILPS/**
 **.pkl
