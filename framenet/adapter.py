@@ -1,8 +1,8 @@
 #!/bin/env python2
 import xml.etree.ElementTree as XMLTree
 
-from framenet.corpus import Document, Sentence, AnnotationSet, Annotation, Paragraph, Layer
-from rule_utils import not_none_to_str
+from srl_nlp.framenet.corpus import Document, Sentence, AnnotationSet, Annotation, Paragraph, Layer
+from srl_nlp.rule_utils import not_none_to_str
 import logging
 
 logger = logging.getLogger(__name__)
