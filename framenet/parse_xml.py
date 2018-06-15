@@ -1,18 +1,13 @@
-#!/bin/env python2
-
 """
 Parses the XML files from FrameNet
 """
 
-import argparse
 import logging
 import xml.etree.ElementTree as XMLTree
 from os import path, listdir as ls
 from re import compile, DOTALL
-from sys import argv
 
 from framenet.framenet import Lexeme, LexicalUnit, Frame, Net, Description
-from srl_nlp.logger_config import config_logger, add_logger_args
 
 logger = logging.getLogger(__name__)
 
@@ -204,38 +199,3 @@ class NetXMLParser:
                 frames[frame.name] = frame
 
         return Net(frames)
-
-
-def parse_args(argv=argv, add_logger_args=lambda x: None):
-    parser = argparse.ArgumentParser(description='Parses the XML files from FrameNet')
-    # parser.add_argument('dir_path', help = 'the path of the data files')
-    # parser.add_argument('out_file', help = 'output file name')
-    add_logger_args(parser)
-    args = parser.parse_args()
-    return args
-
-
-def main(argv):
-    args = parse_args(argv, add_logger_args)
-    config_logger(args)
-    print 'I am parsing'
-    parser = NetXMLParser()
-    fn = parser.parse('fndata-1.7')
-    logger.info('#Frames in FrameNet: %s', len(fn))
-    parser1 = FrameXMLParser()
-
-    class A(): pass
-
-    a = A()
-    definition = '<def-root><fen>Authorities</fen> charge a <fen>Suspect</fen>, who is under suspicion of having committed a crime (the <fen>Charges</fen>), and take him/her into custody.<ex><fex name="Authorities">The police</fex> <t>arrested</t> <fex name="Suspect">Harry</fex> <fex name="Chrg">on charges of manslaughter</fex>.</ex></def-root>'
-    setattr(a, 'text', definition)
-    d = parser1._parse_description(a, escapeHTML=False)
-    assert str(d) == definition
-    print 'Matching worked'
-
-
-if __name__ == '__main__':
-    try:
-        main(argv)
-    except KeyboardInterrupt:
-        logger.info('Halted by user')
