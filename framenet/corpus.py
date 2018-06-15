@@ -153,7 +153,7 @@ class Sentence:
         else:
             self.parts_of_speech = parts_of_speech
         # TODO should I remove annotations that cross word spans?
-        self.remove_invalid_labels() # TODO Move this to adapter
+        self.remove_invalid_labels()  # TODO Move this to adapter
 
     def __len__(self):
         return len(self.text)
@@ -176,13 +176,14 @@ class Sentence:
 
     def remove_invalid_labels(self):
         # starts, ends = zip(*self.parts_of_speech)
-        for anno_set in self.annotation_sets:
-            for layer in anno_set:
-                old_len = len(layer.annotations)
-                layer.annotations = [anno for anno in layer if (anno.start, anno.end) in self.parts_of_speech]
-                # layer.annotations = [anno for anno in layer if anno.start in starts and anno.end in ends and anno.start <= anno.end]
-                if old_len != len(layer.annotations):
-                    logger.warning('There are invalid annotations in this sentence ({s_id})'.format(s_id=self.id))
+        if len(self.parts_of_speech) > 0:
+            for anno_set in self.annotation_sets:
+                for layer in anno_set:
+                    old_len = len(layer.annotations)
+                    layer.annotations = [anno for anno in layer if (anno.start, anno.end) in self.parts_of_speech]
+                    # layer.annotations = [anno for anno in layer if anno.start in starts and anno.end in ends and anno.start <= anno.end]
+                    if old_len != len(layer.annotations):
+                        logger.warning('There are invalid annotations in this sentence ({s_id})'.format(s_id=self.id))
 
     def _order_by_pos(self, anno_list, in_place):
         # TODO documentation
@@ -392,7 +393,7 @@ class Annotation:
         try:
             if self.start >= other.start and self.end <= other.end:
                 return True
-        except (TypeError, AttributeError) as e:
+        except (TypeError, AttributeError):
             pass
         return False
 
