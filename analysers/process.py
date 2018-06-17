@@ -51,7 +51,7 @@ class Process(object):
                 if stop_condition(out):
                     break
             logger.debug('{proc} count: {time}'.format(proc=self._proc_name,
-                                                       time=count))
+                                                         time=count))
             assert self._time_out is None or count < self._time_out
         return out
 
