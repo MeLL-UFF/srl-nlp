@@ -41,6 +41,7 @@ class CandCLocalAPI(Process):
         if len(params) == 0:
             params = ('--models', config.get('semantic_local', 'c&c_models'), '--candc-printer', 'boxer')
         self._min_timeout = min_timeout
+        self._header_pattern = compile(r"""(.*\s)*:- discontiguous.*""")
         Process.__init__(self, path_to_bin, False, TIME_OUT, *params)
 
     def _init_popen(self):
@@ -50,7 +51,9 @@ class CandCLocalAPI(Process):
         return out
 
     def _header_completed(self, out_list):
-        return sum(map(lambda x: (x == '\n'), out_list)) >= 2
+        header_candidate = ''.join(out_list)
+        return self._header_pattern.match(header_candidate) is not None
+        # return sum(map(lambda x: (x == '\n'), out_list)) >= 2
 
     def _process_completed(self, out_list):
         opening = sum(map(lambda line: line.count('('), out_list))
@@ -63,11 +66,16 @@ class CandCLocalAPI(Process):
         for tokenized_sentence in tokenized_sentences:
             sentence = ' '.join(tokenized_sentence).strip()
             if len(sentence) > 0:
-                tmp_out, err = self._process(sentence + '\n')
-                if err:
-                    # C&C writes info on the stderr, we want to ignore it
-                    if not err.startswith('#'):
-                        print >> stderr, 'Parser error: {0}'.format(err)
+                try:
+                    tmp_out, err = self._process(sentence + '\n')
+                    if err:
+                        # C&C writes info on the stderr, we want to ignore it
+                        if not err.startswith('#'):
+                            print >> stderr, 'Parser error: {0}'.format(err)
+                except AssertionError:
+                    logger.warning("{proc} failed at sentence {sent}"
+                                   .format(proc=self._proc_name, sent=tokenized_sentence))
+                    tmp_out = ''
                 out = out + tmp_out
         return out
 
@@ -97,6 +105,7 @@ class BoxerAbstract:
         (r'^n\d(\d+)$', lambda p_elems, terms: (['number'] + terms + p_elems,)),
         (r'^n\d+(.*)', lambda p_elems, terms: (['noun'] + terms + p_elems,)),
         (r'^t_X+(\d+)', lambda p_elems, terms: (['number'] + terms + p_elems,)),
+        (r'^t_(\d+)X+', lambda p_elems, terms: (['number'] + terms + p_elems,)),
         (r'^c(\d+)number', lambda p_elems, terms: (['number'] + terms + p_elems,)),
         (r'^c\d+numeral', lambda p_elems, terms: (['numeral'] + terms,)),
         (r'^c\d+(.*)', lambda p_elems, terms: (['cnoun'] + terms + p_elems,)),
