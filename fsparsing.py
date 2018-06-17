@@ -18,7 +18,7 @@ from logger_config import timeit, config_logger, add_logger_args as _add_logger_
 from logicalform import LF
 from rule_utils import get_factors
 from srl_nlp.analysers.process import Process
-from srl_nlp.framenet.corpus import Sentence, Annotation, AnnotationSet, Layer
+from srl_nlp.framenet.corpus import Annotation, AnnotationSet, Layer
 
 logger = logging.getLogger(__name__)
 
@@ -62,26 +62,31 @@ class PrologBoxerAnnotator(SemanticAnnotator, Process):
         SemanticAnnotator.__init__(self)
         Process.__init__(self, path_to_prolog, True)
 
-    def _load_file(self, file_name):
+    @staticmethod
+    def _load_file(file_name):
         """script method of prolog, loads specific file"""
         cmd = '[\'{f}\'].'.format(f=file_name)
         return cmd
 
-    def _forall(self, predicate, arity=0):
+    @staticmethod
+    def _forall(predicate, arity=0):
         """script method of prolog, lists all groundings of this predicate"""
         vars = ','.join(['C%d' % i for i in range(arity)])
         cmd = 'forall({pred}({vars}), writeln({pred}({vars}))).'.format(pred=predicate, vars=vars)
         return cmd
 
-    def _halt(self):
+    @staticmethod
+    def _halt():
         """script method of prolog, end of script"""
         return 'halt.'
 
-    def _script(self, *cmds):
+    @staticmethod
+    def _script(*cmds):
         """script method of prolog, build the script from a sequence of commands"""
         return "\n".join(cmds)
 
-    def _open_a_file(self, name=None):
+    @staticmethod
+    def _open_a_file(name=None):
         """Opens the file, if no name is given, opens a NamedTemporaryFile"""
         if name is not None:
             return open(name, 'wr')
@@ -121,60 +126,60 @@ class PrologBoxerAnnotator(SemanticAnnotator, Process):
                     return self._indexes_token_in_sentence(token, sentence)
         return None
 
-    def _preds2example(self, sentence, lfs, script_out):
-        """Method that generates an example from the output of the prolog script"""
-        lines = []
-        for line in script_out.split('\n'):
-            line = line.strip()
-            if len(line) > 0 and not line.startswith('%'):
-                lines.append(line)
-
-        infered_lfs = [LF(line) for line in lines]
-        f_set_map = dict()
-
-        for inf_lf in infered_lfs:
-            if inf_lf.get_pred() == PrologBoxerAnnotator.FRAME_RELATED_PRED:
-                try:
-                    link_term, frame_name, fe_name = inf_lf.iterterms()
-                    assert link_term.isleaf() and frame_name.isleaf() and fe_name.isleaf()
-                except ValueError as ex:  # Not correct number of predicates
-                    logger.error(ex)
-                    logger.error('Invalid frame element matching \'{}\''.format(inf_lf))
-                    raise ex
-                token_index = self._indexes_term_in_sentence(link_term, lfs, sentence)
-                if token_index:
-                    start, end = token_index
-                    anno = Annotation(start=start, end=end, name=fe_name)
-                    layer = Layer(name='FE', annotations=[anno])
-                    f_set_map.setdefault(frame_name,
-                                         AnnotationSet(0, frame_name=frame_name, status='auto')).layers.append(layer)
-
-                    # logger.error('Token \'{token}\' not found in sentence \'{sent}\''.format(sent = sentence, token = token))
-
-            if inf_lf.get_pred() == PrologBoxerAnnotator.FRAME_ELEMENT_PRED:
-                try:
-                    link_term, frame_name = inf_lf.iterterms()
-                except ValueError as ex:  # Not correct number of predicates
-                    logger.error(ex)
-                    logger.error('Invalid frame matching \'{}\''.format(inf_lf))
-                    raise ex
-                token_index = self._indexes_term_in_sentence(link_term, lfs, sentence)
-                if token_index:
-                    start, end = token_index
-                    anno = Annotation(start=start, end=end, name='Target')
-                    layer = Layer(name='Target', annotations=[anno])
-                    f_set_map.setdefault(frame_name,
-                                         AnnotationSet(0, frame_name=frame_name, status='auto')).layers.append(layer)
-
-        return Sentence(sent_id=0, text=sentence, annotation_sets=list(f_set_map.items()))
+    # def _preds2example(self, sentence, lfs, script_out):
+    #     """Method that generates an example from the output of the prolog script"""
+    #     lines = []
+    #     for line in script_out.split('\n'):
+    #         line = line.strip()
+    #         if len(line) > 0 and not line.startswith('%'):
+    #             lines.append(line)
+    #
+    #     infered_lfs = [LF(line) for line in lines]
+    #     f_set_map = dict()
+    #
+    #     for inf_lf in infered_lfs:
+    #         if inf_lf.get_pred() == PrologBoxerAnnotator.FRAME_RELATED_PRED:
+    #             try:
+    #                 link_term, frame_name, fe_name = inf_lf.iterterms()
+    #                 assert link_term.isleaf() and frame_name.isleaf() and fe_name.isleaf()
+    #             except ValueError as ex:  # Not correct number of predicates
+    #                 logger.error(ex)
+    #                 logger.error('Invalid frame element matching \'{}\''.format(inf_lf))
+    #                 raise ex
+    #             token_index = self._indexes_term_in_sentence(link_term, lfs, sentence)
+    #             if token_index:
+    #                 start, end = token_index
+    #                 anno = Annotation(start=start, end=end, name=fe_name)
+    #                 layer = Layer(name='FE', annotations=[anno])
+    #                 f_set_map.setdefault(frame_name,
+    #                                      AnnotationSet(0, frame_name=frame_name, status='auto')).layers.append(layer)
+    #
+    #                 # logger.error('Token \'{token}\' not found in sentence \'{sent}\''.format(sent = sentence, token = token))
+    #
+    #         if inf_lf.get_pred() == PrologBoxerAnnotator.FRAME_ELEMENT_PRED:
+    #             try:
+    #                 link_term, frame_name = inf_lf.iterterms()
+    #             except ValueError as ex:  # Not correct number of predicates
+    #                 logger.error(ex)
+    #                 logger.error('Invalid frame matching \'{}\''.format(inf_lf))
+    #                 raise ex
+    #             token_index = self._indexes_term_in_sentence(link_term, lfs, sentence)
+    #             if token_index:
+    #                 start, end = token_index
+    #                 anno = Annotation(start=start, end=end, name='Target')
+    #                 layer = Layer(name='Target', annotations=[anno])
+    #                 f_set_map.setdefault(frame_name,
+    #                                      AnnotationSet(0, frame_name=frame_name, status='auto')).layers.append(layer)
+    #
+    #     return Sentence(sent_id=0, text=sentence, annotation_sets=list(f_set_map.items()))
 
     def store_lf(self, sentence, input_file, footer='', header=''):
-        # type: (str, file, str, str) -> None
+        # type: (str,any, str, str) -> None
         lfs = self.analyser.sentence2LF(sentence)
         input_file.write(header)
         for lf in lfs:
             for pred in lf.split():
-                if pred.get_pred != FOL.OR:
+                if pred.get_pred() != FOL.OR:
                     logger.debug('PRED: {}'.format(str(pred)))
                     input_file.write(str(pred) + '\n')
         input_file.write(footer)
@@ -208,7 +213,7 @@ class PrologBoxerAnnotator(SemanticAnnotator, Process):
                 return out
 
     def frameElementMatching(self, sentence, fr_anno=tuple(), lf_file_name=None, **params):
-        # type: (str, list, bool, str, any) -> tuple[str,str]
+        # type: (str, list, str, any) -> tuple[str,str]
         with self._open_a_file(lf_file_name) as lf_file:
             script = self._script(self._load_file(self.fe_kb_file),
                                   self._load_file(lf_file.name),
