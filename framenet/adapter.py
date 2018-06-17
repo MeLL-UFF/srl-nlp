@@ -1,9 +1,9 @@
 #!/bin/env python2
+import logging
 import xml.etree.ElementTree as XMLTree
 
 from srl_nlp.framenet.corpus import Document, Sentence, AnnotationSet, Annotation, Paragraph, Layer
 from srl_nlp.rule_utils import not_none_to_str
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ class FNXMLAdapter(object):
                     xml_doc_header = xml_corpus_header.getchildren()[0]
                     doc_args['corpus'] = xml_corpus_header.attrib.get('name', '')
                     doc_args['corpus_id'] = xml_corpus_header.attrib.get('ID', '')
-                    doc_args['id'] = xml_doc_header.attrib.get('ID', '')
+                    doc_args['doc_id'] = xml_doc_header.attrib.get('ID', '')
                     doc_args['desc'] = xml_doc_header.attrib.get('description', '')
                     doc_args['name'] = xml_doc_header.attrib.get('name', '')
                 except IndexError as e:
@@ -69,7 +69,7 @@ class FNXMLAdapter(object):
                         if layer.name == "PENN":
                             for label in layer:
                                 words.append((label.start, label.end))
-        sentence = Sentence(id=id, text=text, annotation_sets=annotation_sets, parts_of_speech=words)
+        sentence = Sentence(sent_id=id, text=text, annotation_sets=annotation_sets, parts_of_speech=words)
         return sentence
 
     def _parse_annoset(self, xml_node, **params):
@@ -91,7 +91,7 @@ class FNXMLAdapter(object):
         luName = xml_node.get('luName', None)
         status = xml_node.get('status', None)
 
-        anno_set = AnnotationSet(id=id,
+        anno_set = AnnotationSet(anno_set_id=id,
                                  frame_id=frameID,
                                  frame_name=frameName,
                                  lu_id=luID,
@@ -114,11 +114,10 @@ class FNXMLAdapter(object):
             if len(child) == 0:
                 err = IndexError('Empty layer id({id})'.format(id=xml_node.attrib.get('ID', '?')))
                 logger.warning(err)
-        args = {'rank': xml_node.attrib.get('rank', None),
-                'name': xml_node.attrib['name'],
-                'annotations': annos}
-        params.update(args)
-        return Layer(**params)
+        return Layer(rank=xml_node.attrib.get('rank', None),
+                     name=xml_node.attrib['name'],
+                     annotations=annos,
+                     **params)
 
     def _parse_annotation(self, xml_node, **params):
         # TODO change for the layer level
@@ -242,7 +241,7 @@ class SemEval07XMLAdapter(FNXMLAdapter):
             assert 'paragraphs' == xml_par_list.tag
             for xml_par in xml_par_list:
                 paragraphs.append(self._parse_paragraph(xml_par))
-        doc = Document(id=id, desc=desc, elements=paragraphs)
+        doc = Document(doc_id=id, desc=desc, elements=paragraphs)
         return doc
 
     def _parse_paragraph(self, xml_node):
@@ -279,7 +278,7 @@ class SemEval07XMLAdapter(FNXMLAdapter):
                     if anno_set.is_frame():
                         annotation_sets.append(anno_set)
         assert text is not None
-        sentence = Sentence(id=id, text=text, annotation_sets=annotation_sets, parts_of_speech=words)
+        sentence = Sentence(sent_id=id, text=text, annotation_sets=annotation_sets, parts_of_speech=words)
         return sentence
 
     def _parse_annoset(self, xml_node, **params):
@@ -300,7 +299,7 @@ class SemEval07XMLAdapter(FNXMLAdapter):
         luName = xml_node.get('luName', None)
         status = xml_node.get('status', None)
 
-        anno_set = AnnotationSet(id=id,
+        anno_set = AnnotationSet(anno_set_id=id,
                                  frame_id=frameID,
                                  frame_name=frameName,
                                  lu_id=luID,

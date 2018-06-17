@@ -1,5 +1,6 @@
 import logging
 import pickle
+from collections import Iterator
 from copy import copy
 
 from srl_nlp.framenet.framenet import Description
@@ -10,8 +11,8 @@ logger = logging.getLogger(__name__)
 class Document:
     aggregations = {'SENTENCE_AVERAGE': lambda l: float(sum(l)) / len(l)}
 
-    def __init__(self, id, corpus='', corpus_id=None, name='', desc='', elements=None, **params):
-        self.id = id
+    def __init__(self, doc_id, corpus='', corpus_id=None, name='', desc='', elements=None, **params):
+        self.id = doc_id
         self.desc = desc
         self.name = name
         self.corpus = corpus
@@ -29,12 +30,12 @@ class Document:
         return self.elements
 
     @staticmethod
-    def loadPickle(file):
-        adapter = pickle.load(file)
+    def load_pickle(file_obj):
+        adapter = pickle.load(file_obj)
         return adapter
 
-    def savePickle(self, file):
-        pickle.dump(self, file)
+    def save_pickle(self, file_obj):
+        pickle.dump(self, file_obj)
 
     def __len__(self):
         return len(self.elements)
@@ -48,43 +49,43 @@ class Document:
         if len(self.elements) != len(other.sentences):
             return False
         get_id = lambda sent: sent.id
-        lsents = sorted(self.elements, key=get_id)
-        rsents = sorted(other.sentences, key=get_id)
-        if len(lsents) != len(rsents):
+        l_sents = sorted(self.elements, key=get_id)
+        r_sents = sorted(other.sentences, key=get_id)
+        if len(l_sents) != len(r_sents):
             return False
-        for i, (lsent, rsent) in enumerate(zip(lsents, rsents)):
-            eq = (rsent == lsent)
+        for i, (l_sent, r_sent) in enumerate(zip(l_sents, r_sents)):
+            eq = (r_sent == l_sent)
             evaluation = 'EQ' if eq else 'DIFF'
-            logger.debug('[{i}/{total}] {eq} sentences: \n\t{lsent} and \n\t {rsent}' \
-                         .format(i=i, total=len(rsents), lsent=lsent, rsent=rsent, eq=evaluation))
+            logger.debug('[{i}/{total}] {eq} sentences: \n\t{l_sent} and \n\t {r_sent}'
+                         .format(i=i, total=len(r_sents), l_sent=l_sent, r_sent=r_sent, eq=evaluation))
             if not eq:
                 return False
         # TODO
         return True
 
-    def _similar(self, other, fn=None, aggregation='SENTENCE_AVERAGE'):
-        aggregation = self.aggregations[aggregation]
-        if self.id != other.id:
-            logger.debug('Diff ids: \'{id1}\' and \'{id2}\''.format(id1=self.id,
-                                                                    id2=other.id))
-            return False
-        if len(self.elements) != len(other.sentences):
-            logger.debug(('Diff quantity of sentences: id(\'{id1}\'):{len1}'
-                          'and id(\'{id2}\'):{len2}').format(id1=self.id, id2=other.id),
-                         len1=len(self), len2=len(other))
-            return False
-        get_id = lambda sent: sent.id
-        lsents = sorted(self.elements, key=get_id)
-        rsents = sorted(other.sentences, key=get_id)
-        similarities = []
-        for i, (lsent, rsent) in enumerate(zip(lsents, rsents)):
-            sim = (rsents._similar(lsents))  # TODO
-            logger.debug('[{i}/{total}] Sim:{sim:6.2} sentences: \n\t{lsent} and \n\t {rsent}' \
-                         .format(i=i, total=len(rsents), lsent=lsent,
-                                 rsent=rsent, sim=sim * 100))
-            similarities.append(sim)
-        # TODO
-        return aggregation(similarities)
+    # def _similar(self, other, fn=None, aggregation='SENTENCE_AVERAGE'):
+    #     aggregation = self.aggregations[aggregation]
+    #     if self.id != other.id:
+    #         logger.debug('Diff ids: \'{id1}\' and \'{id2}\''.format(id1=self.id,
+    #                                                                 id2=other.id))
+    #         return False
+    #     if len(self.elements) != len(other.sentences):
+    #         logger.debug(('Diff quantity of sentences: id(\'{id1}\'):{len1}'
+    #                       'and id(\'{id2}\'):{len2}').format(id1=self.id, id2=other.id),
+    #                      len1=len(self), len2=len(other))
+    #         return False
+    #     get_id = lambda sent: sent.id
+    #     lsents = sorted(self.elements, key=get_id)
+    #     rsents = sorted(other.sentences, key=get_id)
+    #     similarities = []
+    #     for i, (lsent, rsent) in enumerate(zip(lsents, rsents)):
+    #         sim = (rsents._similar(lsents))
+    #         logger.debug('[{i}/{total}] Sim:{sim:6.2} sentences: \n\t{lsent} and \n\t {rsent}' \
+    #                      .format(i=i, total=len(rsents), lsent=lsent,
+    #                              rsent=rsent, sim=sim * 100))
+    #         similarities.append(sim)
+    #     # TODO
+    #     return aggregation(similarities)
 
     def __str__(self):
         return 'Doc[{id}]:\'{desc}\' ({elem} elements)'.format(id=self.id, desc=self.desc, elem=len(self.elements))
@@ -94,8 +95,8 @@ class Document:
 
 
 class Paragraph:
-    def __init__(self, id, sentences=None):
-        self.id = id
+    def __init__(self, paragraph_id, sentences=None):
+        self.id = paragraph_id
         if sentences is None:
             self.sentences = []
         else:
@@ -105,6 +106,7 @@ class Paragraph:
         return len(self.sentences)
 
     def __iter__(self):
+        # type: () -> Iterator[Sentence]
         return self.sentences.__iter__()
 
     def __eq__(self, other):
@@ -114,11 +116,11 @@ class Paragraph:
             return False
         return True
 
-    def _similar(self, other, fn=None):
-        if self.id != other.id:
-            return False
-        # TODO
-        return True
+    # def _similar(self, other, fn=None):
+    #     if self.id != other.id:
+    #         return False
+    #     # TODO
+    #     return True
 
     def __str__(self):
         return 'Paragraph[{id}]:length={n_sent}'.format(id=self.id, n_sent=len(self.sentences))
@@ -128,18 +130,19 @@ class Paragraph:
 
 
 class Sentence:
-    def __init__(self, id, text, annotation_sets=None, parts_of_speech=None, **params):
+    def __init__(self, sent_id, text, annotation_sets=None, parts_of_speech=None, **params):
+        # type: (object, str, list[AnnotationSet], list, any) -> None
         """
 
         Args:
-            id:
+            sent_id:
             text:
             annotation_sets:
             parts_of_speech: a list of pairs. Each pair is the position of one token in the sentence.
                             If the text is viewed as a python string, the position of a token text[start,end] would be the pair (start, end+1)
             **params:
         """
-        self.id = id
+        self.id = sent_id
         self.text = text
         self.params = params
 
@@ -159,6 +162,7 @@ class Sentence:
         return len(self.text)
 
     def __iter__(self):
+        # type: () -> Iterator[AnnotationSet]
         return self.annotation_sets.__iter__()
 
     def __getitem__(self, item):
@@ -185,15 +189,18 @@ class Sentence:
                     if old_len != len(layer.annotations):
                         logger.warning('There are invalid annotations in this sentence ({s_id})'.format(s_id=self.id))
 
-    def _order_by_pos(self, anno_list, in_place):
+    @staticmethod
+    def _order_by_pos(anno_list, in_place):
         # TODO documentation
-        key = lambda anno: (anno.start, -anno.end)
+        def key(anno):
+            return anno.start, -anno.end
+
         if in_place:
             anno_list.sort(key=key)
         else:
             return sorted(anno_list, key=key)
 
-    def _handle_annotation(self, content, anno, escapeHTML, Label):
+    def _handle_annotation(self, content, anno, escape_html, label):
         anno = copy(anno)
         # Base case
         if isinstance(content, str):
@@ -201,7 +208,7 @@ class Sentence:
             fex_cont = content[anno.start:anno.end + 1]
             rtext = content[anno.end + 1:]
             logger.debug('Recursion end: [\'{}\',\'{}\',\'{}\']'.format(ltext, fex_cont, rtext))
-            fex = Label(content=[fex_cont], name=anno.name, escapeHTML=escapeHTML)
+            fex = label(content=[fex_cont], name=anno.name, escapeHTML=escape_html)
             # logger.debug('Fex.content: \'{}\'\n{}'.format(fex.content,fex))
             # logger.warning('Fex \'{}\', len(Fex) = {}'. format(fex, len(fex)))
             result = []
@@ -221,10 +228,10 @@ class Sentence:
             assert anno.start >= 0
         subcont = content[pos]
         # logger.debug('Subcontent: {}'.format(subcont))
-        result = self._handle_annotation(subcont, anno, escapeHTML, Label)
+        result = self._handle_annotation(subcont, anno, escape_html, label)
         # logger.debug('Result:{}'.format(result))
         # logger.debug('Instance of subclass: {}'.format(subcont.__class__))
-        if isinstance(subcont, Label):
+        if isinstance(subcont, label):
             pass
         elif isinstance(subcont, str):
             content[pos:pos + 1] = result
@@ -233,7 +240,7 @@ class Sentence:
         # logger.debug('!!!!Content:{}'.format(content))
         return content
 
-    def get_fn_example(self, escapeHTML=False, **attribs):
+    def get_fn_example(self, escape_html=False, **attribs):
         """
         Returns the equivalent FrameNet example of the given sentence
         """
@@ -253,7 +260,7 @@ class Sentence:
         if len(anno_list) > 0:
             for anno in anno_list:
                 logger.debug('Fex "{fex}"'.format(fex=anno))
-                content = self._handle_annotation(content, anno, escapeHTML=escapeHTML, Label=Description.FEeXample)
+                content = self._handle_annotation(content, anno, escape_html=escape_html, label=Description.FEeXample)
                 logger.debug('Content:{}'.format(content))
                 logger.debug('Anno slice: \'{}\''.format(self[anno]))
         example = Description.EXample(content=content,
@@ -268,11 +275,11 @@ class Sentence:
         # TODO
         return True
 
-    def _similar(self, other, fn=None):
-        if self.id != other.id or self.text != other.text:
-            return False
-        # TODO
-        return True
+    # def _similar(self, other, fn=None):
+    #     if self.id != other.id or self.text != other.text:
+    #         return False
+    #     # TODO
+    #     return True
 
     def __str__(self):
         return 'Sentence[{id}]:\'{desc}\''.format(id=self.id, desc=self.text)
@@ -282,9 +289,9 @@ class Sentence:
 
 
 class AnnotationSet:
-    def __init__(self, id, frame_id=None, frame_name=None, lu_id=None,
+    def __init__(self, anno_set_id, frame_id=None, frame_name=None, lu_id=None,
                  lu_name=None, status=None, layers=None, **params):
-        self.id = id
+        self.id = anno_set_id
         self.frameID = frame_id
         self.frameName = frame_name
         self.luID = lu_id
@@ -303,6 +310,7 @@ class AnnotationSet:
         return list(filter(Annotation.is_fe, self.layers))  # FixMe
 
     def __iter__(self):
+        # type: () -> Iterator[Layer]
         return self.layers.__iter__()
 
     def __len__(self):
@@ -319,14 +327,12 @@ class AnnotationSet:
                 self.luID != other.luID or \
                 self.luName != other.luName:
             return False
-        for anno1, anno2 in zip(self.layers, other.layers):
-            # TODO
-            pass
+        if set(self.layers) != set(other.layers):
+            return False
         return True
 
-    def _similar(self, other, fn=None):
-        # TODO
-        return True
+    # def _similar(self, other, fn=None):
+    #     return False
 
     def __str__(self):
         params_str = str(self.params) if len(self.params) > 0 else ''
@@ -337,7 +343,6 @@ class AnnotationSet:
             return '<AnnoSet>{anno}{params}</AnnoSet>'.format(anno=str(self.layers)[1:], params=params_str)
 
     def __repr__(self):
-        # TODO
         return str(self)
 
 
@@ -352,6 +357,7 @@ class Layer:
         self.params = params
 
     def __iter__(self):
+        # type: () -> Iterator[Annotation]
         return self.annotations.__iter__()
 
     def __eq__(self, other):
@@ -361,9 +367,12 @@ class Layer:
         other_anno_set = set(other.annotations)
         return self_anno_set == other_anno_set
 
-    def _similar(self, other, fn=None):
-        # TODO
-        return True
+    # def _similar(self, other, fn=None):
+    #     # TODO
+    #     return True
+
+    def __len__(self):
+        return len(self.annotations)
 
     def __str__(self):
         # params_str = str(self.params) if len(self.params) > 0 else ''
@@ -387,7 +396,7 @@ class Annotation:
     def is_fe(self):
         return self.name is not None  # TODO
 
-    def is_subannotation(self, other):
+    def is_sub_annotation(self, other):
         # if self.itype is not None or other.itype is not None:
         #    return False
         try:
@@ -426,11 +435,11 @@ class Annotation:
     def __eq__(self, other):
         return (self.start == self.start and
                 self.end == self.end and
-                self.name == self.name)  # TODO
+                self.name == self.name)
 
-    def _similar(self, other):
-        # TODO
-        return True
+    # def _similar(self, other):
+    #     # TODO
+    #     return True
 
     def __str__(self):
         if self.is_fe():
