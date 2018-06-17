@@ -39,7 +39,7 @@ class Process(object):
         out = []
         logger.debug('{proc}: reading line'.format(proc=self._proc_name))
         if not stop_condition(out):
-            while self._time_out is not None and count < self._time_out:
+            while self._time_out is None or count < self._time_out:
                 try:
                     out.append(self._proc.stdout.readline())
                     logger.debug('{proc} line: {out}'.format(proc=self._proc_name,
@@ -50,8 +50,8 @@ class Process(object):
                     continue
                 if stop_condition(out):
                     break
-            logger.warning('{proc} count: {time}'.format(proc=self._proc_name,
-                                                         time=count))
+            logger.debug('{proc} count: {time}'.format(proc=self._proc_name,
+                                                       time=count))
             assert self._time_out is None or count < self._time_out
         return out
 
@@ -102,7 +102,7 @@ class Process(object):
                 self._proc.stdin.write(input_text)
                 self._proc.stdin.flush()
                 logger.debug('{proc}:  input: {input}'.format(proc=self._proc_name,
-                                                             input=repr(input_text)))
+                                                              input=repr(input_text)))
                 out = self._read_line(stop_condition=self._process_completed)
             except (AssertionError, IOError) as e:
                 if tries > 0:
