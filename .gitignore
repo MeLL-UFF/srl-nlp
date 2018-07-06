@@ -13,5 +13,6 @@ GILPS/**
 **.pkl
 .idea/**
 .ipynb_checkpoints/**
+python-env/**
 **/*.log
 *.xml
