@@ -56,9 +56,14 @@ class CandCLocalAPI(Process):
         # return sum(map(lambda x: (x == '\n'), out_list)) >= 2
 
     def _process_completed(self, out_list):
+        if len(out_list) == 0:
+            return False
         opening = sum(map(lambda line: line.count('('), out_list))
         closing = sum(map(lambda line: line.count(')'), out_list))
-        return opening == closing and opening > 0
+        starts_with_ccg = ''.join(out_list).strip().startswith('ccg')
+        #ends_with_empty_line = len(out_list[-1].strip()) == 0
+        ballanced_parenthesis = opening == closing and opening > 0
+        return ballanced_parenthesis and starts_with_ccg #and ends_with_empty_line
         # return opening == closing and sum(map(lambda x: (x == '\n'), out_list)) >= 1
 
     def parse(self, tokenized_sentences):
@@ -213,6 +218,7 @@ class BoxerAbstract:
         return fol
 
     def sentence2LF(self, sentence, source=None, id=None, expand_predicates=None, **kargs):
+        # type: (str, str, str, bool, dict[str,str]) -> list[LF]
         if expand_predicates is None:
             expand_predicates = self.expand_predicates
         if not (source is None or id is None):
