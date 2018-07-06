@@ -156,7 +156,7 @@ class Sentence:
         else:
             self.parts_of_speech = parts_of_speech
         # TODO should I remove annotations that cross word spans?
-        self.remove_invalid_labels()  # TODO Move this to adapter
+        #self.remove_invalid_labels()  # TODO Move this to adapter
 
     def __len__(self):
         return len(self.text)
@@ -179,6 +179,10 @@ class Sentence:
         return
 
     def remove_invalid_labels(self):
+        """
+        A Label is invalid if they it does not match the words splits
+        :return:
+        """
         # starts, ends = zip(*self.parts_of_speech)
         if len(self.parts_of_speech) > 0:
             for anno_set in self.annotation_sets:
