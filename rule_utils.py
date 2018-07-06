@@ -43,7 +43,7 @@ def replace_all(lf, old_term, new_term):
             curr[0] = new_term
         frontier.extend(curr[1:])
 
-
+# TODO optimize it
 def remove_eq(lf, eq_term):
     """
     Remove the equality predicates and traverses the lf to bind all the constants that should be equal.
