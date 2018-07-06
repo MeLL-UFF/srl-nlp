@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 class FNXMLAdapter(object):
     _TAG_PREFIX = '{http://framenet.icsi.berkeley.edu}'
 
-    def __init__(self, encoding=None, **params):
+    def __init__(self, encoding='utf-8', **params):
         self.params = params
         self.encoding = encoding
 
