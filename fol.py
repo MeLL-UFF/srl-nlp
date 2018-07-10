@@ -139,7 +139,7 @@ class FOL:
         # Find all existential variables
         old_term = None
         while term[0] == FOL.EXISTS or term[0] == FOL.ALL:  # if the predicate is a quantifier
-            if removeForAlls or term[0] != FOL.ALL:  # if I should remove this quantifier
+            if removeForAlls or term[0] == FOL.EXISTS:  # if I should remove this quantifier
                 if term[1][0] not in ignore:  # store variable to update it in the next predicates
                     constants.extend(term[1])
                 if old_term:
@@ -181,7 +181,7 @@ class FOL:
             self.info = term
 
     @staticmethod
-    def _push_operand(term, op, aggregate=True):
+    def _push_operand(term, op):
         """
         Move all the operands of the same kind of op to the 'leaves'.
         This operation respect negation. It does not move any operator across a negation.
@@ -189,8 +189,6 @@ class FOL:
         Args:
             term: the term to be changed, usually something like 'fol.info'
             op: the kind of operator to be pushed: FOL.AND or FOL.OR
-            aggregate: allows the aggregation of same kind operators:
-                       and(a,and(b,c)) -> and(a,b,c)
 
         Returns:
             Boolean value stating if a change was made or not.
@@ -198,18 +196,18 @@ class FOL:
         """
         if FOL.is_quantifier(term[0]):
             for child in (term[1:]):
-                FOL._push_operand(child, op)
+                FOL._push_operand(child, op)  # , aggregate=aggregate)
         if FOL.is_operator(term[0]):
             for child in term[1:]:
-                FOL._push_operand(child, op)
+                FOL._push_operand(child, op)  # , aggregate=aggregate)
             for pos, child in enumerate(term[1:]):
                 if FOL.is_operator(child[0]):
-                    if child[0] != FOL.NOT:
+                    if child[0] == FOL.NOT:
                         if term[0] == child[0]:
-                            if aggregate:
-                                term.pop(pos + 1)
-                                term.extend(child[1:])
-                                FOL._push_operand(term, op)
+                            # if aggregate:
+                            #     term.pop(pos + 1)
+                            #     term.extend(child[1:])
+                            #     FOL._push_operand(term, op, aggregate=aggregate)
                             return False
                         else:
                             if term[0] == op:
@@ -218,28 +216,26 @@ class FOL:
                                 del (term[:])  # empty this list without losing references
                                 term.append(child[0])
                                 term.extend([[op, i] + copy(siblings) for i in child[1:]])
-                                if FOL._push_operand(term, op):
-                                    FOL._push_operand(term, op)
+                                if FOL._push_operand(term, op):  # , aggregate=aggregate):
+                                    FOL._push_operand(term, op)  # , aggregate=aggregate)
                                 return True
                             else:
-                                if FOL._push_operand(child, op):
-                                    FOL._push_operand(term, op)
+                                if FOL._push_operand(child, op):  # , aggregate=aggregate):
+                                    FOL._push_operand(term, op)  # , aggregate=aggregate)
         return False
 
-    def push_operand(self, op, aggregate=True):
+    def push_operand(self, op):  # , aggregate=aggregate)
         """
         Move all the operands of the same kind of op to the 'leaves'.
         This operation respects negation. It does not move any operator across a negation.
 
         Args:
             op: the kind of operator to be pushed: FOL.AND or FOL.OR
-            aggregate: allows the aggregation of same kind operators:
-                       and(a,and(b,c)) -> and(a,b,c)
 
         Returns:
             Nothing, change in-place.
         """
-        FOL._push_operand(self.info, op, aggregate)
+        FOL._push_operand(self.info, op)  # , aggregate=aggregate)
 
     @staticmethod
     def _push_quantifiers(term, root=None):
