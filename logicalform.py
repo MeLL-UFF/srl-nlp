@@ -224,35 +224,3 @@ def _plot_aux(edge_labels, g, pos):
     nx.draw_networkx_edge_labels(g, pos, edge_labels=edge_labels, font_size=5)
     nx.draw_networkx(g, pos, node_size=100, font_size=5)
     plt.axis('off')
-
-
-
-
-# def lf2dot(lf, file_name=None):
-#     frontier = [lf]
-#     edges = []
-#     labels = []
-#
-#     while len(frontier) > 0:
-#         term = frontier.pop()
-#         for child in term.iterterms():
-#             if child.isleaf():
-#                 edges.append(_fix_edge(term.info[1:]))
-#                 if term.info[0] == 'relation':
-#                     label = 'rel(%s)' % term.info[-1][0]
-#                 else:
-#                     label = term.info[0]
-#                 labels.append(label)
-#                 logger.debug("TERM -> %s" % term)
-#                 break
-#             else:
-#                 frontier.insert(0, child)
-#
-#     nodes = set([edge[0] for edge in edges] + [edge[1] for edge in edges])
-#     with open(file_name, 'w') as out_file:
-#         out_file.write('graph "" {\n')
-#         for node in nodes:
-#             out_file.write("{};\n".format(node))
-#         for edge, label in zip(edges, labels):
-#             out_file.write('{}--{} [label="{}"];\n'.format(edge[0], edge[1], label))
-#         out_file.write("}")
