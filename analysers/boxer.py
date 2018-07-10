@@ -61,9 +61,9 @@ class CandCLocalAPI(Process):
         opening = sum(map(lambda line: line.count('('), out_list))
         closing = sum(map(lambda line: line.count(')'), out_list))
         starts_with_ccg = ''.join(out_list).strip().startswith('ccg')
-        #ends_with_empty_line = len(out_list[-1].strip()) == 0
+        # ends_with_empty_line = len(out_list[-1].strip()) == 0
         ballanced_parenthesis = opening == closing and opening > 0
-        return ballanced_parenthesis and starts_with_ccg #and ends_with_empty_line
+        return ballanced_parenthesis and starts_with_ccg  # and ends_with_empty_line
         # return opening == closing and sum(map(lambda x: (x == '\n'), out_list)) >= 1
 
     def parse(self, tokenized_sentences):
@@ -245,8 +245,8 @@ class BoxerLocalAPI(Process, BoxerAbstract):
     def __init__(self, tokenizer=None,
                  ccg_parser=None,
                  expand_predicates=True,
-                 path_to_bin=config.get('semantic_local', 'boxer'), *params):
-        if len(params) == 0:
+                 path_to_bin=config.get('semantic_local', 'boxer'), params=None):
+        if not params:
             params = ('--stdin', '--semantics', 'fol')
         Process.__init__(self, path_to_bin, True, TIME_OUT, *params)
 
