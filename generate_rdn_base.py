@@ -5,19 +5,17 @@
 """
 
 import logging
+import pickle
 import random
-
-import re
 from ConfigParser import ConfigParser
-
-from analysers.boxer import BoxerAbstract
-from os import path, makedirs
 from sys import argv as _argv
 
+import re
+from analysers.boxer import BoxerAbstract
+from os import path, makedirs
 from srl_nlp.analysers.boxer import BoxerLocalAPI
 from srl_nlp.framenet.adapter import PARSERS_AVAILABLE
-from srl_nlp.framenet.corpus import Paragraph, Document, Sentence
-from srl_nlp.fsparsing import PrologBoxerAnnotator
+from srl_nlp.framenet.corpus import Document, Sentence
 from srl_nlp.logicalform import LF
 
 logger = logging.getLogger(__name__)
@@ -41,14 +39,14 @@ class DataObject(object):
         return "DataObject({})".format(self.s_id)
 
 
-def get_annotations(sentence, chunk_id, var2pos):
+def get_annotations(sentence, s_id, var2pos):
     # type: (Sentence, str, dict[LF,list]) -> tuple[list, list]
     """
         Get the annotations from the corpus sentence
 
     Args:
         sentence: Sentence object from a parsed corpus
-        chunk_id: string used to identify the LFs generatedd
+        s_id: string used to identify the LFs generatedd
         var2pos: map from LFs to lists of variables
 
     Returns:
@@ -67,12 +65,12 @@ def get_annotations(sentence, chunk_id, var2pos):
                 frame_name = anno_set.frameName.lower()
                 if layer.name == 'Target':
                     for var in var_list:
-                        fr.append(LF('frame_token({S}, {X}, {F}).'.format(S=chunk_id, X=var, F=frame_name)))
+                        fr.append(LF('frame_token({S}, {X}, {F}).'.format(S=s_id, X=var, F=frame_name)))
                 elif layer.name == 'FE':
                     for var in var_list:
                         name = anno.name.lower()
                         fe.append(LF(
-                            'frame_element_token({S}, {X}, {FE}, {F}).'.format(S=chunk_id, X=var, FE=name,
+                            'frame_element_token({S}, {X}, {FE}, {F}).'.format(S=s_id, X=var, FE=name,
                                                                                F=frame_name)))
     return fr, fe
 
@@ -111,10 +109,10 @@ def examples_from_doc(boxer, d_id, doc):
     """
     logger.info("Reading docs")
 
-    for paragraph in doc.elements:  # [:5]:
+    for paragraph in doc.elements:
         logger.info("Reading paragraph id({par_id})".format(par_id=paragraph.id))
 
-        for sentence in paragraph:
+        for sentence in paragraph.sentences:
             logger.info("Reading sentence id({par_id}:{sent_id})"
                         .format(par_id=paragraph.id, sent_id=sentence.id))
             var2pos = get_matching_variables(boxer, sentence.text)
@@ -140,16 +138,21 @@ def examples_from_doc(boxer, d_id, doc):
 
 def write_to_file(root_folder, dataset, dataset_name):
     # type: (str, list[DataObject], str) -> None
-    def get_var(line):
-        pattern = re.compile(r'(frame_element_token\(s\d+,)(c\d+)(.*)')
-        match = pattern.match(line)
-        if match:
-            return match.group(2)
-        else:
-            return None
+    def get_vars(fes):
+        for fe in fes:
+            line = str(fe)
+            logger.debug("[{ds}] Line: '{line}' was parsed"
+                         .format(line=line, ds=dataset_name))
+            pattern = re.compile(r'(frame_element_token\(s.*?,)(c\d+)(.*)')
+            match = pattern.match(line)
+            if match:
+                yield match.group(2)
+            else:
+                logger.warning("[{ds}] Line: '{line}' is not a FET"
+                               .format(line=line, ds=dataset_name))
 
     def replace_var_iter(string, var_set):
-        pattern = re.compile(r'(frame_element_token\(s\d+,)(c\d+)(.*)')
+        pattern = re.compile(r'(frame_element_token\(s.*?,)(c\d+)(.*)')
         match = pattern.match(string)
         if match:
             for var in var_set.difference({match.group(2)}):
@@ -162,30 +165,43 @@ def write_to_file(root_folder, dataset, dataset_name):
     with open(path.join(folder, dataset_name + '_facts.txt'), 'w') as fact_f:
         with open(path.join(folder, dataset_name + '_pos.txt'), 'w') as pos_f:
             with open(path.join(folder, dataset_name + '_neg.txt'), 'w') as neg_f:
-                for datobj in dataset:
+                for data_obj in dataset:
                     # FACTS
                     logger.info('Writing {ds} facts'.format(ds=dataset_name))
-                    fact_f.write("% sentence {s}\n".format(s=datobj.s_id))
-                    fact_f.write("\n".join(map(str, datobj.frs)))
+                    fact_f.write("% sentence {s}\n".format(s=data_obj.s_id))
+                    fact_f.write("\n".join(map(str, data_obj.frs)))
                     fact_f.write("\n")
-                    fact_f.write("\n".join(map(str, datobj.preds)))
+                    fact_f.write("\n".join(map(str, data_obj.preds)))
                     fact_f.write("\n\n")
 
                     # POSITIVE EXAMPLES
                     logger.info('Writing {ds} positive examples'.format(ds=dataset_name))
-                    pos_f.write("% sentence {s}\n".format(s=datobj.s_id))
-                    pos_f.write("\n".join(map(str, datobj.fes)))
+                    pos_f.write("% sentence {s}\n".format(s=data_obj.s_id))
+                    pos_f.write("\n".join(map(str, data_obj.fes)))
                     pos_f.write("\n\n")
 
                     # NEGATIVE EXAMPLES
-                    all_vars = set([get_var(str(fe)) for fe in datobj.fes])
+                    all_vars = set(get_vars(data_obj.fes))
                     logger.info('Writing {ds} negative examples'.format(ds=dataset_name))
-                    neg_f.write("% sentence {s}\n".format(s=datobj.s_id))
-                    for fe in datobj.fes:
+                    neg_f.write("% sentence {s}\n".format(s=data_obj.s_id))
+                    for fe in data_obj.fes:
                         for out in replace_var_iter(str(fe), all_vars):
                             neg_f.write(out)
                             neg_f.write('\n')
                         pos_f.write("\n")
+
+
+def get_examples(data_base_path, input_parser):
+    with open(data_base_path) as db_file:
+        docs = input_parser.parseXML(db_file)
+    logger.info('Done parsing')
+    logger.info('Creating base')
+    examples = []
+    for d_id, doc in enumerate(docs):
+        boxer = BoxerLocalAPI()
+        for example in examples_from_doc(boxer, d_id=d_id, doc=doc):
+            examples.append(example)
+    return examples
 
 
 if __name__ == '__main__':
@@ -203,6 +219,8 @@ if __name__ == '__main__':
                             help='input annotation file format')
         parser.add_argument('-R', '--root',
                             help='relative path to path to store the bases')
+        parser.add_argument('-p', '--pickle_file',
+                            help='store intermediate results or read from it if file exists')
 
         parser.add_argument('-t', '--train_ratio', default=None, type=int,
                             help='optional train/test ratio')
@@ -218,27 +236,34 @@ if __name__ == '__main__':
         args = parse_args(argv, _add_logger_args)
         config_logger(args)
 
+        logger.info(str(args))
         logger.info('Initialization')
 
         # Select the appropriate document parsers for the input and output
         input_parser = PARSERS_AVAILABLE[args.input_format]()
         logger.info('Parsing {file}'.format(file=args.data_base_path))
 
-        # Parse corpus
-        with open(args.data_base_path) as db_file:
-            docs = input_parser.parseXML(db_file)
-        logger.info('Done parsing')
-        logger.info('Creating base')
-        examples = []
+        if args.pickle_file:
+            if path.exists(args.pickle_file):
+                # Load examples from pickle file
+                logger.info('Loading examples from {file}'.format(file=args.pickle_file))
+                with open(args.pickle_file, 'r') as f:
+                    examples = pickle.load(f)
+            else:
+                # Parse corpus
+                examples = get_examples(args.data_base_path, input_parser)
+                # Save pickle file
+                with open(args.pickle_file, 'w') as f:
+                    pickle.dump(examples, f)
+        else:
+            # Parse corpus
+            examples = get_examples(args.data_base_path, input_parser)
 
-        for d_id, doc in enumerate(docs):
-            boxer = BoxerLocalAPI()
-            for example in examples_from_doc(boxer, d_id=d_id, doc=doc):
-                examples.append(example)
-
-        # shuffle examples
-        random.Random(args.seed).shuffle(examples)
+        # Split dataset in training and test if train_ratio is given
         if args.train_ratio:
+            # shuffle examples
+            random.Random(args.seed).shuffle(examples)
+
             len_train = (args.train_ratio * len(examples) / (args.train_ratio + 1))
             train, test = examples[:len_train], examples[len_train:]
 
@@ -246,6 +271,7 @@ if __name__ == '__main__':
             write_to_file(args.root, test, 'test')
         else:
             write_to_file(args.root, examples, 'train')
+        logger.info('Done')
 
 
     try:
