@@ -7,14 +7,15 @@ import xml.etree.ElementTree as XMLTree
 from os import path, listdir as ls
 from re import compile, DOTALL
 
-from framenet.framenet import Lexeme, LexicalUnit, Frame, Net, Description
+from srl_nlp.framenet.framenet import Lexeme, LexicalUnit, Frame, Net, Description
 
 logger = logging.getLogger(__name__)
 
 
 class FrameXMLParser:
-    '''Parses a XML file describing a Frame into an actual Frame
-       FrameNet version: 1.7'''
+    """
+    Parses a XML file describing a Frame into an actual Frame
+    """
 
     _tag2label = {'ex': Description.EXample,
                   'fex': Description.FEeXample,
@@ -181,8 +182,6 @@ class FrameXMLParser:
 
 class NetXMLParser:
     def __init__(self, frameParser=FrameXMLParser()):
-        # assert isinstance(fparser, FrameXMLParser)
-        # assert isinstance(luparser, LuXMLParser)
         self._fparser = frameParser
 
     def parse(self, str_dir):
