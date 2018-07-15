@@ -1,10 +1,11 @@
+import json
 import logging
+import pickle
 import random
+from collections import Iterable
 from itertools import chain
 from sys import argv as _argv
 
-import pickle
-import re
 import spacy
 from os import path, makedirs
 from srl_nlp.framenet.adapter import PARSERS_AVAILABLE
@@ -12,20 +13,69 @@ from srl_nlp.framenet.adapter import PARSERS_AVAILABLE
 logger = logging.getLogger(__name__)
 
 
-class DataObject(object):
-
-    def __init__(self, s_id, frs, fes, preds):
-        # type: (str, list[list[str]], list[list[str]], list[str]) -> None
+class FrameAnno:
+    def __init__(self, s_id, start, end, frame):
         self.s_id = s_id
-        self.frs = frs
-        self.fes = fes
-        self.preds = preds
+        self.start = start
+        self.end = end
+        self.frame = frame
+
+    def __str__(self):
+        return 'frame_anno({S}, c_{C1:03d}, c_{C2:03d}, \'{F}\').' \
+            .format(S=self.s_id, C1=self.start, C2=self.end, F=self.frame)
+
+    def __repr__(self):
+        return str(self)
+
+
+class FrameElementAnno:
+    def __init__(self, s_id, start, end, frame_element, frame):
+        self.s_id = s_id
+        self.start = start
+        self.end = end
+        self.frame_element = frame_element
+        self.frame = frame
+
+    def __str__(self):
+        return 'frame_element_anno({S}, c_{C1:03d}, c_{C2:03d}, \'{FE}\', \'{F}\').' \
+            .format(S=self.s_id, C1=self.start, C2=self.end, FE=self.frame_element, F=self.frame)
+
+    def __repr__(self):
+        return str(self)
+
+
+class DataObject(object):
+    """
+    Representation of a datum of this project.
+    It contains a list of frames, a list of frame elements and a list of facts
+    (preds), all of those as strings in Prolog facts.
+    """
+
+    def __init__(self, s_id, frs, fes, preds, num_tokens):
+        # type: (str, list[FrameAnno], list[FrameElementAnno], list[str]) -> None
+        self.s_id = s_id  # type: str
+        self.frs = frs  # type: list(FrameAnno)
+        self.fes = fes  # type: list(FrameElementAnno)
+        self.preds = preds  # type: list(str)
+        self.num_tokens = num_tokens  # type: int
 
     def __repr__(self):
         return "DataObject({})".format(self.s_id)
 
 
 def get_tree_in(dep_tree, start, end):
+    """
+    Get sub-sentence defined by start and end.
+
+    Args:
+        dep_tree: spacy dep_tree
+        start: initial character position of the sub-sentence
+        end: end character position of the sub-sentence
+
+    Yields:
+        The words in the tree that are inside the closed interval defined by start and end
+
+    """
     for word in dep_tree:
         if word.idx >= start:
             if word.idx + len(word) > end + 1:
@@ -54,46 +104,57 @@ def get_annotations(sentence, sentence_tree, s_id):
             for anno in layer:
                 highlight = list(get_tree_in(sentence_tree, anno.start, anno.end))
                 frame_name = anno_set.frameName.lower()
-                if layer.name == 'Target':
-                    fr = []
-                    for word in highlight:
-                        fr.append('frame_token({S}, c_{C:03d}, "{F}").'.format(S=s_id, C=word.i, F=frame_name))
-                    if len(fr) > 0:
-                        frs.append(fr)
-                elif layer.name == 'FE':
-                    fe = []
-                    for word in highlight:
+                if len(highlight) > 0:
+                    start = highlight[0]
+                    end = highlight[-1]
+                    if layer.name == 'Target':
+                        frs.append(FrameAnno(s_id=s_id,
+                                             start=start.i,
+                                             end=end.i,
+                                             frame=frame_name))
+                    elif layer.name == 'FE':
                         name = anno.name.lower()
-                        fe.append('frame_element_token({S}, c_{C:03d}, "{FE}", "{F}").'
-                                  .format(S=s_id, C=word.i, FE=name, F=frame_name))
-                    if len(fe) > 0:
-                        fes.append(fe)
+                        fes.append(FrameElementAnno(s_id=s_id,
+                                                    start=start.i,
+                                                    end=end.i,
+                                                    frame_element=name,
+                                                    frame=frame_name))
     return frs, fes
 
 
-def tree_to_dep_facts(sentence_tree, s_id, encoding='utf-8'):
+def tree_to_dep_facts(sentence_tree, s_id, encoding='utf-8', lemmatize=True):
     for word in sentence_tree:
+        if lemmatize:
+            raw_text = word.lemma_
+        else:
+            raw_text = word.text
+        text = raw_text.encode(encoding).replace("'", "\\'").lower()
+
         values = {"pos": word.pos_.lower(),
                   "s_id": s_id,
                   "c_id": word.i,
-                  "text": word.text.encode(encoding).replace("'", "\\'").lower(),
+                  "text": text,
                   "dep": word.dep_.lower(),
                   "hc_id": word.head.i}
-        yield '{pos}({s_id}, c_{c_id:03d}, "{text}").'.format(**values)
+        yield 'pos_{pos}({s_id}, c_{c_id:03d}, \'{text}\').'.format(**values)
         if word.head != word:
             yield '{dep}({s_id}, c_{c_id:03d}, c_{hc_id:03d}).'.format(**values)
         else:
             yield 'sentence_root({s_id}, c_{c_id:03d}).'.format(**values)
 
-def tree_to_lex_facts(sentence_tree, s_id, encoding='utf-8'):
-    for word in sentence_tree:
-        text= word.text.encode(encoding).replace("'", "\\'").lower()
-        yield 'token({s_id}, l_{c_id:03d}, "{text}").'.format(s_id = s_id,
-                                                              c_id = word.i,
-                                                              text = text)
+
+def tree_to_lex_facts(sentence_tree, s_id):  # , encoding='utf-8'):
+    c_ids = ','.join(['c_{:03d}'.format(word.i) for word in sentence_tree])
+    yield 'tokens({s_id}, [{c_ids}]).'.format(s_id=s_id, c_ids=c_ids)
+
+    # for word in sentence_tree:
+    #     text = word.text.encode(encoding).replace("'", "\\'").lower()
+    #     yield 'token({s_id}, c_{c_id:03d}, "{text}").'.format(s_id=s_id,
+    #                                                           c_id=word.i,
+    #                                                           text=text)
 
 
-def examples_from_doc(spacy_parser, d_id, doc, encoding = 'utf-8', unify_ids=True):
+def examples_from_doc(spacy_parser, d_id, doc, encoding='utf-8', unify_ids=True):
     logger.info("Reading docs")
 
     for paragraph in doc.elements:
@@ -110,76 +171,124 @@ def examples_from_doc(spacy_parser, d_id, doc, encoding = 'utf-8', unify_ids=Tru
                 sentence_tree = spacy_parser(sentence.text.decode(encoding))
                 frs, fes = get_annotations(sentence, sentence_tree, s_id)
                 preds = list(chain(tree_to_dep_facts(sentence_tree, s_id, encoding=encoding),
-                                   tree_to_lex_facts(sentence_tree, s_id, encoding=encoding)))
+                                   tree_to_lex_facts(sentence_tree, s_id)))  # , encoding=encoding)))
 
-                yield DataObject(s_id, frs, fes, preds)
+                yield DataObject(s_id, frs, fes, preds, len(sentence_tree))
             except (AssertionError, IOError) as ex:
                 logger.error(ex.message)
                 print ex
             # break
 
 
-def write_to_file(root_folder, dataset, dataset_name):
+def write_to_file(root_folder, dataset, dataset_name, fact_header=None, max_np_ratio=None, fe_dict=None,
+                  extra_neg_frames=1, seed=None):
     # type: (str, list[DataObject], str) -> None
-    pattern = re.compile(r"(frame_element_token\(.*?,)\s*(c_\d+)\s*(,.*)")
-    def get_vars(frame_elements, pattern = pattern):
-        for frame_element in frame_elements:
-            line = str(frame_element)
-            logger.debug("[{ds}] Line: '{line}' was parsed"
-                         .format(line=line, ds=dataset_name))
-            match = pattern.match(line)
-            if match:
-                yield match.group(2)
-            else:
-                logger.warning("[{ds}] Line: '{line}' is not a FET"
-                               .format(line=line, ds=dataset_name))
-                pass
+    """
+    Creates the files in the RDN format
 
-    def replace_var_iter(string, var_set, pattern = pattern):
-        match = pattern.match(string)
-        if match:
-            preffix, const, suffix = match.groups()
-            for var in var_set:
-                yield "".join([preffix, var, suffix])
-        else:
-            logger.warning("Line: '{line}' is not a FET".format(line = string))
+    Args:
+        root_folder: Folder to store the dataset folder
+        dataset: dataset to be used to write the files
+        dataset_name: dataset and folder name
+        fact_header: header for the fact files, its ok to have "\n"
+        max_np_ratio: Maximum ratio negative/positive examples a sentence will have
+        seed: Random seed to replicate the experiments. If None, use no fixed seed.
+        extra_neg_frames: TODO
+        fe_dict: TODO
+
+    Returns:
+        None. It write the files in the specified directory
+    """
+
+    def all_subsentences(total_tokens, to_str=False):
+        def parse(x):
+            return "c_{:03d}".format(x)
+
+        for start in range(total_tokens):
+            for end in range(start, total_tokens):
+                if to_str:
+                    yield (parse(start), parse(end))
+                else:
+                    yield (start, end)
+
+    def neg_examples_gen(fes, all_pairs, fe_dict=None, random=random.Random(), extra_frames=0):
+        # type: (list[FrameElementAnno], set[tuple[str,str]]) -> Iterable[FrameElementAnno]
+        if len(fes) != 0:
+            if fe_dict is not None:
+                frames = set(fe.frame for fe in fes)
+                keys = set(fe_dict.keys())
+                for _ in range(extra_frames):
+                    frames.add(random.choice(list(keys.difference(frames))))
+                unique_fes = set()
+                for frame in frames:
+                    if frame in fe_dict:
+                        for fe in fe_dict[frame]:
+                            unique_fes.add((fe, frame))
+                pass
+            else:
+                unique_fes = set((fe.frame_element, fe.frame) for fe in fes)
+
+            pos = set(fes)
+            s_id = fes[0].s_id
+            for fe, frame in unique_fes:
+                for start, end in all_pairs:
+                    new_anno = FrameElementAnno(s_id, start=start,
+                                                end=end,
+                                                frame=frame,
+                                                frame_element=fe)
+                    if new_anno not in pos:
+                        yield new_anno
 
     folder = path.join(root_folder, dataset_name)
     logger.info('Root: {f}'.format(f=folder))
     if not path.exists(folder):
         makedirs(folder)
+    logger.info('Writing {ds} files'.format(ds=dataset_name))
+
+    random_gen = random.Random(seed)
+
     with open(path.join(folder, dataset_name + '_facts.txt'), 'w') as fact_f:
         with open(path.join(folder, dataset_name + '_pos.txt'), 'w') as pos_f:
             with open(path.join(folder, dataset_name + '_neg.txt'), 'w') as neg_f:
+
+                if fact_header is not None:
+                    fact_f.write(fact_header.replace('\\n', '\n'))
+                    fact_f.write("\n")
+
                 for data_obj in dataset:
                     # FACTS
-                    all_frs = list(chain(*data_obj.frs))
-                    logger.info('Writing {ds} facts'.format(ds=dataset_name))
+                    logger.debug('Writing {ds}:{s} facts'.format(ds=dataset_name, s=data_obj.s_id))
                     fact_f.write("% sentence {s}\n".format(s=data_obj.s_id))
-                    fact_f.write("\n".join(all_frs))
+                    fact_f.write("\n".join(map(str, data_obj.frs)))
                     fact_f.write("\n")
-                    fact_f.write("\n".join(data_obj.preds))
+                    fact_f.write("\n".join(map(str, data_obj.preds)))
                     fact_f.write("\n\n")
 
-                    all_fes = list(chain(*data_obj.fes))
-
                     # POSITIVE EXAMPLES
-                    logger.info('Writing {ds} positive examples'.format(ds=dataset_name))
+                    logger.debug('Writing {ds}:{s} positive examples'.format(ds=dataset_name, s=data_obj.s_id))
                     pos_f.write("% sentence {s}\n".format(s=data_obj.s_id))
-                    pos_f.write("\n".join(all_fes))
+                    pos_f.write("\n".join(map(str, data_obj.fes)))
                     pos_f.write("\n\n")
 
                     # NEGATIVE EXAMPLES
 
-                    all_vars = set(get_vars(all_fes))
-                    logger.info('Writing {ds} negative examples'.format(ds=dataset_name))
+                    # all_vars =  set((fe.start, fe.end) for fe in data_obj.fes)
+                    all_vars = set(all_subsentences(data_obj.num_tokens))
+                    logger.debug('Writing {ds}:{s} negative examples'.format(ds=dataset_name, s=data_obj.s_id))
                     neg_f.write("% sentence {s}\n".format(s=data_obj.s_id))
-                    for fes in data_obj.fes:
-                        pos_vars = get_vars(fes)
-                        for out in replace_var_iter(fes[0], all_vars.difference(pos_vars)):
-                            neg_f.write(out)
-                            neg_f.write('\n')
-                        neg_f.write("\n")
+
+                    neg_examples = neg_examples_gen(data_obj.fes, all_pairs=all_vars, fe_dict=fe_dict,
+                                                    random=random_gen, extra_frames=extra_neg_frames)
+                    if max_np_ratio:
+                        neg_examples_tmp = list(neg_examples)
+                        qtd = min(int(len(data_obj.fes) * max_np_ratio), len(neg_examples_tmp))
+                        indexes = xrange(len(neg_examples_tmp))
+                        neg_examples = [neg_examples_tmp[i]
+                                        for i in random_gen.sample(indexes, qtd)]
+                    for neg_exe in neg_examples:
+                        neg_f.write(str(neg_exe))
+                        neg_f.write('\n')
+                    neg_f.write('\n')
 
 
 def get_examples(data_base_path, input_parser):
@@ -191,7 +300,7 @@ def get_examples(data_base_path, input_parser):
     model = 'en_core_web_sm'
     spacy_parser = spacy.load(model)
 
-    for d_id, doc in enumerate(docs[:1]):
+    for d_id, doc in enumerate(docs):
         for example in examples_from_doc(spacy_parser, d_id, doc, unify_ids=True):
             examples.append(example)
     return examples
@@ -210,15 +319,31 @@ if __name__ == '__main__':
                             choices=PARSERS_AVAILABLE.keys(),
                             default=PARSERS_AVAILABLE.keys()[-1],
                             help='input annotation file format')
+
         parser.add_argument('-R', '--root',
                             help='relative path to path to store the bases')
-        parser.add_argument('-p', '--pickle_file',
+        parser.add_argument('-N', '--max_np_ratio', type=int, default=None,
+                            help='Maximum ratio negative/positive examples a sentence will have')
+        parser.add_argument('-H', '--header',
+                            help='header of the fact files')
+        parser.add_argument('-p', '--pickle_file', default='',
                             help='store intermediate results or read from it if file exists')
 
-        parser.add_argument('-t', '--train_ratio', default=None, type=int,
-                            help='optional train/test ratio')
+        parser.add_argument('-j', '--fe_json_file', default=None,
+                            help='path to the json file with dictionary of frames to fe')
+        parser.add_argument('-x', '--extra_neg_frames', default=1, type=int,
+                            help='add [extra_neg_frames] extra random frames to each'
+                                 'negative set of examples for sentence')
+
+        sp = parser.add_mutually_exclusive_group()
+        sp.add_argument('-f', '--subfolders', action='store_true', default=False,
+                        help='if there are two train and test files, use it')
+        sp.add_argument('-t', '--train_ratio', default=None, type=int,
+                        help='optional train/test ratio')
+
         parser.add_argument('-s', '--seed', default=None, type=int,
                             help='optional random seed')
+
         add_logger_args(parser)
         args = parser.parse_args(argv[1:])
         return args
@@ -231,40 +356,57 @@ if __name__ == '__main__':
 
         logger.info(str(args))
         logger.info('Initialization')
+        loaded = False
 
-        # Select the appropriate document parsers for the input and output
-        input_parser = PARSERS_AVAILABLE[args.input_format]()
-        logger.info('Parsing {file}'.format(file=args.data_base_path))
-
-        if args.pickle_file:
-            if path.exists(args.pickle_file):
-                # Load examples from pickle file
-                logger.info('Loading examples from {file}'.format(file=args.pickle_file))
-                with open(args.pickle_file, 'r') as f:
-                    examples = pickle.load(f)
-            else:
-                # Parse corpus
-                examples = get_examples(args.data_base_path, input_parser)
-                # Save pickle file
-                with open(args.pickle_file, 'w') as f:
-                    pickle.dump(examples, f)
+        if path.exists(args.pickle_file):
+            # Load examples from pickle file
+            logger.info('Loading examples from {file}'.format(file=args.pickle_file))
+            with open(args.pickle_file, 'r') as f:
+                train, test = pickle.load(f)
+            loaded = True
         else:
-            # Parse corpus
-            examples = get_examples(args.data_base_path, input_parser)
+            # Select the appropriate document parsers for the input and output
+            input_parser = PARSERS_AVAILABLE[args.input_format]()
+            logger.info('Parsing {file}'.format(file=args.data_base_path))
+            train, test = get_train_test(args, input_parser)
+
+        if args.pickle_file and not loaded:
+            # Save pickle file
+            with open(args.pickle_file, 'w') as f:
+                pickle.dump((train, test), f)
+
+        if args.fe_json_file is not None:
+            with open(args.fe_json_file, 'r') as d_file:
+                fe_dict = json.load(d_file)
+        else:
+            fe_dict = None
 
         # Split dataset in training and test if train_ratio is given
+        write_to_file(args.root, train, 'train', fact_header=args.header,
+                      max_np_ratio=args.max_np_ratio, fe_dict=fe_dict,
+                      extra_neg_frames=args.extra_neg_frames)
+        write_to_file(args.root, test, 'test', fact_header=args.header,
+                      max_np_ratio=args.max_np_ratio, fe_dict=fe_dict,
+                      extra_neg_frames=args.extra_neg_frames)
+        logger.info('Done')
+
+
+    def get_train_test(args, input_parser):
         if args.train_ratio:
+            # Parse corpus
+            examples = get_examples(args.data_base_path, input_parser)
             # shuffle examples
             random.Random(args.seed).shuffle(examples)
 
             len_train = (args.train_ratio * len(examples) / (args.train_ratio + 1))
             train, test = examples[:len_train], examples[len_train:]
-
-            write_to_file(args.root, train, 'train')
-            write_to_file(args.root, test, 'test')
+        elif args.subfolders:
+            train = get_examples(path.join(args.data_base_path, 'train.xml'), input_parser)
+            test = get_examples(path.join(args.data_base_path, 'test.xml'), input_parser)
         else:
-            write_to_file(args.root, examples, 'train')
-        logger.info('Done')
+            train = get_examples(args.data_base_path, input_parser)
+            test = []
+        return train, test
 
 
     try:
