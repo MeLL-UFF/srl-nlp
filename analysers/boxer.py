@@ -134,7 +134,6 @@ class BoxerAbstract:
         return None
 
     def sentence2FOL(self, sentence, *extra_args):
-
         try:
             parsed = self._parse_sentence(sentence)
             boxed = self._parsed2FOLstring(parsed)
@@ -155,7 +154,7 @@ class BoxerAbstract:
             frontier = [fol.info]
             while len(frontier):
                 term = frontier.pop()
-                term[0] = special_char_pattern.sub(lambda x: 'c%s' % x.group(1), term[0])
+                term[0] = special_char_pattern.sub(lambda x: 'c{}'.format(x.group(1)), term[0])
                 frontier.extend(term[1:])
             logger.debug('Raw fol: %s', fol)
         for fol in fols:
@@ -182,7 +181,7 @@ class BoxerAbstract:
         for pattern, parser in BoxerAbstract._expansion_patterns:
             matching = match(pattern, predicate)
             if matching:
-                pred_elems = map(lambda x: [x.lower()], matching.groups())
+                pred_elems = map(lambda x: ["'{}'".format(x.lower())], matching.groups())
                 out = parser(pred_elems, list(args))
                 logger.debug(' {exp} :- {fol}'.format(exp=out, fol=fol))
                 return out
@@ -217,15 +216,15 @@ class BoxerAbstract:
                         frontier.append(child)
         return fol
 
-    def sentence2LF(self, sentence, source=None, id=None, expand_predicates=None, **kargs):
-        # type: (str, str, str, bool, dict[str,str]) -> list[LF]
+    def sentence2LF(self, sentence, source=None, id=None, expand_predicates=None, const_prefix='c', **kargs):
+        # type: (str, str, str, bool, str, dict[str,str]) -> list[LF]
         if expand_predicates is None:
             expand_predicates = self.expand_predicates
         if not (source is None or id is None):
             fol = self.sentence2FOL(sentence, source, id)
         else:
             fol = self.sentence2FOL(sentence)
-        return self.FOL2LF(fol, expand_predicates, **kargs)
+        return self.FOL2LF(fol, expand_predicates, constant_prefix=const_prefix, **kargs)
 
     @abstractmethod
     def get_matching_tokens(self, sentence, output):

@@ -123,12 +123,15 @@ class FOL:
         # print ')):', queue
         return queue
 
-    def skolemize(self, header='fol', removeForAlls=False, ignore=('@placeholder',)):
+    def skolemize(self, header='fol', removeForAlls=False, constant_prefix='c', ignore=('@placeholder',), add_quotm=False):
         """This method converts the FOL to its Skolem form.
 
-        has_header: defines if the first predicate should be ignored
-        removesForAlls: tells if we should eliminate the universal quantifiers too
-        ignore: provides a list of constants or varibles that should be left unchanged (even if their quantifiers are )
+        Args:
+            has_header: defines if the first predicate should be ignored
+            removesForAlls: tells if we should eliminate the universal quantifiers too
+            constant_prefix: prefix of the constant tokens that replaced the variables
+            ignore: provides a list of constants or varibles that should be left unchanged (even if their quantifiers are )
+            add_quotm: bool. Adds quotation marks to all terms that are not constants
         """
         self.convert2PrenexForm()
         constants = []
@@ -156,7 +159,9 @@ class FOL:
             logger.debug('PrenexForm child: %s', child)
             if len(child) < 2:
                 if child[0] in constants:
-                    child[0] = 'c%s' % constants.index(child[0])
+                    child[0] = '{}{}'.format(constant_prefix, constants.index(child[0]))
+                elif add_quotm:
+                    child[0] = "'{}'".child[0]
             else:
                 frontier.extend(child[1:])
 

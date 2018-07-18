@@ -19,9 +19,17 @@ class LF:
 
         The first parameter must be the source to be used to generate the LF.
         If it is a FOL, you can specify the argument 'header' to eliminate the header if it is there
+
+        Args:
+            constant_prefix: optional, must be called by name. Defines the prefix of the constants to
+                             replace the variables in the FOL during the generation of the LF
+            header: optional, must be called by name. First predicate of the FOL that should be ignored.
+            add_quotm: bool. Adds quotation marks to all terms that are not constants
         """
         if len(args) > 0:
             header = kargs.get('header', None)
+            constant_prefix = kargs.get('constant_prefix', 'c')
+            add_quotm = kargs.get('add_quotm', False)
             fol = copy(args[0])
             if isinstance(fol, str):
                 fol = FOL(fol)
@@ -35,7 +43,7 @@ class LF:
                 fol.convert2PrenexForm()
                 logger.debug('PRENEX FOL: %s', fol)
                 # print '*', fol
-                fol.skolemize()
+                fol.skolemize(constant_prefix=constant_prefix, add_quotm=add_quotm)
                 logger.debug('SKOLEMIZED FOL: %s', fol)
                 fol.push_operand(FOL.OR)
                 self.info = fol.info
