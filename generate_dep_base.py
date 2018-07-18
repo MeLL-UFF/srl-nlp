@@ -7,6 +7,7 @@ from itertools import chain
 from sys import argv as _argv
 
 import spacy
+from analysers.boxer import BoxerLocalAPI
 from os import path, makedirs
 from srl_nlp.framenet.adapter import PARSERS_AVAILABLE
 
@@ -51,12 +52,13 @@ class DataObject(object):
     (preds), all of those as strings in Prolog facts.
     """
 
-    def __init__(self, s_id, frs, fes, preds, num_tokens):
+    def __init__(self, s_id, frs, fes, preds, num_tokens, analyser_preds):
         # type: (str, list[FrameAnno], list[FrameElementAnno], list[str]) -> None
         self.s_id = s_id  # type: str
         self.frs = frs  # type: list(FrameAnno)
         self.fes = fes  # type: list(FrameElementAnno)
         self.preds = preds  # type: list(str)
+        self.analyser_preds = analyser_preds  # type: list(str)
         self.num_tokens = num_tokens  # type: int
 
     def __repr__(self):
@@ -154,7 +156,7 @@ def tree_to_lex_facts(sentence_tree, s_id):  # , encoding='utf-8'):
     #                                                           text=text)
 
 
-def examples_from_doc(spacy_parser, d_id, doc, encoding='utf-8', unify_ids=True):
+def examples_from_doc(spacy_parser, d_id, doc, analyser=None, encoding='utf-8', unify_ids=True):
     logger.info("Reading docs")
 
     for paragraph in doc.elements:
@@ -173,11 +175,86 @@ def examples_from_doc(spacy_parser, d_id, doc, encoding='utf-8', unify_ids=True)
                 preds = list(chain(tree_to_dep_facts(sentence_tree, s_id, encoding=encoding),
                                    tree_to_lex_facts(sentence_tree, s_id)))  # , encoding=encoding)))
 
-                yield DataObject(s_id, frs, fes, preds, len(sentence_tree))
+                a_preds = []
+                if analyser is not None:
+                    lfs = analyser.sentence2LF(sentence.text, const_prefix='b_')
+                    for lf in lfs:
+                        for pred in lf.split():
+                            # process pred and then append it
+                            pred.info[1:1] = [[s_id]]
+                            pred_str = str(pred)
+                            if not pred_str.startswith('(') and not pred_str.startswith('not'):
+                                a_preds.append(pred_str)
+
+                yield DataObject(s_id, frs, fes, preds, len(sentence_tree), analyser_preds=a_preds)
             except (AssertionError, IOError) as ex:
                 logger.error(ex.message)
                 print ex
             # break
+
+
+def all_subsentences(total_tokens, to_str=False):
+    def parse(x):
+        return "c_{:03d}".format(x)
+
+    for start in range(total_tokens):
+        for end in range(start, total_tokens):
+            if to_str:
+                yield (parse(start), parse(end))
+            else:
+                yield (start, end)
+
+
+def get_unique_fes(fes, fe_dict, random, extra_frames):
+    if len(fes) != 0:
+        if fe_dict is not None:
+            frames = set(fe.frame for fe in fes)
+            keys = set(fe_dict.keys())
+            for _ in range(extra_frames):
+                frames.add(random.choice(list(keys.difference(frames))))
+            unique_fes = set()
+            for frame in frames:
+                if frame in fe_dict:
+                    for fe in fe_dict[frame]:
+                        unique_fes.add((fe, frame))
+            pass
+        else:
+            unique_fes = set((fe.frame_element, fe.frame) for fe in fes)
+        return unique_fes
+
+
+def get_unique_fes_all(fes, fe_dict, random, extra_frames):
+    if len(fes) != 0:
+        if fe_dict is not None:
+            frames = set(fe.frame for fe in fes)
+            keys = set(fe_dict.keys())
+            for _ in range(extra_frames):
+                frames.add(random.choice(list(keys.difference(frames))))
+            all_fes = set(chain(*[fe_dict.get(frame, []) for frame in frames]))
+            unique_fes = set()
+            for frame in frames:
+                for fe in all_fes:
+                    unique_fes.add((fe, frame))
+            pass
+        else:
+            unique_fes = set((fe.frame_element, fe.frame) for fe in fes)
+        return unique_fes
+
+
+def neg_examples_gen(fes, all_pairs, fe_dict=None, random=random.Random(), extra_frames=0):
+    # type: (list[FrameElementAnno], set[tuple[str,str]]) -> Iterable[FrameElementAnno]
+    if len(fes) != 0:
+        unique_fes = get_unique_fes_all(fes, fe_dict, random, extra_frames)
+        pos = set(fes)
+        s_id = fes[0].s_id
+        for fe, frame in unique_fes:
+            for start, end in all_pairs:
+                new_anno = FrameElementAnno(s_id, start=start,
+                                            end=end,
+                                            frame=frame,
+                                            frame_element=fe)
+                if new_anno not in pos:
+                    yield new_anno
 
 
 def write_to_file(root_folder, dataset, dataset_name, fact_header=None, max_np_ratio=None, fe_dict=None,
@@ -199,46 +276,6 @@ def write_to_file(root_folder, dataset, dataset_name, fact_header=None, max_np_r
     Returns:
         None. It write the files in the specified directory
     """
-
-    def all_subsentences(total_tokens, to_str=False):
-        def parse(x):
-            return "c_{:03d}".format(x)
-
-        for start in range(total_tokens):
-            for end in range(start, total_tokens):
-                if to_str:
-                    yield (parse(start), parse(end))
-                else:
-                    yield (start, end)
-
-    def neg_examples_gen(fes, all_pairs, fe_dict=None, random=random.Random(), extra_frames=0):
-        # type: (list[FrameElementAnno], set[tuple[str,str]]) -> Iterable[FrameElementAnno]
-        if len(fes) != 0:
-            if fe_dict is not None:
-                frames = set(fe.frame for fe in fes)
-                keys = set(fe_dict.keys())
-                for _ in range(extra_frames):
-                    frames.add(random.choice(list(keys.difference(frames))))
-                unique_fes = set()
-                for frame in frames:
-                    if frame in fe_dict:
-                        for fe in fe_dict[frame]:
-                            unique_fes.add((fe, frame))
-                pass
-            else:
-                unique_fes = set((fe.frame_element, fe.frame) for fe in fes)
-
-            pos = set(fes)
-            s_id = fes[0].s_id
-            for fe, frame in unique_fes:
-                for start, end in all_pairs:
-                    new_anno = FrameElementAnno(s_id, start=start,
-                                                end=end,
-                                                frame=frame,
-                                                frame_element=fe)
-                    if new_anno not in pos:
-                        yield new_anno
-
     folder = path.join(root_folder, dataset_name)
     logger.info('Root: {f}'.format(f=folder))
     if not path.exists(folder):
@@ -262,6 +299,8 @@ def write_to_file(root_folder, dataset, dataset_name, fact_header=None, max_np_r
                     fact_f.write("\n".join(map(str, data_obj.frs)))
                     fact_f.write("\n")
                     fact_f.write("\n".join(map(str, data_obj.preds)))
+                    fact_f.write("\n%analyser preds")
+                    fact_f.write("\n".join(map(str, data_obj.analyser_preds)))
                     fact_f.write("\n\n")
 
                     # POSITIVE EXAMPLES
@@ -291,7 +330,7 @@ def write_to_file(root_folder, dataset, dataset_name, fact_header=None, max_np_r
                     neg_f.write('\n')
 
 
-def get_examples(data_base_path, input_parser):
+def get_examples(data_base_path, input_parser, use_boxer=False):
     with open(data_base_path) as db_file:
         docs = input_parser.parseXML(db_file)
     logger.info('Done parsing')
@@ -300,8 +339,10 @@ def get_examples(data_base_path, input_parser):
     model = 'en_core_web_sm'
     spacy_parser = spacy.load(model)
 
+    analyser = BoxerLocalAPI() if use_boxer else None
+
     for d_id, doc in enumerate(docs):
-        for example in examples_from_doc(spacy_parser, d_id, doc, unify_ids=True):
+        for example in examples_from_doc(spacy_parser, d_id, doc, analyser=analyser, unify_ids=True):
             examples.append(example)
     return examples
 
@@ -331,6 +372,9 @@ if __name__ == '__main__':
 
         parser.add_argument('-j', '--fe_json_file', default=None,
                             help='path to the json file with dictionary of frames to fe')
+
+        parser.add_argument('-b', '--use_boxer', default=False, action='store_true',
+                            help='Return boxer predicates')
         parser.add_argument('-x', '--extra_neg_frames', default=1, type=int,
                             help='add [extra_neg_frames] extra random frames to each'
                                  'negative set of examples for sentence')
@@ -394,17 +438,19 @@ if __name__ == '__main__':
     def get_train_test(args, input_parser):
         if args.train_ratio:
             # Parse corpus
-            examples = get_examples(args.data_base_path, input_parser)
+            examples = get_examples(args.data_base_path, input_parser, use_boxer=args.use_boxer)
             # shuffle examples
             random.Random(args.seed).shuffle(examples)
 
             len_train = (args.train_ratio * len(examples) / (args.train_ratio + 1))
             train, test = examples[:len_train], examples[len_train:]
         elif args.subfolders:
-            train = get_examples(path.join(args.data_base_path, 'train.xml'), input_parser)
-            test = get_examples(path.join(args.data_base_path, 'test.xml'), input_parser)
+            train_path = path.join(args.data_base_path, 'train.xml')
+            test_path = path.join(args.data_base_path, 'test.xml')
+            train = get_examples(train_path, input_parser, use_boxer=args.use_boxer)
+            test = get_examples(test_path, input_parser, use_boxer=args.use_boxer)
         else:
-            train = get_examples(args.data_base_path, input_parser)
+            train = get_examples(args.data_base_path, input_parser, use_boxer=args.use_boxer)
             test = []
         return train, test
 
