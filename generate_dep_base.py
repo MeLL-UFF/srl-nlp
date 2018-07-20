@@ -299,7 +299,7 @@ def write_to_file(root_folder, dataset, dataset_name, fact_header=None, max_np_r
                     fact_f.write("\n".join(map(str, data_obj.frs)))
                     fact_f.write("\n")
                     fact_f.write("\n".join(map(str, data_obj.preds)))
-                    fact_f.write("\n%analyser preds")
+                    fact_f.write("\n\n%analyser preds\n")
                     fact_f.write("\n".join(map(str, data_obj.analyser_preds)))
                     fact_f.write("\n\n")
 
