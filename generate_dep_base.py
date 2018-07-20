@@ -224,37 +224,35 @@ def get_unique_fes(fes, fe_dict, random, extra_frames):
 
 
 def get_unique_fes_all(fes, fe_dict, random, extra_frames):
-    if len(fes) != 0:
-        if fe_dict is not None:
-            frames = set(fe.frame for fe in fes)
-            keys = set(fe_dict.keys())
-            for _ in range(extra_frames):
-                frames.add(random.choice(list(keys.difference(frames))))
-            all_fes = set(chain(*[fe_dict.get(frame, []) for frame in frames]))
-            unique_fes = set()
-            for frame in frames:
-                for fe in all_fes:
-                    unique_fes.add((fe, frame))
-            pass
-        else:
-            unique_fes = set((fe.frame_element, fe.frame) for fe in fes)
-        return unique_fes
+    # type: (list[FrameElementAnno], dict, random, int) -> set[str, str]
+    if fe_dict is not None:
+        frames = set(fe.frame for fe in fes)
+        keys = set(fe_dict.keys())
+        for _ in range(extra_frames):
+            frames.add(random.choice(list(keys.difference(frames))))
+        all_fes = set(chain(*[fe_dict.get(frame, []) for frame in frames]))
+        unique_fes = set()
+        for frame in frames:
+            for fe in all_fes:
+                unique_fes.add((fe, frame))
+        pass
+    else:
+        unique_fes = set((fe.frame_element, fe.frame) for fe in fes)
+    return unique_fes
 
 
-def neg_examples_gen(fes, all_pairs, fe_dict=None, random=random.Random(), extra_frames=0):
-    # type: (list[FrameElementAnno], set[tuple[str,str]]) -> Iterable[FrameElementAnno]
-    if len(fes) != 0:
-        unique_fes = get_unique_fes_all(fes, fe_dict, random, extra_frames)
-        pos = set(fes)
-        s_id = fes[0].s_id
-        for fe, frame in unique_fes:
-            for start, end in all_pairs:
-                new_anno = FrameElementAnno(s_id, start=start,
-                                            end=end,
-                                            frame=frame,
-                                            frame_element=fe)
-                if new_anno not in pos:
-                    yield new_anno
+def neg_examples_gen(s_id, fes, all_pairs, fe_dict=None, random=random.Random(), extra_frames=0):
+    # type: (str, list[FrameElementAnno], set[tuple[str,str]]) -> Iterable[FrameElementAnno]
+    unique_fes = get_unique_fes_all(fes, fe_dict, random, extra_frames)
+    pos = set(fes)
+    for fe, frame in unique_fes:
+        for start, end in all_pairs:
+            new_anno = FrameElementAnno(s_id, start=start,
+                                        end=end,
+                                        frame=frame,
+                                        frame_element=fe)
+            if new_anno not in pos:
+                yield new_anno
 
 
 def write_to_file(root_folder, dataset, dataset_name, fact_header=None, max_np_ratio=None, fe_dict=None,
@@ -316,8 +314,12 @@ def write_to_file(root_folder, dataset, dataset_name, fact_header=None, max_np_r
                     logger.debug('Writing {ds}:{s} negative examples'.format(ds=dataset_name, s=data_obj.s_id))
                     neg_f.write("% sentence {s}\n".format(s=data_obj.s_id))
 
-                    neg_examples = neg_examples_gen(data_obj.fes, all_pairs=all_vars, fe_dict=fe_dict,
-                                                    random=random_gen, extra_frames=extra_neg_frames)
+                    neg_examples = neg_examples_gen(data_obj.s_id,
+                                                    data_obj.fes,
+                                                    all_pairs=all_vars,
+                                                    fe_dict=fe_dict,
+                                                    random=random_gen,
+                                                    extra_frames=extra_neg_frames)
                     if max_np_ratio:
                         neg_examples_tmp = list(neg_examples)
                         qtd = min(int(len(data_obj.fes) * max_np_ratio), len(neg_examples_tmp))
