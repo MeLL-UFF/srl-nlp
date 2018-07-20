@@ -4,7 +4,7 @@ Test unit for the fol.py module
 from unittest import TestCase
 
 from analysers.boxer import BoxerLocalAPI, BoxerWebAPI
-from logical_representation.fol import FOL
+from srl_nlp.logical_representation.fol import FOL
 # Local API
 from nose.tools import assert_equals
 

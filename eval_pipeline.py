@@ -13,7 +13,7 @@ from srl_nlp.analysers.boxer import BoxerLocalAPI
 from srl_nlp.framenet.adapter import PARSERS_AVAILABLE
 from srl_nlp.framenet.corpus import Paragraph, Document, Sentence
 from srl_nlp.fsparsing import PrologBoxerAnnotator
-from srl_nlp.logicalform import LF
+from srl_nlp.logical_representation.logicalform import LF
 
 logger = logging.getLogger(__name__)
 

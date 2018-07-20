@@ -6,9 +6,9 @@ from copy import deepcopy as copy
 
 import spacy
 from regex import compile
-from srl_nlp.fol import FOL
+from srl_nlp.logical_representation.fol import FOL
 from srl_nlp.framenet.framenet import Description
-from srl_nlp.logicalform import LF
+from srl_nlp.logical_representation.logicalform import LF
 
 logger = logging.getLogger(__name__)
 

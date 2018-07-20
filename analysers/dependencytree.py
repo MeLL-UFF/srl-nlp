@@ -3,8 +3,8 @@ from ConfigParser import ConfigParser
 from os import path
 
 import spacy
-from srl_nlp.fol import FOL
-from srl_nlp.logicalform import LF
+from srl_nlp.logical_representation.fol import FOL
+from srl_nlp.logical_representation.logicalform import LF
 from srl_nlp.stanford_parser.parser import Parser as StanfordParser
 
 logger = logging.getLogger(__name__)
