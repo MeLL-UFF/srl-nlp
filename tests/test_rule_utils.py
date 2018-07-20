@@ -1,4 +1,4 @@
-from logicalform import LF
+from logical_representation.logicalform import LF
 from rule_utils import _additive_dict_update, make_pred, replace_all
 
 

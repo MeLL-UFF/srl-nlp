@@ -3,7 +3,7 @@ Test unit for the fol.py module
 """
 from unittest import TestCase
 
-from fol import FOL
+from logical_representation.fol import FOL
 from nose.tools import assert_raises
 
 

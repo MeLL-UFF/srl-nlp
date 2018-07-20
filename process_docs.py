@@ -12,7 +12,7 @@ from sys import argv
 
 from analysers.boxer import TokenizerLocalAPI, CandCLocalAPI, BoxerLocalAPI
 from analysers.dependencytree import DependencyTreeLocalAPI
-from fol import FOL
+from srl_nlp.logical_representation.fol import FOL
 from logger_config import config_logger, add_logger_args
 
 logger = logging.getLogger(__name__)

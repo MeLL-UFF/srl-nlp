@@ -1,11 +1,11 @@
-'''
+"""
 Test unit for the logicalform.py module
-'''
+"""
 from unittest import TestCase
 
 from nose.tools import assert_equals
-from srl_nlp.fol import FOL
-from srl_nlp.logicalform import LF
+from srl_nlp.logical_representation.fol import FOL
+from srl_nlp.logical_representation.logicalform import LF
 
 
 class TestLF(TestCase):

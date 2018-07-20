@@ -8,8 +8,8 @@ from process import Process
 from regex import match, compile
 from requests import post
 from rule_utils import remove_eq
-from srl_nlp.fol import FOL
-from srl_nlp.logicalform import LF
+from srl_nlp.logical_representation.fol import FOL
+from srl_nlp.logical_representation.logicalform import LF
 
 logger = logging.getLogger(__name__)
 
