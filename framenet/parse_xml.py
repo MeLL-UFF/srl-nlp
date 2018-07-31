@@ -165,9 +165,12 @@ class FrameXMLParser:
                     peripheralFEs.append(fe)
 
             elif child.tag.endswith('frameRelation'):
-                # TODO
                 rel_type = child.attrib['type']
-                relations[rel_type] = Frame.Relation(rel_type)
+                frame_list = []
+                for rel_node in child:
+                    if rel_node.tag.endswith('relatedFrame'):
+                        frame_list.append(rel_node.text)
+                relations[rel_type] = Frame.Relation(rel_type, frame_list)
 
             elif child.tag.endswith('lexUnit'):
                 LUs.append(self._parse_lu(child))

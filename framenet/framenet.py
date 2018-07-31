@@ -383,9 +383,14 @@ class Net:
 
     def _update_frame_references(self, frame):
         """Uses the self.frames dict to replace the strings representing Frames by actual Frames"""
-        getRel = lambda x: x if isinstance(x, Frame) else self.frames[x]
+        def get_rel(x):
+            f = self.frames.get(x, None)
+            if f is not None:
+                return f
+            else:
+                logger.warning('Relation pointing to not existent Frame "{}"'.format(x))
         for relation in frame.relations.itervalues():
-            relation.frames = map(getRel, relation.frames)
+            relation.frames = [f for f in map(get_rel, relation.frames) if f is not None]
 
     def __iter__(self):
         return self.frames.itervalues()
