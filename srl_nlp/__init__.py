@@ -1,1 +1,2 @@
-__all__ = ['analysers', 'logicalform',  'fol', 'parse_results', 'process_docs', 'write_experiments']
+__all__ = ['analysers', 'logical_representation', 'parse_results', 'process_docs', 'write_experiments']
+# TODO update this list

@@ -90,29 +90,29 @@ class FOL:
         str_flag = False
         escape_flag = False
         text = text.strip()
-        for l in text:
-            if l == str_marker and not escape_flag:
+        for character in text:
+            if character == str_marker and not escape_flag:
                 if str_flag:
                     queue.append(str_marker + token + str_marker)
                 str_flag = not str_flag
                 token = ''
                 continue
-            if l == '\\':
+            if character == '\\':
                 escape_flag = not escape_flag
             else:
                 escape_flag = False
             if str_flag:
-                token += l
+                token = token + character
                 continue
-            if l in sep:
+            if character in sep:
                 token = token.strip()
                 if len(token) > 0:
                     queue.append(token)
                 if include_sep:
-                    queue.append(l)
+                    queue.append(character)
                 token = ''
             else:
-                token += l
+                token += character
         if len(token) > 0:
             queue.append(token.strip())
         if queue[-1] == '.':
@@ -123,12 +123,13 @@ class FOL:
         # print ')):', queue
         return queue
 
-    def skolemize(self, header='fol', removeForAlls=False, constant_prefix='c', ignore=('@placeholder',), add_quotm=False):
+    def skolemize(self, header='fol', removeForAlls=False, constant_prefix='c', ignore=('@placeholder',),
+                  add_quotm=False):
         """This method converts the FOL to its Skolem form.
 
         Args:
-            has_header: defines if the first predicate should be ignored
-            removesForAlls: tells if we should eliminate the universal quantifiers too
+            header: defines if the first predicate should be ignored
+            removeForAlls: tells if we should eliminate the universal quantifiers too
             constant_prefix: prefix of the constant tokens that replaced the variables
             ignore: provides a list of constants or varibles that should be left unchanged (even if their quantifiers are )
             add_quotm: bool. Adds quotation marks to all terms that are not constants
@@ -161,7 +162,7 @@ class FOL:
                 if child[0] in constants:
                     child[0] = '{}{}'.format(constant_prefix, constants.index(child[0]))
                 elif add_quotm:
-                    child[0] = "'{}'".child[0]
+                    child[0] = "'{}'".format(child[0])
             else:
                 frontier.extend(child[1:])
 

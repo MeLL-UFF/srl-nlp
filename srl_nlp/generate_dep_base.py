@@ -1,14 +1,16 @@
+from itertools import chain
+from sys import argv as _argv
+
 import json
 import logging
 import pickle
 import random
-from collections import Iterable
-from itertools import chain
-from sys import argv as _argv
-
 import spacy
-from analysers.boxer import BoxerLocalAPI
+from collections import Iterable
 from os import path, makedirs
+from typing import List, Set, Dict, Tuple
+
+from analysers.boxer import BoxerLocalAPI
 from srl_nlp.framenet.adapter import PARSERS_AVAILABLE
 
 logger = logging.getLogger(__name__)
@@ -53,12 +55,12 @@ class DataObject(object):
     """
 
     def __init__(self, s_id, frs, fes, preds, num_tokens, analyser_preds):
-        # type: (str, list[FrameAnno], list[FrameElementAnno], list[str]) -> None
+        # type: (str, List[FrameAnno], List[FrameElementAnno], List[str], int, List[str]) -> None
         self.s_id = s_id  # type: str
-        self.frs = frs  # type: list(FrameAnno)
-        self.fes = fes  # type: list(FrameElementAnno)
-        self.preds = preds  # type: list(str)
-        self.analyser_preds = analyser_preds  # type: list(str)
+        self.frs = frs  # type: List[FrameAnno]
+        self.fes = fes  # type: List[FrameElementAnno]
+        self.preds = preds  # type: List[str]
+        self.analyser_preds = analyser_preds  # type: List[str]
         self.num_tokens = num_tokens  # type: int
 
     def __repr__(self):
@@ -205,13 +207,13 @@ def all_subsentences(total_tokens, to_str=False):
                 yield (start, end)
 
 
-def get_unique_fes(fes, fe_dict, random, extra_frames):
+def get_unique_fes(fes, fe_dict, random_gen, extra_frames):
     if len(fes) != 0:
         if fe_dict is not None:
             frames = set(fe.frame for fe in fes)
             keys = set(fe_dict.keys())
             for _ in range(extra_frames):
-                frames.add(random.choice(list(keys.difference(frames))))
+                frames.add(random_gen.choice(list(keys.difference(frames))))
             unique_fes = set()
             for frame in frames:
                 if frame in fe_dict:
@@ -223,13 +225,13 @@ def get_unique_fes(fes, fe_dict, random, extra_frames):
         return unique_fes
 
 
-def get_unique_fes_all(fes, fe_dict, random, extra_frames):
-    # type: (list[FrameElementAnno], dict, random, int) -> set[str, str]
+def get_unique_fes_all(fes, fe_dict, random_gen, extra_frames):
+    # type: (List[FrameElementAnno], dict, random.Random, int) -> Set[str, str]
     if fe_dict is not None:
         frames = set(fe.frame for fe in fes)
         keys = set(fe_dict.keys())
         for _ in range(extra_frames):
-            frames.add(random.choice(list(keys.difference(frames))))
+            frames.add(random_gen.choice(list(keys.difference(frames))))
         all_fes = set(chain(*[fe_dict.get(frame, []) for frame in frames]))
         unique_fes = set()
         for frame in frames:
@@ -241,9 +243,9 @@ def get_unique_fes_all(fes, fe_dict, random, extra_frames):
     return unique_fes
 
 
-def neg_examples_gen(s_id, fes, all_pairs, fe_dict=None, random=random.Random(), extra_frames=0):
-    # type: (str, list[FrameElementAnno], set[tuple[str,str]]) -> Iterable[FrameElementAnno]
-    unique_fes = get_unique_fes_all(fes, fe_dict, random, extra_frames)
+def neg_examples_gen(s_id, fes, all_pairs, fe_dict=None, random_gen=random.Random(), extra_frames=0):
+    # type: (str, List[FrameElementAnno], Set[Tuple[str,str]], Dict, random.Random, int) -> Iterable[FrameElementAnno]
+    unique_fes = get_unique_fes_all(fes, fe_dict, random_gen, extra_frames)
     pos = set(fes)
     for fe, frame in unique_fes:
         for start, end in all_pairs:
@@ -257,7 +259,6 @@ def neg_examples_gen(s_id, fes, all_pairs, fe_dict=None, random=random.Random(),
 
 def write_to_file(root_folder, dataset, dataset_name, fact_header=None, max_np_ratio=None, fe_dict=None,
                   extra_neg_frames=1, seed=None):
-    # type: (str, list[DataObject], str) -> None
     """
     Creates the files in the RDN format
 
@@ -318,7 +319,7 @@ def write_to_file(root_folder, dataset, dataset_name, fact_header=None, max_np_r
                                                     data_obj.fes,
                                                     all_pairs=all_vars,
                                                     fe_dict=fe_dict,
-                                                    random=random_gen,
+                                                    random_gen=random_gen,
                                                     extra_frames=extra_neg_frames)
                     if max_np_ratio:
                         neg_examples_tmp = list(neg_examples)
@@ -334,7 +335,7 @@ def write_to_file(root_folder, dataset, dataset_name, fact_header=None, max_np_r
 
 def get_examples(data_base_path, input_parser, use_boxer=False):
     with open(data_base_path) as db_file:
-        docs = input_parser.parseXML(db_file)
+        docs = input_parser.parse_file(db_file)
     logger.info('Done parsing')
     logger.info('Creating base')
     examples = []

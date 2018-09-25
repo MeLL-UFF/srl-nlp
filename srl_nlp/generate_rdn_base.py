@@ -4,15 +4,16 @@
 
 """
 
+from sys import argv as _argv
+
 import logging
 import pickle
 import random
-from ConfigParser import ConfigParser
-from sys import argv as _argv
-
 import re
-from analysers.boxer import BoxerAbstract
+from ConfigParser import ConfigParser
 from os import path, makedirs
+from typing import List, Iterator, Dict, Tuple
+
 from srl_nlp.analysers.boxer import BoxerLocalAPI
 from srl_nlp.framenet.adapter import PARSERS_AVAILABLE
 from srl_nlp.framenet.corpus import Document, Sentence
@@ -29,7 +30,7 @@ config.read(path.join(_package_directory, "external.conf"))
 class DataObject(object):
 
     def __init__(self, s_id, frs, fes, preds):
-        # type: (object, list[LF], list[LF], list[LF]) -> None
+        # type: (object, List[LF], List[LF], List[LF]) -> None
         self.s_id = s_id
         self.frs = frs
         self.fes = fes
@@ -40,7 +41,7 @@ class DataObject(object):
 
 
 def get_annotations(sentence, s_id, var2pos):
-    # type: (Sentence, str, dict[LF,list]) -> tuple[list, list]
+    # type: (Sentence, str, Dict[LF,list]) -> Tuple[list, list]
     """
         Get the annotations from the corpus sentence
 
@@ -77,7 +78,7 @@ def get_annotations(sentence, s_id, var2pos):
 
 # TODO adapted from fsparsing.py
 def get_matching_variables(analyser, sentence, sentence_lfs=None, matching=None):
-    # type: (BoxerAbstract, str, list[LF],dict[any,any]) -> dict[LF,list[any]]
+    # type: (BoxerLocalAPI, str, List[LF],Dict[any,any]) -> Dict[LF,List[any]]
     if not sentence_lfs:
         sentence_lfs = analyser.sentence2LF(sentence)
     if not matching:
@@ -96,7 +97,7 @@ def get_matching_variables(analyser, sentence, sentence_lfs=None, matching=None)
 
 
 def examples_from_doc(boxer, d_id, doc):
-    # type: (BoxerAbstract, int, Document, str, int) -> iter[DataObject]
+    # type: (BoxerLocalAPI, int, Document) -> Iterator[DataObject]
     """
 
     Args:
@@ -137,10 +138,10 @@ def examples_from_doc(boxer, d_id, doc):
 
 
 def write_to_file(root_folder, dataset, dataset_name):
-    # type: (str, list[DataObject], str) -> None
+    # type: (str, List[DataObject], str) -> None
     def get_vars(fes):
-        for fe in fes:
-            line = str(fe)
+        for frame_element in fes:
+            line = str(frame_element)
             logger.debug("[{ds}] Line: '{line}' was parsed"
                          .format(line=line, ds=dataset_name))
             pattern = re.compile(r'(frame_element_token\(s.*?,)(c\d+)(.*)')
@@ -193,7 +194,7 @@ def write_to_file(root_folder, dataset, dataset_name):
 
 def get_examples(data_base_path, input_parser):
     with open(data_base_path) as db_file:
-        docs = input_parser.parseXML(db_file)
+        docs = input_parser.parse_file(db_file)
     logger.info('Done parsing')
     logger.info('Creating base')
     examples = []

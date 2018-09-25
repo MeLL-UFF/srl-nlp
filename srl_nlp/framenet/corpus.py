@@ -2,6 +2,7 @@ import logging
 import pickle
 from collections import Iterator
 from copy import copy
+from typing import List
 
 from srl_nlp.framenet.framenet import Description
 
@@ -11,7 +12,7 @@ logger = logging.getLogger(__name__)
 class Document:
     aggregations = {'SENTENCE_AVERAGE': lambda l: float(sum(l)) / len(l)}
 
-    def __init__(self, doc_id, corpus='', corpus_id=None, name='', desc='', elements=None, **params):
+    def __init__(self, doc_id, corpus='', corpus_id='', name='', desc='', elements=None, **params):
         self.id = doc_id
         self.desc = desc
         self.name = name
@@ -48,7 +49,10 @@ class Document:
             return False
         if len(self.elements) != len(other.sentences):
             return False
-        get_id = lambda sent: sent.id
+
+        def get_id(sent):
+            return sent.id
+
         l_sents = sorted(self.elements, key=get_id)
         r_sents = sorted(other.sentences, key=get_id)
         if len(l_sents) != len(r_sents):
@@ -131,7 +135,7 @@ class Paragraph:
 
 class Sentence:
     def __init__(self, sent_id, text, annotation_sets=None, parts_of_speech=None, **params):
-        # type: (object, str, list[AnnotationSet], list, any) -> None
+        # type: (object, str, List[AnnotationSet], list, any) -> None
         """
 
         Args:
@@ -156,7 +160,7 @@ class Sentence:
         else:
             self.parts_of_speech = parts_of_speech
         # TODO should I remove annotations that cross word spans?
-        #self.remove_invalid_labels()  # TODO Move this to adapter
+        # self.remove_invalid_labels()  # TODO Move this to adapter
 
     def __len__(self):
         return len(self.text)
@@ -293,8 +297,8 @@ class Sentence:
 
 
 class AnnotationSet:
-    def __init__(self, anno_set_id, frame_id=None, frame_name=None, lu_id=None,
-                 lu_name=None, status=None, layers=None, **params):
+    def __init__(self, anno_set_id, frame_id='', frame_name='', lu_id='',
+                 lu_name='', status='', layers=None, **params):
         self.id = anno_set_id
         self.frameID = frame_id
         self.frameName = frame_name
@@ -351,7 +355,7 @@ class AnnotationSet:
 
 
 class Layer:
-    def __init__(self, name, rank=None, annotations=None, **params):
+    def __init__(self, name, rank='', annotations=None, **params):
         self.name = name
         self.rank = rank
         if annotations is None:
@@ -389,7 +393,7 @@ class Layer:
 
 
 class Annotation:
-    def __init__(self, start=0, end=0, itype=None, name=None, **params):
+    def __init__(self, start="0", end="0", itype='', name='', **params):
         self.start = int(start)
         self.end = int(end)
         self.itype = itype

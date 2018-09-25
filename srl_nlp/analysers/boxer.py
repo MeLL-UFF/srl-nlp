@@ -4,10 +4,12 @@ from abc import abstractmethod
 from os import path
 from sys import stderr
 
+from typing import Dict, List
+
 from process import Process
 from regex import match, compile
 from requests import post
-from rule_utils import remove_eq
+from srl_nlp.rule_utils import remove_eq
 from srl_nlp.logical_representation.fol import FOL
 from srl_nlp.logical_representation.logicalform import LF
 
@@ -42,7 +44,7 @@ class CandCLocalAPI(Process):
             params = ('--models', config.get('semantic_local', 'c&c_models'), '--candc-printer', 'boxer')
         self._min_timeout = min_timeout
         self._header_pattern = compile(r"""(.*\s)*:- discontiguous.*""")
-        Process.__init__(self, path_to_bin, False, TIME_OUT, *params)
+        Process.__init__(self, path_to_bin=path_to_bin, disposable=False, time_out=TIME_OUT, *params)
 
     def _init_popen(self):
         self._time_out = TIME_OUT
@@ -216,27 +218,15 @@ class BoxerAbstract:
                         frontier.append(child)
         return fol
 
-    def sentence2LF(self, sentence, source=None, id=None, expand_predicates=None, const_prefix='c', **kargs):
-        # type: (str, str, str, bool, str, dict[str,str]) -> list[LF]
+    def sentence2LF(self, sentence, source=None, idx=None, expand_predicates=None, const_prefix='c', **kargs):
+        # type: (str, str, str, bool, str, Dict[str,str]) -> List[LF]
         if expand_predicates is None:
             expand_predicates = self.expand_predicates
-        if not (source is None or id is None):
-            fol = self.sentence2FOL(sentence, source, id)
+        if not (source is None or idx is None):
+            fol = self.sentence2FOL(sentence, source, idx)
         else:
             fol = self.sentence2FOL(sentence)
         return self.FOL2LF(fol, expand_predicates, constant_prefix=const_prefix, **kargs)
-
-    @abstractmethod
-    def get_matching_tokens(self, sentence, output):
-        """
-
-        Args:
-            sentence:
-
-        Returns:
-            The list of matching terms to each token in the sentence
-        """
-        pass
 
 
 class BoxerLocalAPI(Process, BoxerAbstract):
@@ -334,7 +324,7 @@ class BoxerWebAPI(BoxerAbstract):
     def __init__(self, url=config.get('semantic_soap', 'boxer'), expand_predicates=True):
         BoxerAbstract.__init__(self)
         self.url = url
-        self.name = 'boxer'
+        self.name = 'Boxer_web'
         self.expand_predicates = expand_predicates
 
     def _parse_sentence(self, sentence):

@@ -178,7 +178,7 @@ class DependencyTreeBeltagyLocalAPI:
         return ['sentence_root(%s)' % u,
                 '%s(%s)' % (self._node2text(gov), u)]
 
-    def sentence2LF(self, sentence, source=None, id=None, *args, **kargs):
+    def sentence2LF(self, sentence):
         """Translates an english sentence into its LF representation
         """
         root = self._parse_sentence_tree(sentence)

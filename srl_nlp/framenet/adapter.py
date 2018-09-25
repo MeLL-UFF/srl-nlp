@@ -1,19 +1,57 @@
 #!/bin/env python2
+from itertools import chain
+
+import json
 import logging
 import xml.etree.ElementTree as XMLTree
-
+from typing import List
 from srl_nlp.framenet.corpus import Document, Sentence, AnnotationSet, Annotation, Paragraph, Layer
 from srl_nlp.rule_utils import not_none_to_str
+from abc import abstractmethod
 
 logger = logging.getLogger(__name__)
 
 
-class FNXMLAdapter(object):
-    _TAG_PREFIX = '{http://framenet.icsi.berkeley.edu}'
-
+class DocumentAdapter(object):
     def __init__(self, encoding='utf-8', **params):
         self.params = params
         self.encoding = encoding
+
+    @abstractmethod
+    def parse_file(self, file_or_file_name):
+        # type: (str) -> List[Document]
+        pass
+
+    @abstractmethod
+    def write_doc(self, doc, file_or_file_name, encoding=None):
+        # type: (Document, any, str) -> None
+        pass
+
+    @abstractmethod
+    def doc_to_string(self, doc, encoding=None):
+        # type: (Document, str) -> str
+        pass
+
+    @property
+    @abstractmethod
+    def file_format(self):
+        pass
+
+
+# --------------------------------------------
+
+
+class FNXMLAdapter(DocumentAdapter):
+    """
+    FrameNet XML document XML file format Adapter (FNXMLAdapter) is responsible for reading the documents written in
+    this format and create a Document object.
+    """
+
+    _TAG_PREFIX = '{http://framenet.icsi.berkeley.edu}'
+
+    @property
+    def file_format(self):
+        return 'xml'
 
     def _parse_document(self, xml_node):
         doc_args = {}
@@ -30,19 +68,21 @@ class FNXMLAdapter(object):
                     doc_args['doc_id'] = xml_doc_header.attrib.get('ID', '')
                     doc_args['desc'] = xml_doc_header.attrib.get('description', '')
                     doc_args['name'] = xml_doc_header.attrib.get('name', '')
-                except IndexError as e:
-                    logger.error(e)
+                except IndexError as ex:
+                    logger.error(ex)
             elif self._TAG_PREFIX + 'sentence' == xml_child.tag:
                 xml_sent = xml_child
-                parNo = int(xml_sent.attrib['paragNo'])
-                aPos = int(xml_sent.attrib['aPos'])
-                par = paragraphs.get((parNo, aPos), [])
+                par_no = int(xml_sent.attrib['paragNo'])
+                a_pos = int(xml_sent.attrib['aPos'])
+                par = paragraphs.get((par_no, a_pos), [])
                 par.append(self._parse_sentence(xml_sent))
-                paragraphs[(parNo, aPos)] = par
+                paragraphs[(par_no, a_pos)] = par
         assert len(doc_args) > 0, 'Not enough information to parse a Document'
 
-        ordering = lambda (x, _): x
-        ord_par = [Paragraph(i, sentences=par) for (i, j), par in sorted(paragraphs.items(), key=ordering)]
+        def get_first_of_pair(pair):
+            return pair[0]
+
+        ord_par = [Paragraph(i, sentences=par) for (i, j), par in sorted(paragraphs.items(), key=get_first_of_pair)]
         doc_args['elements'] = ord_par
         doc = Document(**doc_args)
         return doc
@@ -50,7 +90,7 @@ class FNXMLAdapter(object):
     def _parse_sentence(self, xml_node, encoding=None):
         logger.debug('Sentence({}):{}'.format(xml_node.tag, xml_node.attrib))
         assert xml_node.tag == self._TAG_PREFIX + 'sentence'
-        id = xml_node.attrib['ID']
+        idx = xml_node.attrib['ID']
         text = None
         annotation_sets = []
         words = []
@@ -69,7 +109,7 @@ class FNXMLAdapter(object):
                         if layer.name == "PENN":
                             for label in layer:
                                 words.append((label.start, label.end))
-        sentence = Sentence(sent_id=id, text=text, annotation_sets=annotation_sets, parts_of_speech=words)
+        sentence = Sentence(sent_id=idx, text=text, annotation_sets=annotation_sets, parts_of_speech=words)
         return sentence
 
     def _parse_annoset(self, xml_node, **params):
@@ -84,18 +124,18 @@ class FNXMLAdapter(object):
             except IndexError:
                 continue
 
-        id = xml_node.get('ID', None)
-        frameID = xml_node.get('frameID', None)
-        frameName = xml_node.get('frameName', None)
-        luID = xml_node.get('luID', None)
-        luName = xml_node.get('luName', None)
+        idx = xml_node.get('ID', None)
+        frame_id = xml_node.get('frameID', None)
+        frame_name = xml_node.get('frameName', None)
+        lu_id = xml_node.get('luID', None)
+        lu_name = xml_node.get('luName', None)
         status = xml_node.get('status', None)
 
-        anno_set = AnnotationSet(anno_set_id=id,
-                                 frame_id=frameID,
-                                 frame_name=frameName,
-                                 lu_id=luID,
-                                 lu_name=luName,
+        anno_set = AnnotationSet(anno_set_id=idx,
+                                 frame_id=frame_id,
+                                 frame_name=frame_name,
+                                 lu_id=lu_id,
+                                 lu_name=lu_name,
                                  status=status,
                                  layers=layers,
                                  **params)
@@ -135,25 +175,30 @@ class FNXMLAdapter(object):
             anno = Annotation(start=start, end=end, name=name, **params)
         return anno
 
-    def parseXML(self, xml_item):
+    def parse_file(self, file_or_file_name):
         """
         Returns a list of documents
         """
-        if isinstance(xml_item, XMLTree.Element):
-            root = xml_item
+        if isinstance(file_or_file_name, XMLTree.Element):
+            root = file_or_file_name
         else:
-            root = XMLTree.parse(xml_item).getroot()
+            root = XMLTree.parse(file_or_file_name).getroot()
         return [self._parse_document(root)]
 
-    def doc2XML(self, doc, xml_file=None, encoding=None):
+    def write_doc(self, doc, file_or_file_name, encoding=None):
+        # type: (Document, any, str) -> None
         root = self._doc2XML(doc)
         tree = XMLTree.ElementTree(root)
         if not encoding:
             encoding = self.encoding
-        if xml_file is not None:
-            tree.write(xml_file, encoding=encoding, xml_declaration=True)
-        else:
-            return XMLTree.tostring(tree, encoding=encoding)
+        tree.write(file_or_file_name, encoding=encoding, xml_declaration=True)
+
+    def doc_to_string(self, doc, encoding=None):
+        # type: (Document, str) -> object
+        root = self._doc2XML(doc)
+        if not encoding:
+            encoding = self.encoding
+        return XMLTree.tostring(root, encoding=encoding)
 
     def _doc2XML(self, doc):
         xml_root = XMLTree.Element('fullTextAnnotation')
@@ -164,22 +209,32 @@ class FNXMLAdapter(object):
                              'xmlns:xsi': 'http://www.w3.org/2001/XMLSchema-instance'}
         xml_corpus = XMLTree.Element('corpus')
         xml_corpus.attrib = {'description': '',
-                             'name': doc.corpus, 'ID': doc.corpusID}
+                             'name': doc.corpus, 'ID': str(doc.corpusID)}
         xml_doc = XMLTree.Element('document')
         xml_doc.attrib = {'description': doc.desc,
-                          'name': doc.name, 'ID': doc.id}
+                          'name': doc.name, 'ID': str(doc.id)}
         xml_corpus.append(xml_doc)
         xml_header.append(xml_corpus)
         xml_root.append(xml_header)
 
-        for sent in doc.elements:
-            xml_root.append(self._sentence2XML(sent, corpID=doc.corpusID, docID=doc.id))
+        for elem in doc.elements:
+            if isinstance(elem, Sentence):
+                sent = elem  # type: Sentence
+                xml_root.append(self._sentence2XML(sent, corpID=doc.corpusID, docID=doc.id))
+            elif isinstance(elem, Paragraph):
+                par = elem  # type: Paragraph
+                for sent in par.sentences:
+                    xml_root.append(self._sentence2XML(sent, corpID=doc.corpusID, docID=doc.id))
+            else:
+                raise Exception('Invalid object passed as document.element: {}: {}.\n'
+                                'It should be a Sentence or Paragraph object'.format(elem, type(elem)))
 
         return xml_root
 
     def _sentence2XML(self, sent, **kwargs):
         xml_sent = XMLTree.Element('sentence')
         xml_sent.attrib = {'ID': not_none_to_str(sent.id)}
+        kwargs = {k: str(v) for k, v in kwargs.items()}
         xml_sent.attrib.update(kwargs)
         xml_text = XMLTree.Element('text')
         xml_text.text = sent.text.decode(self.encoding)
@@ -195,7 +250,7 @@ class FNXMLAdapter(object):
                                'frameName': not_none_to_str(annoset.frameName),
                                'luName': not_none_to_str(annoset.luName),
                                }
-        xml_anno_set.attrib = {k: value for (k, value) in xml_anno_set.attrib.items() if value is not None}
+        xml_anno_set.attrib = {k: str(v) for k, v in xml_anno_set.attrib.items() if v is not None}
         for layer in annoset:
             xml_anno_set.append(self._layer2XML(layer))
         return xml_anno_set
@@ -204,20 +259,19 @@ class FNXMLAdapter(object):
         xml_layer = XMLTree.Element('layer')
         xml_layer.attrib = {'name': layer.name}
         if layer.rank is not None:
-            xml_layer.attrib['rank'] = layer.rank
+            xml_layer.attrib['rank'] = str(layer.rank)
         for label in layer:
             xml_layer.append(self._anno2XML(label))
         return xml_layer
 
     def _anno2XML(self, anno):
         xml_anno = XMLTree.Element('label')
-        xml_anno.attrib = {'start': not_none_to_str(anno.start),
-                           'end': not_none_to_str(anno.end),
-                           'itype': not_none_to_str(anno.itype),
-                           'name': not_none_to_str(anno.name)}
-        for key, val in xml_anno.attrib.items():
-            if val is None:
-                del (xml_anno.attrib[key])
+        attrib = {'start': not_none_to_str(anno.start),
+                  'end': not_none_to_str(anno.end),
+                  'itype': not_none_to_str(anno.itype),
+                  'name': not_none_to_str(anno.name)}
+        attrib = {k: v for k, v in attrib.items() if v is not None}
+        xml_anno.attrib = attrib
         return xml_anno
 
 
@@ -225,41 +279,41 @@ class FNXMLAdapter(object):
 
 
 class SemEval07XMLAdapter(FNXMLAdapter):
-    _TAG_PREFIX = ''
+    """
+    SemEval 2017 Task 19 document XML file format Adapter (SemEval07XMLAdapter) is responsible for reading the documents
+    written in this format and create a Document object.
+    """
 
-    def __init__(self, encoding='utf-8', **params):
-        FNXMLAdapter.__init__(self, **params)
-        self.params = params
-        self.encoding = encoding
+    _TAG_PREFIX = ''
 
     def _parse_document(self, xml_node):
         logger.debug('Document({}):{}'.format(xml_node.tag, xml_node.attrib))
-        id = xml_node.attrib['ID']
+        idx = xml_node.attrib['ID']
         desc = xml_node.attrib['description']
         paragraphs = []
         for xml_par_list in xml_node:
             assert 'paragraphs' == xml_par_list.tag
             for xml_par in xml_par_list:
                 paragraphs.append(self._parse_paragraph(xml_par))
-        doc = Document(doc_id=id, desc=desc, elements=paragraphs)
+        doc = Document(doc_id=idx, desc=desc, elements=paragraphs)
         return doc
 
     def _parse_paragraph(self, xml_node):
         logger.debug('Paragraph({}):{}'.format(xml_node.tag, xml_node.attrib))
         assert xml_node.tag == self._TAG_PREFIX + 'paragraph'
-        id = xml_node.attrib['ID']
+        idx = xml_node.attrib['ID']
         sentences = []
         for sent_list in xml_node:
             assert sent_list.tag == self._TAG_PREFIX + 'sentences'
             for sent in sent_list:
                 sentences.append(self._parse_sentence(sent))
-        paragraph = Paragraph(id, sentences)
+        paragraph = Paragraph(idx, sentences)
         return paragraph
 
     def _parse_sentence(self, xml_node, encoding=None):
         logger.debug('Sentence({}):{}'.format(xml_node.tag, xml_node.attrib))
         assert xml_node.tag == self._TAG_PREFIX + 'sentence'
-        id = xml_node.attrib['ID']
+        idx = xml_node.attrib['ID']
         text = None
         annotation_sets = []
         words = []
@@ -278,7 +332,7 @@ class SemEval07XMLAdapter(FNXMLAdapter):
                     if anno_set.is_frame():
                         annotation_sets.append(anno_set)
         assert text is not None
-        sentence = Sentence(sent_id=id, text=text, annotation_sets=annotation_sets, parts_of_speech=words)
+        sentence = Sentence(sent_id=idx, text=text, annotation_sets=annotation_sets, parts_of_speech=words)
         return sentence
 
     def _parse_annoset(self, xml_node, **params):
@@ -292,31 +346,31 @@ class SemEval07XMLAdapter(FNXMLAdapter):
                 except IndexError:
                     continue
 
-        id = xml_node.get('ID', None)
-        frameID = xml_node.get('frameRef', None)
-        frameName = xml_node.get('frameName', None)
-        luID = xml_node.get('lexUnitRef', None)
-        luName = xml_node.get('luName', None)
+        idx = xml_node.get('ID', None)
+        frame_id = xml_node.get('frameRef', None)
+        frame_name = xml_node.get('frameName', None)
+        lu_id = xml_node.get('lexUnitRef', None)
+        lu_name = xml_node.get('luName', None)
         status = xml_node.get('status', None)
 
-        anno_set = AnnotationSet(anno_set_id=id,
-                                 frame_id=frameID,
-                                 frame_name=frameName,
-                                 lu_id=luID,
-                                 lu_name=luName,
+        anno_set = AnnotationSet(anno_set_id=idx,
+                                 frame_id=frame_id,
+                                 frame_name=frame_name,
+                                 lu_id=lu_id,
+                                 lu_name=lu_name,
                                  status=status,
                                  layers=layers,
                                  **params)
         return anno_set
 
-    def parseXML(self, xml_item):
+    def parse_file(self, file_or_file_name):
         """
         Returns a list of documents
         """
-        if isinstance(xml_item, XMLTree.Element):
-            root = xml_item
+        if isinstance(file_or_file_name, XMLTree.Element):
+            root = file_or_file_name
         else:
-            root = XMLTree.parse(xml_item).getroot()
+            root = XMLTree.parse(file_or_file_name).getroot()
         logger.debug('{}: {}'.format(root.tag, root.attrib))
         c_name = root.attrib['name']
         c_id = root.attrib['ID']
@@ -407,26 +461,221 @@ class SemEval07XMLAdapter(FNXMLAdapter):
         return xml_anno_set
 
 
-PARSERS_AVAILABLE = {'semeval': SemEval07XMLAdapter,
-                     'framenet': FNXMLAdapter}
+# --------------------------------------------
 
-if __name__ == '__main__':
+
+class JSONAdapter(DocumentAdapter):
+    """
+    SemEval 2017 Task 19 document XML file format Adapter (SemEval07XMLAdapter) is responsible for reading the documents
+    written in this format and create a Document object.
+    """
+
+    _TAG_PREFIX = ''
+
+    @property
+    def file_format(self):
+        return 'json'
+
+    def __init__(self, encoding='utf-8', method='SEMAFOR', **params):
+        DocumentAdapter.__init__(self, encoding=encoding, **params)
+        self.method = method
+
+    def _parse_document(self, json_obj):
+        idx = json_obj.get('id', '0')
+        desc = json_obj.get('description', '')
+        logger.debug('Document({}):{}'.format(idx, desc))
+        paragraphs = list(map(self._parse_paragraph, json_obj.get('paragraphs')))
+
+        doc = Document(doc_id=idx, desc=desc, elements=paragraphs)
+        return doc
+
+    def _parse_paragraph(self, json_obj):
+        idx = json_obj.get('id', '0')
+        logger.debug('Paragraph({})'.format(idx))
+        sentences = list(map(self.parse_sentence, json_obj.get('sentences')))
+        paragraph = Paragraph(idx, sentences)
+        return paragraph
+
+    def parse_sentence(self, json_obj):
+        idx = json_obj.get('id', '0')
+        json_frames = json_obj['frames']
+        tokens = json_obj['tokens']
+        anno_sets = list(chain(*map(self.parse_annotations, json_frames)))
+        words = []
+        char_count = 0
+        for i in range(len(tokens)):  # TODO check this
+            token = tokens[0]
+            start = char_count + 1
+            char_count = char_count + 1 + len(token)
+            words.append((start, char_count))
+        # logger.debug('Sentence({}):{}'.format(idx, desc))
+
+        sentence = Sentence(sent_id=idx, text=' '.join(tokens), annotation_sets=anno_sets, parts_of_speech=words)
+        return sentence
+
+    def parse_annotations(self, json_frame):  # TODO
+        json_anno_sets = json_frame['annotationSets']
+        json_target = json_frame['target']
+        frame_name = json_target['name']
+
+        anno_sets = []
+        for json_anno_set in json_anno_sets:
+            rank = json_anno_set['rank']
+
+            logger.debug('Frame({})'.format(json_target))
+            layers = []
+
+            target_start = json_target['spans'][0]['start']  # TODO only 0 ?
+            target_end = json_target['spans'][0]['end']
+            layers.append(Layer(rank=str(0), name='Target',
+                                annotations=[Annotation(name='Target',
+                                                        start=target_start,
+                                                        end=target_end)]))
+            annotations = []
+            for json_annotation in json_anno_set['frameElements']:
+                name = json_annotation['name']
+                for span in json_annotation['spans']:
+                    start = span['start']  # TODO this start has to be calculated for the new pattern
+                    end = span['end']  # TODO  this end has to be calculated for the new pattern
+                    annotation = Annotation(name=name, start=start, end=end)
+                    annotations.append(annotation)
+            layers.append(Layer(name='FE', rank=str(rank), annotations=annotations))
+            anno_set = AnnotationSet(anno_set_id='0',  # TODO use at least a count
+                                     frame_name=frame_name, layers=layers,
+                                     status=self.method)  # TODO which anno id?
+            anno_sets.append(anno_set)
+
+        return anno_sets
+
+    def parse_file(self, file_or_file_name):
+        """
+        Returns a list of documents
+        """
+        if hasattr(file_or_file_name, 'read'):
+            json_obj = json.load(file_or_file_name)
+        elif hasattr(file_or_file_name, 'read'):
+            json_obj = json.load(file_or_file_name)
+        else:
+            with open(file_or_file_name, 'r') as f:
+                json_obj = json.load(f)
+
+        return list(map(self._parse_document, json_obj['documents']))
+
+    def write_doc(self, doc, file_or_file_name, encoding=None):
+        # type: (Document, any, str) -> None
+        json_obj = None  # self._doc_to_json(doc) TODO
+        if hasattr(file_or_file_name, 'read'):
+            json.dump(json_obj, file_or_file_name)
+        else:
+            with open(file_or_file_name, 'r') as f:
+                json.dump(json_obj, f)
+
+    def doc_to_string(self, doc, encoding=None):
+        # type: (Document, str) -> str
+        json_obj = None  # self._doc_to_json(doc) # TODO
+        return json.dumps(json_obj)
+
+    # def _doc_to_json(self, doc):  # TODO
+    #     xml_corpus = XMLTree.Element('corpus')
+    #     xml_corpus.attrib = {'description': '',
+    #                          'name': doc.corpus, 'ID': doc.corpusID}
+    #     xml_docs = XMLTree.Element('documents')
+    #     xml_doc = XMLTree.Element('document')
+    #     xml_doc.attrib = {'description': not_none_to_str(doc.desc),
+    #                       'name': not_none_to_str(doc.name),
+    #                       'ID': not_none_to_str(doc.id)}
+    #     xml_pars = XMLTree.Element('paragraphs')
+    #     for i, paragraph in enumerate(doc.elements):
+    #         xml_pars.append(self._paragraph2XML(paragraph, document_order=str(i + 1)))
+    #
+    #     xml_doc.append(xml_pars)
+    #     xml_docs.append(xml_doc)
+    #     xml_corpus.append(xml_docs)
+    #     return xml_corpus
+    #
+    # def _paragraph2XML(self, paragraph, document_order=""):  # TODO
+    #     xml_par = XMLTree.Element('paragraph')
+    #     xml_par.attrib = {'documentOrder': not_none_to_str(document_order),
+    #                       'ID': not_none_to_str(paragraph.id)}
+    #     xml_sents = XMLTree.Element('sentences')
+    #     for sent in paragraph.sentences:
+    #         xml_sents.append(self._sentence2XML(sent))
+    #     xml_par.append(xml_sents)
+    #     return xml_par
+    #
+    # def _sentence2XML(self, sent, **kwargs):  # TODO
+    #     xml_sent = XMLTree.Element('sentence')
+    #     xml_sent.attrib = {'ID': sent.id}
+    #     xml_sent.attrib.update(kwargs)
+    #
+    #     xml_text = XMLTree.Element('text')
+    #     xml_text.text = sent.text.decode(self.encoding)
+    #
+    #     xml_pos = XMLTree.Element('parts-of-speech')
+    #     for word in sent.parts_of_speech:
+    #         attrib = {'start': not_none_to_str(word[0]),
+    #                   'end': not_none_to_str(word[1])}
+    #         xml_pos.append(XMLTree.Element('pos', attrib=attrib))
+    #
+    #     xml_anno_sets = XMLTree.Element('annotationSets')
+    #     for annoSet in sent.annotation_sets:
+    #         xml_anno_sets.append(self._anno_set2XML(annoSet))
+    #
+    #     xml_sent.append(xml_text)
+    #     xml_sent.append(xml_pos)
+    #     xml_sent.append(xml_anno_sets)
+    #
+    #     return xml_sent
+
+    # def _layer2XML(self, layer):  # TODO
+    #     xml_layer = XMLTree.Element('layer')
+    #     xml_layer.attrib = {'name': layer.name}
+    #     xml_labels = XMLTree.Element('labels')
+    #     if layer.rank is not None:
+    #         xml_layer.attrib['rank'] = layer.rank
+    #     for label in layer:
+    #         xml_labels.append(self._anno2XML(label))
+    #     xml_layer.append(xml_labels)
+    #     return xml_layer
+    #
+    # def _anno_set2XML(self, annoset):  # TODO
+    #     xml_anno_set = XMLTree.Element('annotationSet')
+    #     xml_anno_set.attrib = {'ID': not_none_to_str(annoset.id),
+    #                            'status': not_none_to_str(annoset.status),
+    #                            'frameName': not_none_to_str(annoset.frameName),
+    #                            'luName': not_none_to_str(annoset.luName),
+    #                            }
+    #     xml_anno_set.attrib = {k: value for (k, value) in xml_anno_set.attrib.items() if value is not None}
+    #     xml_layers = XMLTree.Element('layers')
+    #     for layer in annoset:
+    #         xml_layers.append(self._layer2XML(layer))
+    #     xml_anno_set.append(xml_layers)
+    #     return xml_anno_set
+
+
+PARSERS_AVAILABLE = {'semeval': SemEval07XMLAdapter,
+                     'framenet': FNXMLAdapter,
+                     'json': JSONAdapter}
+
+if __name__ == '__main__':  # TODO Move this to proper script
     import argparse
     import pickle
     from sys import argv as _argv
-    from logger_config import add_logger_args as _add_logger_args, config_logger
+    from srl_nlp.logger_config import add_logger_args as _add_logger_args, config_logger
 
 
     def parse_args(argv=_argv, add_logger_args=lambda x: None):
         parser = argparse.ArgumentParser(description='Parses the semeval07 and framenet format into the Corpus format')
         parser.add_argument('input_file', help='File to be parsed')
-        parser.add_argument('-o', '--output_file', help='File to write the pickle serialization')
+        parser.add_argument('-p', '--pickle_output_file', help='File to write the pickle serialization')
         parser.add_argument('-c', '--check_examples', action='store_true',
                             help='check if all examples are a perfect parsing of the respective sentence')
         # parser.add_argument('-t', '--examples_as_text', help = 'Convert the examples to text before printing')
-        parser.add_argument('-x', '--output_xml_file', help='XML File to write the information extracted')
-        parser.add_argument("-p", "--parser", choices=PARSERS_AVAILABLE.keys(),
-                            help='Parser for the appropriate kind of file')
+        parser.add_argument('-o', '--output_file', help='File to write the information extracted')
+        parser.add_argument("--parser_in", choices=PARSERS_AVAILABLE.keys(),
+                            help='Parser for the appropriate kind of file'),
+        parser.add_argument("--parser_out", default='none', choices=list(PARSERS_AVAILABLE.keys()) + ['none'],
+                            help='Parser for writing the appropriate kind of file')
         add_logger_args(parser)
         args = parser.parse_args(argv[1:])
         return args
@@ -435,20 +684,19 @@ if __name__ == '__main__':
     def main(argv):
         args = parse_args(argv, _add_logger_args)
         config_logger(args)
-        logger.info('Loading XML file')
-        with open(args.input_file, 'r') as f:
-            tree = XMLTree.parse(f)
-        logger.info('XML tree ready')
-        root = tree.getroot()
+        adapter_in = PARSERS_AVAILABLE.get(args.parser_in, SemEval07XMLAdapter)()
+        if args.parser_out in PARSERS_AVAILABLE:
+            adapter_out = PARSERS_AVAILABLE[args.parser_out]()
+        else:
+            adapter_out = adapter_in
 
-        adapter = PARSERS_AVAILABLE.get(args.parser, SemEval07XMLAdapter)()
-
-        logger.info('Parsing XML tree')
+        logger.info('Parsing {} file'.format(adapter_in.file_format).upper())
         try:
-            docs = adapter.parseXML(root)
-        except KeyError:
-            raise KeyError('Consider using another parser type by using the option --parser')
-        logger.info('Done parsing XML tree')
+            docs = adapter_in.parse_file(args.input_file)
+        except (ValueError, KeyError) as exception:
+            raise Exception(
+                'Consider using another parser type by using the option --parser_in\n{}'.format(str(exception)))
+        logger.info('Done parsing {} file'.format(adapter_in.file_format).upper())
 
         if args.check_examples:
             for doc in docs:
@@ -460,16 +708,20 @@ if __name__ == '__main__':
                     if converted != sentence.text:
                         logger.critical("{sent} was not properly processed".format(sent=sentence))
 
-        if args.output_file is not None:
+        if args.pickle_output_file is not None:
             logger.info('Writing pickle file')
-            with open(args.output_file, 'wb') as f:
+            with open(args.pickle_output_file, 'wb') as f:
                 pickle.dump(docs, f)
 
-        if args.output_xml_file is not None:
-            logger.info('Writing XML file')
-            with open(args.output_xml_file, 'w') as f:
+        if args.output_file is not None:
+            logger.info('Writing {} file to {}'.format(adapter_out.file_format.upper(), args.output_file))
+            with open(args.output_file, 'w') as f:
                 for doc in docs:
-                    adapter.doc2XML(doc, xml_file=f)
+                    adapter_out.write_doc(doc, file_or_file_name=f)
+        else:
+            logger.info('Printing {} data'.format(adapter_out.file_format.upper()))
+            for doc in docs:
+                print adapter_out.doc_to_string(doc)
 
 
     try:

@@ -32,7 +32,10 @@ class Process(object):
             self._proc_name = str(self.__class__).split('\'')[1].split('.')[-1]
         except IndexError:
             self._proc_name = str(self.__class__)
-        self._init_popen()
+        if self._disposable:
+            self._proc = None
+        else:
+            self._init_popen()
 
     def _read_line(self, stop_condition=lambda out: False):
         count = 0
@@ -51,7 +54,7 @@ class Process(object):
                 if stop_condition(out):
                     break
             logger.debug('{proc} count: {time}'.format(proc=self._proc_name,
-                                                         time=count))
+                                                       time=count))
             assert self._time_out is None or count < self._time_out
         return out
 
@@ -88,8 +91,9 @@ class Process(object):
         logger.debug('StdError:"%s"' % err)
 
     def _process(self, input_text, tries=3):
-        logger.debug('{proc} input_text: "{input}" tries: {tries}'.format(proc=self._proc_name, input=input_text, tries=tries))
-        if self._proc.stdin.closed:
+        logger.debug(
+            '{proc} input_text: "{input}" tries: {tries}'.format(proc=self._proc_name, input=input_text, tries=tries))
+        if self._proc is None or self._proc.stdin.closed:
             logger.debug('{proc}: popen, process was closed'.format(proc=self._proc_name))
             self._init_popen()
 

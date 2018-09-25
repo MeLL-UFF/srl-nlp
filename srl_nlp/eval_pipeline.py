@@ -4,10 +4,12 @@
 
 """
 
+from sys import argv as _argv
+
 import logging
 from ConfigParser import ConfigParser
 from os import path
-from sys import argv as _argv
+from typing import Dict, Tuple
 
 from srl_nlp.analysers.boxer import BoxerLocalAPI
 from srl_nlp.framenet.adapter import PARSERS_AVAILABLE
@@ -24,19 +26,18 @@ config.read(path.join(_package_directory, "external.conf"))
 
 
 def get_annotations(sentence, lf, var2pos):
-    # type: (Sentence, LF, dict[str,str]) -> tuple[list, list]
+    # type: (Sentence, LF, Dict [str,str]) -> Tuple [list, list]
     """
-        Get the annotations from the corpus sentence
+    Get the annotations from the corpus sentence
 
     Args:
         sentence:
         lf:
         var2pos:
 
-    Returns:
-        Two lists.
-        The first list contains the frame matching, the second one are the fe matching
+    Returns: Two lists. The first list contains the frame matching, the second one are the fe matching
     """
+
     logger.debug("Sentence: {sent}, {lf}".format(sent=sentence, lf=lf))
     fr = []
     fe = []
@@ -44,7 +45,8 @@ def get_annotations(sentence, lf, var2pos):
     for anno_set in sentence:
         for layer in anno_set:
             for anno in layer:
-                var_list = [inv_mapping[(start, end)] for (start, end) in inv_mapping if start >= anno.start and end <= anno.end]
+                var_list = [inv_mapping[(start, end)] for (start, end) in inv_mapping if
+                            start >= anno.start and end <= anno.end]
                 frame_name = anno_set.frameName.lower()
                 if layer.name == 'Target':
                     for var in var_list:
@@ -83,13 +85,15 @@ def eval_corpus(annotator, boxer, docs, skip_frame_matching=False):
             for sentence in paragraph:
                 logger.info("Reading sentence id({par_id}:{sent_id})"
                             .format(par_id=paragraph.id, sent_id=sentence.id))
-                out_sentence = Sentence(sent_id=sentence.id, text=sentence.text, parts_of_speech=sentence.parts_of_speech)
-                var2pos = annotator.get_matching_variables(sentence.text)
 
+                out_sentence = Sentence(sent_id=sentence.id, text=sentence.text,
+                                        parts_of_speech=sentence.parts_of_speech)
+
+                var2pos = annotator.get_matching_variables(sentence.text)
                 try:
                     if skip_frame_matching:
                         frs, _ = get_annotations(sentence, boxer.sentence2LF(sentence.text), var2pos=var2pos)
-                        matching, err = annotator.frameElementMatching(sentence.text, fr_anno=frs, out_error=True)
+                        matching, err = annotator.frame_element_matching(sentence.text, fr_anno=frs, out_error=True)
                         matching.extend(frs)
                     else:
                         matching, err = annotator.matching(sentence.text, out_error=True)
@@ -97,7 +101,8 @@ def eval_corpus(annotator, boxer, docs, skip_frame_matching=False):
                     logger.debug(err)
                     matching = set(matching)
 
-                    for f_name, annoset in annotator.sem_annotations(sentence.text, anno_lfs=matching, token2pos=var2pos).iteritems():
+                    for f_name, annoset in annotator.sem_annotations(sentence.text, anno_lfs=matching,
+                                                                     token2pos=var2pos).iteritems():
                         out_sentence.annotation_sets.append(annoset)
 
                     remove_fe_equal_to_f_from_sentence(out_sentence)
@@ -169,7 +174,7 @@ if __name__ == '__main__':
 
         # Parse corpus
         with open(args.data_base_path) as db_file:
-            docs = input_parser.parseXML(db_file)
+            docs = input_parser.parse_file(db_file)
         logger.info('Done parsing')
 
         out_docs = eval_corpus(annotator, boxer, docs, skip_frame_matching=args.skip_frame_matching)
@@ -177,10 +182,10 @@ if __name__ == '__main__':
         if args.annotation_output_path:
             logger.info("Storing results at {f_name}".format(f_name=args.annotation_output_path))
             with open(args.annotation_output_path, 'w') as f_out:
-                output_parser.doc2XML(out_docs[0], f_out)
+                output_parser.write_doc(out_docs[0], f_out)
         else:
             logger.info("Printing results to stdout")
-            output_parser.doc2XML(out_docs[0])
+            output_parser.write_doc(out_docs[0])
         logger.info('Done')
 
 

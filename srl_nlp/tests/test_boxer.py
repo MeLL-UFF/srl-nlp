@@ -1,9 +1,10 @@
-'''
+"""
 Test unit for the fol.py module
-'''
+"""
+
 from unittest import TestCase
 
-from analysers.boxer import BoxerLocalAPI, BoxerWebAPI
+from srl_nlp.analysers.boxer import BoxerLocalAPI, BoxerWebAPI
 from srl_nlp.logical_representation.fol import FOL
 # Local API
 from nose.tools import assert_equals
@@ -132,8 +133,10 @@ class TestBoxerAbstract(TestCase):
         lf1 = boxer.sentence2LF('Get back to your station soldier! .')
         lf2 = boxer.sentence2LF('The trees grow to 25 feet.')
 
-        assert str(
-            lf1) == '[noun(c1,soldierc33),relation(c1,c0,of),noun(c0,station),relation(c1,c2,of),noun(c2,person),relation(c4,c1,to),adjective(c3,back),relation(c4,c3,manner),actor(c4,c5),verb(c4,get),noun(c5,thing)., topic(c0),noun(c0,c46).]'
+        assert str(lf1) == '[noun(c1,soldierc33),relation(c1,c0,of),noun(c0,station),' \
+                           'relation(c1,c2,of),noun(c2,person),relation(c4,c1,to),' \
+                           'adjective(c3,back),relation(c4,c3,manner),actor(c4,c5),' \
+                           'verb(c4,get),noun(c5,thing).,topic(c0),noun(c0,c46).]'
         assert str(lf2) == '[noun(c0,tree),relation(c2,c1,to),noun(c1,foot),number(c1,25),actor(c2,c0),verb(c2,grow).]'
 
     # def test_expand_predicates(self):
