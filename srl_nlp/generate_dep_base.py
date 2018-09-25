@@ -1,3 +1,5 @@
+#!/bin/env python
+
 from itertools import chain
 from sys import argv as _argv
 
@@ -257,7 +259,7 @@ def neg_examples_gen(s_id, fes, all_pairs, fe_dict=None, random_gen=random.Rando
                 yield new_anno
 
 
-def write_to_file(root_folder, dataset, dataset_name, fact_header=None, max_np_ratio=None, fe_dict=None,
+def write_to_file(root_folder, dataset, dataset_name, fact_header=None, min_neg=5, max_np_ratio=None, fe_dict=None,
                   extra_neg_frames=1, seed=None):
     """
     Creates the files in the RDN format
@@ -323,7 +325,7 @@ def write_to_file(root_folder, dataset, dataset_name, fact_header=None, max_np_r
                                                     extra_frames=extra_neg_frames)
                     if max_np_ratio:
                         neg_examples_tmp = list(neg_examples)
-                        qtd = min(int(len(data_obj.fes) * max_np_ratio), len(neg_examples_tmp))
+                        qtd = min(max(int(len(data_obj.fes) * max_np_ratio), min_neg), len(neg_examples_tmp))
                         indexes = xrange(len(neg_examples_tmp))
                         neg_examples = [neg_examples_tmp[i]
                                         for i in random_gen.sample(indexes, qtd)]
@@ -366,6 +368,8 @@ if __name__ == '__main__':
 
         parser.add_argument('-R', '--root',
                             help='relative path to path to store the bases')
+        parser.add_argument('-n', '--min_neg', type=int, default=5,
+                            help='Minimum negative examples per sentence')
         parser.add_argument('-N', '--max_np_ratio', type=int, default=None,
                             help='Maximum ratio negative/positive examples a sentence will have')
         parser.add_argument('-H', '--header',
@@ -430,11 +434,12 @@ if __name__ == '__main__':
 
         # Split dataset in training and test if train_ratio is given
         write_to_file(args.root, train, 'train', fact_header=args.header,
-                      max_np_ratio=args.max_np_ratio, fe_dict=fe_dict,
-                      extra_neg_frames=args.extra_neg_frames)
+                      min_neg=args.min_neg, max_np_ratio=args.max_np_ratio,
+                      fe_dict=fe_dict, extra_neg_frames=args.extra_neg_frames)
+
         write_to_file(args.root, test, 'test', fact_header=args.header,
-                      max_np_ratio=args.max_np_ratio, fe_dict=fe_dict,
-                      extra_neg_frames=args.extra_neg_frames)
+                      min_neg=args.min_neg, max_np_ratio=args.max_np_ratio,
+                      fe_dict=fe_dict, extra_neg_frames=args.extra_neg_frames)
         logger.info('Done')
 
 
