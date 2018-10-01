@@ -2,12 +2,13 @@
 This file holds classes that facilitate rule manipulation
 """
 import logging
-from copy import deepcopy as copy
-
 import spacy
+from copy import deepcopy as copy
 from regex import compile
-from srl_nlp.logical_representation.fol import FOL
+from tempfile import NamedTemporaryFile
+
 from srl_nlp.framenet.framenet import Description
+from srl_nlp.logical_representation.fol import FOL
 from srl_nlp.logical_representation.logicalform import LF
 
 logger = logging.getLogger(__name__)
@@ -197,7 +198,9 @@ def get_annotations(example, lf, abbrev2fe=None, get_lemma=None):
     target = []
     if get_lemma is None:
         nlp = spacy.load('en_core_web_sm')
-        get_lemma = lambda token: nlp(token.decode('utf-8'))[0].lemma_
+
+        def get_lemma(token_str):
+            return nlp(token_str.decode('utf-8'))[0].lemma_
 
     for term in example.content:
         pred_stack = []
@@ -225,9 +228,9 @@ def get_annotations(example, lf, abbrev2fe=None, get_lemma=None):
                         elif pred == 'fex':
                             logger.error('Fex without attrib name')
                         else:
-                            l = fes.get(pred, [])
-                            l.append(literal)
-                            fes[pred] = l
+                            temp_list = fes.get(pred, [])
+                            temp_list.append(literal)
+                            fes[pred] = temp_list
     return fes, target
 
 
@@ -248,25 +251,25 @@ def get_factors(lf, out=None):
     return out
 
 
-def get_paths(predL, predR, factors, breadth=True):
+def get_paths(pred_l, pred_r, factors, breadth=True):
     """
     Given two predicates in LF, and a mapping of their literals given
     by 'get_factors' this function yields the paths that can link
     those predicates.
     """
-    frontier = [(predR, [])]
+    frontier = [(pred_r, [])]
     visited = []
     while len(frontier):
         if breadth:
             curr_pred, path = frontier.pop(0)
         else:
             curr_pred, path = frontier.pop()
-        if predL == curr_pred:
+        if pred_l == curr_pred:
             yield path
         visited.append(curr_pred)
         for literal in curr_pred.iterterms():
             for term in set(factors.get(literal.get_pred(), [])):
-                if not term in visited:
+                if term not in visited:
                     frontier.append((term, path + [term]))
 
 
@@ -292,13 +295,13 @@ def str_preds(preds, pattern=compile('^c(\d+)$'), x=('frame_element', 'frame_rel
     if not count:
         count = [0]
 
-    def repl_const(match, count=count):
-        count[0] = max(count[0], int(match.group(1)))
+    def repl_const(match, idx=count):
+        idx[0] = max(idx[0], int(match.group(1)))
         return 'C' + match.group(1)
 
-    def new_const(count=count):
-        count[0] = count[0] + 1
-        return 'C%d' % count[0]
+    def new_const(idx=count):
+        idx[0] = idx[0] + 1
+        return 'C%d' % idx[0]
 
     generalize = []
     if isinstance(preds, LF):
@@ -315,3 +318,11 @@ def str_preds(preds, pattern=compile('^c(\d+)$'), x=('frame_element', 'frame_rel
         return pred.__repr__(final_dot=False)
     else:
         return ','.join(map(lambda p: str_preds(p, pattern, x, count), preds))
+
+
+def open_a_file(name=None, mode='wr'):
+    """Opens the file, if no name is given, opens a NamedTemporaryFile"""
+    if name is not None:
+        return open(name, mode)
+    else:
+        return NamedTemporaryFile(mode=mode)
