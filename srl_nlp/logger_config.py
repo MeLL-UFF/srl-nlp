@@ -26,13 +26,13 @@ def _timeit(foo, level):
         foo(*args, **kwargs)
         elapsed_time = time() - start_time
 
-        logger.log(level, '{{{foo}}} Elapsed time: {time} ms'.format(foo=foo.func_name, time=elapsed_time))
+        logger.log(level, '{{{foo}}} Elapsed time: {time} seconds'.format(foo=foo.func_name, time=elapsed_time))
 
     return timer
 
 
-def timeit(foo):
-    return _timeit(foo, logging.INFO)
+def timeit(foo, level=logging.INFO):
+    return _timeit(foo, level)
 
 
 def timeit_debug(foo):
