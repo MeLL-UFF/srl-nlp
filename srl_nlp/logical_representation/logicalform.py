@@ -1,19 +1,22 @@
-import logging
 import math
-from copy import deepcopy as copy
-from os import path
 from sys import stderr
 
+import logging
 import matplotlib.pyplot as plt
 import networkx as nx
-from fol import FOL
+from copy import deepcopy as copy
+from functools import partial
 from networkx.drawing.nx_pydot import write_dot
+from os import path
+
+from fol import FOL
 
 logger = logging.getLogger(__name__)
 
 
 class LF:
-    def __init__(self, *args, **kargs):
+    def __init__(self, fol=None, header=None, add_quotm=False, remove_for_alls=False, constant_prefix='c',
+                 skolemize_ignore=None):
         """Creates a new Logical Formula
         LF(fol) -> lf
 
@@ -26,14 +29,11 @@ class LF:
             header: optional, must be called by name. First predicate of the FOL that should be ignored.
             add_quotm: bool. Adds quotation marks to all terms that are not constants
         """
-        if len(args) > 0:
-            header = kargs.get('header', None)
-            constant_prefix = kargs.get('constant_prefix', 'c')
-            add_quotm = kargs.get('add_quotm', False)
-            fol = copy(args[0])
+        if fol is not None:
+            fol = copy(fol)
             if isinstance(fol, str):
                 fol = FOL(fol)
-            if header and args[0].info[0] == header:
+            if header and fol.info[0] == header:
                 fol.info = fol.info[-1]
             #    print "*"
             # print ">", header, fol
@@ -43,20 +43,25 @@ class LF:
                 fol.convert2PrenexForm()
                 logger.debug('PRENEX FOL: %s', fol)
                 # print '*', fol
-                fol.skolemize(constant_prefix=constant_prefix, add_quotm=add_quotm)
+                if skolemize_ignore is not None:
+                    fol.skolemize(constant_prefix=constant_prefix, add_quotm=add_quotm, ignore=skolemize_ignore,
+                                  removeForAlls=remove_for_alls)
+                else:
+                    fol.skolemize(constant_prefix=constant_prefix, add_quotm=add_quotm,
+                                  removeForAlls=remove_for_alls)
                 logger.debug('SKOLEMIZED FOL: %s', fol)
                 fol.push_operand(FOL.OR)
                 self.info = fol.info
                 logger.debug('LF: %s', self)
             except AttributeError as e:
-                raise Exception('Not a valid FOL%s' % fol)
+                raise Exception('Not a valid FOL%s\t Error: %s' % (fol, e))
         else:
             self.info = []
 
     def split(self):
         """Split the clause into many smaller clauses"""
-        frontier = [self.info]
-        out = []
+        frontier = [self.info]  # type: list
+        out = []  # type: list
         while len(frontier) > 0:
             root = frontier.pop()
             while FOL.is_quantifier(root[0]):
@@ -125,7 +130,7 @@ class LF:
     @staticmethod
     def _repr_aux(term, and_t, or_t, supress_not):
         try:
-            parser = lambda term: LF._repr_aux(term, and_t, or_t, supress_not)
+            parser = partial(LF._repr_aux, and_t=and_t, or_t=or_t, supress_not=supress_not)
             if supress_not:
                 term = filter(lambda x: x[0] != FOL.NOT, term)
             if term[0] == FOL.AND:
@@ -155,7 +160,7 @@ class LF:
             out = LF._repr_aux(term, and_t, or_t, suppress_not) + dot
         return out
 
-    def plotLF(self, fig_name=None, on_screen=True):
+    def plot_lf(self, fig_name=None, on_screen=True):
         """
         Plots the given lf to the screen and file.
 
@@ -169,9 +174,9 @@ class LF:
             networkx.graph and dict {edge:label} from the lf
         """
         # TODO choose the plot engine instead of infer it
-        frontier = [self]
-        edges = []
-        labels = []
+        frontier = [self]  # type: list
+        edges = []  # type: list
+        labels = []  # type: list
 
         while len(frontier) > 0:
             term = frontier.pop()

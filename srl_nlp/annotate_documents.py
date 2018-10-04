@@ -14,6 +14,7 @@ from typing import List
 from srl_nlp.framenet.adapter import PARSERS_AVAILABLE, DocumentAdapter
 from srl_nlp.framenet.corpus import Paragraph, Document
 from srl_nlp.fsparsing import Annotator, SemaforAnnotator
+from srl_nlp.rule_utils import list_doc_files
 
 logger = logging.getLogger(__name__)
 
@@ -113,8 +114,7 @@ if __name__ == '__main__':
             if args.annotation_output_path and not path.isdir(args.annotation_output_path):
                 raise argparse.ArgumentError("If data_base_path is a folder, "
                                              "annotation_output_path should also be a folder and exist.")
-            file_names = [f for f in listdir(args.data_base_path)
-                          if f.lower().endswith('.xml') or f.lower().endswith('.json')]
+            file_names = list_doc_files(args.data_base_path)
             in_files = [path.join(args.data_base_path, f) for f in file_names]
         elif path.isfile(args.data_base_path):
             in_files = [args.data_base_path]

@@ -20,6 +20,12 @@ def config_logger(args):
         logging.basicConfig(level=level, format=log_format)
 
 
+def silence_logger():
+    """Only show log for Critical messages"""
+    log_format = "[%(levelname)s:%(name)s:%(filename)s:%(lineno)s] %(message)s"
+    level = logging.CRITICAL
+    logging.basicConfig(level=level, format=log_format)
+
 def _timeit(foo, level):
     def timer(*args, **kwargs):
         start_time = time()

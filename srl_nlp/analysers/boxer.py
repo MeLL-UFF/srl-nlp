@@ -1,17 +1,17 @@
+from sys import stderr
+
 import logging
 from ConfigParser import ConfigParser
 from abc import abstractmethod
 from os import path
-from sys import stderr
-
+from regex import match, compile
+from requests import post
 from typing import Dict, List
 
 from process import Process
-from regex import match, compile
-from requests import post
-from srl_nlp.rule_utils import remove_eq
 from srl_nlp.logical_representation.fol import FOL
 from srl_nlp.logical_representation.logicalform import LF
+from srl_nlp.rule_utils import remove_eq
 
 logger = logging.getLogger(__name__)
 
@@ -163,10 +163,11 @@ class BoxerAbstract:
             fol.info = fol.info[-1]  # remove header
         return fols
 
-    def FOL2LF(self, fol_list, expand_predicates, removeForAlls=True, removeeq=True, **kwargs):
+    @staticmethod
+    def fol2lf(fol_list, expand_predicates, remove_for_alls=True, removeeq=True, **kwargs):
         # raw_input()
         def to_lf(fol, rem_eq, expand_pred):
-            lf = LF(fol, removeForAlls=removeForAlls, header='fol', **kwargs)
+            lf = LF(fol, remove_for_alls=remove_for_alls, header='fol', **kwargs)
             if expand_pred:
                 lf = BoxerAbstract._expandFOLpredicates(lf)
             if rem_eq:
@@ -177,7 +178,7 @@ class BoxerAbstract:
         return out
 
     @staticmethod
-    def _expandFOLpredicate(fol):
+    def _expand_fol_predicate(fol):
         predicate = fol[0]
         args = fol[1:]
         for pattern, parser in BoxerAbstract._expansion_patterns:
@@ -199,7 +200,7 @@ class BoxerAbstract:
             predicate = term[0]
             if FOL.is_special(predicate):
                 for pos, child in enumerate(term[1:]):
-                    expansion = BoxerAbstract._expandFOLpredicate(child)
+                    expansion = BoxerAbstract._expand_fol_predicate(child)
                     if expansion:
                         if len(expansion) > 1:
                             replacement = [concatenator]  # FOL.AND
@@ -226,7 +227,7 @@ class BoxerAbstract:
             fol = self.sentence2FOL(sentence, source, idx)
         else:
             fol = self.sentence2FOL(sentence)
-        return self.FOL2LF(fol, expand_predicates, constant_prefix=const_prefix, **kargs)
+        return self.fol2lf(fol, expand_predicates, constant_prefix=const_prefix, **kargs)
 
 
 class BoxerLocalAPI(Process, BoxerAbstract):

@@ -1,6 +1,7 @@
 import logging
 
 import distance as _dist
+from typing import Dict
 
 logger = logging.getLogger(__name__)
 
@@ -369,8 +370,8 @@ class Net:
         """
         if type(frames) != dict:  # if the user passes a list of frames instead of a dict then convert it
             frames = dict(zip(map(lambda x: x.name, frames), frames))
-        self.frames = frames
-        self.framesByID = dict([(frame.id, frame) for frame in frames.values()])
+        self.frames = frames  # type: Dict[str, Frame]
+        self.framesByID = dict([(frame.id, frame) for frame in frames.values()])  # type: Dict[int, Frame]
         for frame in frames.itervalues():
             self._update_frame_references(frame)
         self._fes = dict()
@@ -383,12 +384,14 @@ class Net:
 
     def _update_frame_references(self, frame):
         """Uses the self.frames dict to replace the strings representing Frames by actual Frames"""
+
         def get_rel(x):
             f = self.frames.get(x, None)
             if f is not None:
                 return f
             else:
                 logger.warning('Relation pointing to not existent Frame "{}"'.format(x))
+
         for relation in frame.relations.itervalues():
             relation.frames = [f for f in map(get_rel, relation.frames) if f is not None]
 
@@ -411,11 +414,11 @@ class Net:
             extra = item.step
             if extra:
                 if type(extra) == str:
-                    return self.getMostSimilarFrames(token, limit, distance=extra)
+                    return self.get_most_similar_frames(token, limit, distance=extra)
                 else:
-                    return self.getMostSimilarFrames(token, limit, threshold=extra)
+                    return self.get_most_similar_frames(token, limit, threshold=extra)
             else:
-                return self.getMostSimilarFrames(token, limit)
+                return self.get_most_similar_frames(token, limit)
         else:
             frame = self.frames.get(item, None)
             if frame is None:
@@ -429,7 +432,7 @@ class Net:
     # def __getslice__(self, term, max_elems):
     #     return None ##TODO
 
-    def getMostSimilarFrames(self, word, qtd=3, threshold=1, distance='levenshtein'):
+    def get_most_similar_frames(self, word, qtd=3, threshold=1, distance='levenshtein'):
         """
         Return an ordered list of the most similar Frames using the specified distance:
 
@@ -467,19 +470,28 @@ class Net:
     def fe_names(self):
         """
 
-        Returns: The list od all Frame Element names
+        Returns: The list of all Frame Element names
 
         """
-        return self._fes.keys()
+        return set(self._fes.keys())
 
-    def getFrameElement(self, name):
+    @property
+    def frame_names(self):
+        """
+
+        Returns: The list of all Frame names
+
+        """
+        return set(self.frames.keys())
+
+    def get_frame_element(self, name):
         """Returns the Frame Elements in the FrameNet by name"""
         try:
             return self._fes[name]
         except KeyError as e:
             raise KeyError('\'{item}\' is not a valid Frame Element name in this FrameNet'.format(item=name))
 
-    def getFrameElementFrames(self, fe, coreFEs=True, peripheralFEs=True):
+    def get_frame_element_frames(self, fe, coreFEs=True, peripheralFEs=True):
         """Get all frames where the given fe is a Frame Element
         
         coreFEs: boolean value, if set True then Frames where fe is a core element will be returned

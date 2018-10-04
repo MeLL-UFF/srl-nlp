@@ -1,10 +1,11 @@
 #!/bin/env python2
+from functools import partial
 from itertools import chain
 
 import json
 import logging
 import xml.etree.ElementTree as XMLTree
-from typing import List
+from typing import List, Tuple
 from srl_nlp.framenet.corpus import Document, Sentence, AnnotationSet, Annotation, Paragraph, Layer
 from srl_nlp.rule_utils import not_none_to_str
 from abc import abstractmethod
@@ -19,7 +20,7 @@ class DocumentAdapter(object):
 
     @abstractmethod
     def parse_file(self, file_or_file_name):
-        # type: (str) -> List[Document]
+        # type: (object) -> List[Document]
         pass
 
     @abstractmethod
@@ -48,6 +49,9 @@ class FNXMLAdapter(DocumentAdapter):
     """
 
     _TAG_PREFIX = '{http://framenet.icsi.berkeley.edu}'
+
+    def __init__(self, encoding='utf-8'):
+        DocumentAdapter.__init__(self, encoding=encoding)
 
     @property
     def file_format(self):
@@ -99,7 +103,6 @@ class FNXMLAdapter(DocumentAdapter):
         for field in xml_node:
             if field.tag == self._TAG_PREFIX + 'text':
                 text = field.text.encode(encoding)
-                # TODO parse words
             elif field.tag == self._TAG_PREFIX + 'annotationSet':
                 anno_set = self._parse_annoset(field)
                 if anno_set.is_frame():
@@ -160,7 +163,6 @@ class FNXMLAdapter(DocumentAdapter):
                      **params)
 
     def _parse_annotation(self, xml_node, **params):
-        # TODO change for the layer level
         logger.debug('Annotation[{}]:{}'.format(xml_node.tag, xml_node.attrib))
         assert self._TAG_PREFIX + 'label' == xml_node.tag
         label = xml_node
@@ -187,7 +189,7 @@ class FNXMLAdapter(DocumentAdapter):
 
     def write_doc(self, doc, file_or_file_name, encoding=None):
         # type: (Document, any, str) -> None
-        root = self._doc2XML(doc)
+        root = self._doc2xml(doc)
         tree = XMLTree.ElementTree(root)
         if not encoding:
             encoding = self.encoding
@@ -195,12 +197,12 @@ class FNXMLAdapter(DocumentAdapter):
 
     def doc_to_string(self, doc, encoding=None):
         # type: (Document, str) -> object
-        root = self._doc2XML(doc)
+        root = self._doc2xml(doc)
         if not encoding:
             encoding = self.encoding
         return XMLTree.tostring(root, encoding=encoding)
 
-    def _doc2XML(self, doc):
+    def _doc2xml(self, doc):
         xml_root = XMLTree.Element('fullTextAnnotation')
         xml_root.attrib = {'xmlns': 'http://framenet.icsi.berkeley.edu',
                            'xmlns:xsi': 'http://www.w3.org/2001/XMLSchema-instance'}
@@ -220,18 +222,18 @@ class FNXMLAdapter(DocumentAdapter):
         for elem in doc.elements:
             if isinstance(elem, Sentence):
                 sent = elem  # type: Sentence
-                xml_root.append(self._sentence2XML(sent, corpID=doc.corpusID, docID=doc.id))
+                xml_root.append(self._sentence2xml(sent, corpID=doc.corpusID, docID=doc.id))
             elif isinstance(elem, Paragraph):
                 par = elem  # type: Paragraph
                 for sent in par.sentences:
-                    xml_root.append(self._sentence2XML(sent, corpID=doc.corpusID, docID=doc.id))
+                    xml_root.append(self._sentence2xml(sent, corpID=doc.corpusID, docID=doc.id))
             else:
                 raise Exception('Invalid object passed as document.element: {}: {}.\n'
                                 'It should be a Sentence or Paragraph object'.format(elem, type(elem)))
 
         return xml_root
 
-    def _sentence2XML(self, sent, **kwargs):
+    def _sentence2xml(self, sent, **kwargs):
         xml_sent = XMLTree.Element('sentence')
         xml_sent.attrib = {'ID': not_none_to_str(sent.id)}
         kwargs = {k: str(v) for k, v in kwargs.items()}
@@ -240,10 +242,10 @@ class FNXMLAdapter(DocumentAdapter):
         xml_text.text = sent.text.decode(self.encoding)
         xml_sent.append(xml_text)
         for annoSet in sent.annotation_sets:
-            xml_sent.append(self._anno_set2XML(annoSet))
+            xml_sent.append(self._anno_set2xml(annoSet))
         return xml_sent
 
-    def _anno_set2XML(self, annoset):
+    def _anno_set2xml(self, annoset):
         xml_anno_set = XMLTree.Element('annotationSet')
         xml_anno_set.attrib = {'ID': not_none_to_str(annoset.id),
                                'status': not_none_to_str(annoset.status),
@@ -252,19 +254,20 @@ class FNXMLAdapter(DocumentAdapter):
                                }
         xml_anno_set.attrib = {k: str(v) for k, v in xml_anno_set.attrib.items() if v is not None}
         for layer in annoset:
-            xml_anno_set.append(self._layer2XML(layer))
+            xml_anno_set.append(self._layer2xml(layer))
         return xml_anno_set
 
-    def _layer2XML(self, layer):
+    def _layer2xml(self, layer):
         xml_layer = XMLTree.Element('layer')
         xml_layer.attrib = {'name': layer.name}
         if layer.rank is not None:
             xml_layer.attrib['rank'] = str(layer.rank)
         for label in layer:
-            xml_layer.append(self._anno2XML(label))
+            xml_layer.append(self._anno2xml(label))
         return xml_layer
 
-    def _anno2XML(self, anno):
+    @staticmethod
+    def _anno2xml(anno):
         xml_anno = XMLTree.Element('label')
         attrib = {'start': not_none_to_str(anno.start),
                   'end': not_none_to_str(anno.end),
@@ -285,6 +288,9 @@ class SemEval07XMLAdapter(FNXMLAdapter):
     """
 
     _TAG_PREFIX = ''
+
+    def __init__(self, encoding='utf-8'):
+        DocumentAdapter.__init__(self, encoding=encoding)
 
     def _parse_document(self, xml_node):
         logger.debug('Document({}):{}'.format(xml_node.tag, xml_node.attrib))
@@ -383,7 +389,7 @@ class SemEval07XMLAdapter(FNXMLAdapter):
                 docs.append(doc)
         return docs
 
-    def _doc2XML(self, doc):
+    def _doc2xml(self, doc):
         xml_corpus = XMLTree.Element('corpus')
         xml_corpus.attrib = {'description': '',
                              'name': doc.corpus, 'ID': doc.corpusID}
@@ -394,30 +400,33 @@ class SemEval07XMLAdapter(FNXMLAdapter):
                           'ID': not_none_to_str(doc.id)}
         xml_pars = XMLTree.Element('paragraphs')
         for i, paragraph in enumerate(doc.elements):
-            xml_pars.append(self._paragraph2XML(paragraph, document_order=str(i + 1)))
+            xml_pars.append(self._paragraph2xml(paragraph, document_order=str(i + 1)))
 
         xml_doc.append(xml_pars)
         xml_docs.append(xml_doc)
         xml_corpus.append(xml_docs)
         return xml_corpus
 
-    def _paragraph2XML(self, paragraph, document_order=""):
+    def _paragraph2xml(self, paragraph, document_order=""):
         xml_par = XMLTree.Element('paragraph')
         xml_par.attrib = {'documentOrder': not_none_to_str(document_order),
                           'ID': not_none_to_str(paragraph.id)}
         xml_sents = XMLTree.Element('sentences')
         for sent in paragraph.sentences:
-            xml_sents.append(self._sentence2XML(sent))
+            xml_sents.append(self._sentence2xml(sent))
         xml_par.append(xml_sents)
         return xml_par
 
-    def _sentence2XML(self, sent, **kwargs):
+    def _sentence2xml(self, sent, **kwargs):
         xml_sent = XMLTree.Element('sentence')
         xml_sent.attrib = {'ID': sent.id}
         xml_sent.attrib.update(kwargs)
 
         xml_text = XMLTree.Element('text')
-        xml_text.text = sent.text.decode(self.encoding)
+        if type(sent.text) is unicode:
+            xml_text.text = sent.text
+        else:
+            xml_text.text = sent.text.decode(self.encoding)
 
         xml_pos = XMLTree.Element('parts-of-speech')
         for word in sent.parts_of_speech:
@@ -427,7 +436,7 @@ class SemEval07XMLAdapter(FNXMLAdapter):
 
         xml_anno_sets = XMLTree.Element('annotationSets')
         for annoSet in sent.annotation_sets:
-            xml_anno_sets.append(self._anno_set2XML(annoSet))
+            xml_anno_sets.append(self._anno_set2xml(annoSet))
 
         xml_sent.append(xml_text)
         xml_sent.append(xml_pos)
@@ -435,18 +444,18 @@ class SemEval07XMLAdapter(FNXMLAdapter):
 
         return xml_sent
 
-    def _layer2XML(self, layer):
+    def _layer2xml(self, layer):
         xml_layer = XMLTree.Element('layer')
         xml_layer.attrib = {'name': layer.name}
         xml_labels = XMLTree.Element('labels')
         if layer.rank is not None:
             xml_layer.attrib['rank'] = layer.rank
         for label in layer:
-            xml_labels.append(self._anno2XML(label))
+            xml_labels.append(self._anno2xml(label))
         xml_layer.append(xml_labels)
         return xml_layer
 
-    def _anno_set2XML(self, annoset):
+    def _anno_set2xml(self, annoset):
         xml_anno_set = XMLTree.Element('annotationSet')
         xml_anno_set.attrib = {'ID': not_none_to_str(annoset.id),
                                'status': not_none_to_str(annoset.status),
@@ -456,7 +465,7 @@ class SemEval07XMLAdapter(FNXMLAdapter):
         xml_anno_set.attrib = {k: value for (k, value) in xml_anno_set.attrib.items() if value is not None}
         xml_layers = XMLTree.Element('layers')
         for layer in annoset:
-            xml_layers.append(self._layer2XML(layer))
+            xml_layers.append(self._layer2xml(layer))
         xml_anno_set.append(xml_layers)
         return xml_anno_set
 
@@ -500,33 +509,46 @@ class JSONAdapter(DocumentAdapter):
         idx = json_obj.get('id', '0')
         json_frames = json_obj['frames']
         tokens = json_obj['tokens']
-        anno_sets = list(chain(*map(self.parse_annotations, json_frames)))
-        words = []
-        char_count = 0
-        for i in range(len(tokens)):  # TODO check this
-            token = tokens[0]
-            start = char_count + 1
-            char_count = char_count + 1 + len(token)
-            words.append((start, char_count))
-        # logger.debug('Sentence({}):{}'.format(idx, desc))
 
-        sentence = Sentence(sent_id=idx, text=' '.join(tokens), annotation_sets=anno_sets, parts_of_speech=words)
+        parts_of_speech = []
+        char_count = 0
+        for token in tokens:  # TODO check this
+            start = char_count
+            end = start + len(token) -1
+            char_count = end + 2  # -1
+            parts_of_speech.append((start, end))
+
+        parse_annotations = partial(self.parse_annotations, parts_of_speech=parts_of_speech)
+        anno_sets = list(chain(*map(parse_annotations, json_frames)))
+
+        sentence = Sentence(sent_id=idx, text=' '.join(tokens),
+                            annotation_sets=anno_sets,
+                            parts_of_speech=parts_of_speech)
         return sentence
 
-    def parse_annotations(self, json_frame):  # TODO
+    def parse_annotations(self, json_frame, parts_of_speech):
+        # type: (dict, List[Tuple[int,int]]) -> List[AnnotationSet]
         json_anno_sets = json_frame['annotationSets']
         json_target = json_frame['target']
         frame_name = json_target['name']
 
         anno_sets = []
+
+        def get_start_end(json_anno):
+            if 'spans' in json_anno:
+                json_anno = json_anno['spans'][0]  # TODO only 0 ?
+            start_idx = json_anno['start']
+            end_idx = json_anno['end'] - 1
+            return parts_of_speech[start_idx][0], parts_of_speech[end_idx][1]
+
         for json_anno_set in json_anno_sets:
             rank = json_anno_set['rank']
 
-            logger.debug('Frame({})'.format(json_target))
+            logger.debug('Frame({})'.format(json_target['name']))
             layers = []
 
-            target_start = json_target['spans'][0]['start']  # TODO only 0 ?
-            target_end = json_target['spans'][0]['end']
+            target_start, target_end = get_start_end(json_target)
+
             layers.append(Layer(rank=str(0), name='Target',
                                 annotations=[Annotation(name='Target',
                                                         start=target_start,
@@ -535,8 +557,7 @@ class JSONAdapter(DocumentAdapter):
             for json_annotation in json_anno_set['frameElements']:
                 name = json_annotation['name']
                 for span in json_annotation['spans']:
-                    start = span['start']  # TODO this start has to be calculated for the new pattern
-                    end = span['end']  # TODO  this end has to be calculated for the new pattern
+                    start, end = get_start_end(span)
                     annotation = Annotation(name=name, start=start, end=end)
                     annotations.append(annotation)
             layers.append(Layer(name='FE', rank=str(rank), annotations=annotations))

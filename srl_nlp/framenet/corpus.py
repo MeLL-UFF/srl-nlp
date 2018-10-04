@@ -2,7 +2,7 @@ import logging
 import pickle
 from collections import Iterator
 from copy import copy
-from typing import List
+from typing import List, Tuple
 
 from srl_nlp.framenet.framenet import Description
 
@@ -135,7 +135,7 @@ class Paragraph:
 
 class Sentence:
     def __init__(self, sent_id, text, annotation_sets=None, parts_of_speech=None, **params):
-        # type: (object, str, List[AnnotationSet], list, any) -> None
+        # type: (object, str, List[AnnotationSet], List[Tuple[int, int]], any) -> None
         """
 
         Args:
@@ -158,7 +158,7 @@ class Sentence:
         if parts_of_speech is None:
             self.parts_of_speech = []
         else:
-            self.parts_of_speech = parts_of_speech
+            self.parts_of_speech = parts_of_speech  # type: List[Tuple[int, int]]
         # TODO should I remove annotations that cross word spans?
         # self.remove_invalid_labels()  # TODO Move this to adapter
 

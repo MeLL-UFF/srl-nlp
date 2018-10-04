@@ -1,6 +1,8 @@
 """
 This file holds classes that facilitate rule manipulation
 """
+from os import listdir
+
 import logging
 import spacy
 from copy import deepcopy as copy
@@ -108,7 +110,7 @@ def get_examples(target, fn):
 
         Returns: list of (example, Frame) pairs
     """
-    frames = fn.getFrameElementFrames(target)
+    frames = fn.get_frame_element_frames(target)
     examples = []
     for frame in frames:
         fes = filter(lambda x: x == target, frame.coreFEs + frame.peripheralFEs)
@@ -326,3 +328,15 @@ def open_a_file(name=None, mode='wr'):
         return open(name, mode)
     else:
         return NamedTemporaryFile(mode=mode)
+
+
+def list_doc_files(folder_path):
+    """
+    Returns list of basenames of the files that have the appropriate format to be a document.
+    Args:
+        folder_path: string with the folder path where the documents files are stored
+    Returns:
+        List of strings.
+    """
+    return [f for f in listdir(folder_path)
+            if f.lower().endswith('.xml') or f.lower().endswith('.json')]
