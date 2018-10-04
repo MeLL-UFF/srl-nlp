@@ -193,8 +193,12 @@ class Description:
         self.tags[element.name] = self.tags.get(element.name, [])
         self.tags[element.name].append(element)
 
-    def get_elements(self, element_name):
+    def get_elements(self, element_or_element_name):
         """Returns a list of elements that match element_name"""
+        if isinstance(element_or_element_name, Description.Label):
+            element_name = element_or_element_name.name
+        else:
+            element_name = element_or_element_name
         return self.tags.get(element_name, [])
 
     def has_special_annotation(self):
