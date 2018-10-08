@@ -315,7 +315,7 @@ class AnnotationSet:
         return (self.frameName is not None) or (self.frameID is not None)
 
     def get_fes(self):
-        return list(filter(Annotation.is_fe, self.layers))  # FixMe
+        return [annotation for layer in self.layers for annotation in layer if layer.name.lower() == 'fe']
 
     def __iter__(self):
         # type: () -> Iterator[Layer]

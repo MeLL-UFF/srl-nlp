@@ -97,6 +97,10 @@ class Description(collections.Iterable):
             else:
                 self[item:item] = val
 
+        def __iter__(self):
+            # type: () -> Iterator[Description.Label]
+            return self.content.__iter__()
+
         def __repr__(self):
             attr = ''.join(['%s = "%s"' % item for item in self.attribs.iteritems()])
             if len(attr) > 0:
@@ -312,6 +316,10 @@ class Frame:
         self.id = idx
         self.relations = relations
 
+    @property
+    def fes(self):
+        return self.coreFEs + self.peripheralFEs
+
     def hasFEinCore(self, fe):
         """Check if fe is in the frame as a core Frame Element"""
         return fe in self.coreFEs
@@ -501,6 +509,13 @@ class Net(collections.Iterable):
         Returns: The list of all Frame names
         """
         return set(self.frames.keys())
+
+    def has_frame_element(self, name):
+        """
+        Returns:
+            A boolean value indicating if there is a Frame Elements in the FrameNet with this name
+            """
+        return name in self._fes
 
     def get_frame_element(self, name):
         """
