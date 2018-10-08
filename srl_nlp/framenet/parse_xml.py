@@ -46,7 +46,7 @@ class FrameXMLParser:
                            bgColor=attrib['bgColor'],
                            isCore=attrib.get('coreType') == 'Core',
                            semanticType=attrib.get('semanticType', ''),
-                           id=int(attrib.get('ID', 'None')))
+                           idx=int(attrib.get('ID', 'None')))
         return fe
 
     def _parse_description(self, xmlNode, open_tag='<', close_tag='>', end_tag_marker='/', escapeHTML=False):
@@ -141,7 +141,7 @@ class FrameXMLParser:
                          status=attrib['status'],
                          definition=definition,
                          # annotation = (0,0),
-                         id=int(attrib['ID']),
+                         idx=int(attrib['ID']),
                          lexeme=lexeme)
         return lu
 
@@ -180,7 +180,7 @@ class FrameXMLParser:
                 # print 'TEXT:', definition#child.text
 
         return Frame(name=name, description=definition, core_fes=coreFEs,
-                     peripheral_fes=peripheralFEs, lus=LUs, id=id, **relations)
+                     peripheral_fes=peripheralFEs, lus=LUs, idx=id, **relations)
 
 
 class NetXMLParser:

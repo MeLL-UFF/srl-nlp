@@ -5,7 +5,7 @@ from itertools import chain
 import json
 import logging
 import xml.etree.ElementTree as XMLTree
-from typing import List, Tuple
+from typing import List, Tuple, Union, BinaryIO
 from srl_nlp.framenet.corpus import Document, Sentence, AnnotationSet, Annotation, Paragraph, Layer
 from srl_nlp.rule_utils import not_none_to_str
 from abc import abstractmethod
@@ -569,6 +569,7 @@ class JSONAdapter(DocumentAdapter):
         return anno_sets
 
     def parse_file(self, file_or_file_name):
+        # type: (Union[str, BinaryIO]) -> list
         """
         Returns a list of documents
         """

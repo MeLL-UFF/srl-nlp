@@ -1,6 +1,6 @@
 import logging
 import pickle
-from collections import Iterator
+from collections import Iterator, Iterable
 from copy import copy
 from typing import List, Tuple
 
@@ -354,7 +354,7 @@ class AnnotationSet:
         return str(self)
 
 
-class Layer:
+class Layer(Iterable):
     def __init__(self, name, rank='', annotations=None, **params):
         self.name = name
         self.rank = rank

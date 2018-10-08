@@ -1,7 +1,7 @@
-import logging
-
+import collections
 import distance as _dist
-from typing import Dict
+import logging
+from typing import Dict, Union, List, Iterable, Iterator
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +15,7 @@ class Lexeme:
         self.text = text
 
     def __repr__(self):
-        return str(self)  # TODO
+        return str(self)
 
     def __str__(self):
         return "{name}.{pos}".format(name=self.name, pos=self.pos)
@@ -29,13 +29,13 @@ class Lexeme:
 
 class LexicalUnit:
     def __init__(self, name, pos='', status='', definition='',
-                 annotation=(0, 0), id=None, lexeme=None):
+                 annotation=(0, 0), idx=None, lexeme=None):
         self.name = name
         self.pos = pos
         self.status = status
         self.definition = definition
         self.annotation = annotation
-        self.id = id
+        self.id = idx
         self.lexeme = lexeme
 
     def __repr__(self):
@@ -54,12 +54,13 @@ class LexicalUnit:
         return (self.name, self.pos).__hash__()
 
 
-class Description:
-    class Label(object):
+class Description(collections.Iterable):
+    class Label(collections.Iterable):
         name = 'l'
         shortname = 'Label'
 
         def __init__(self, content=None, escapeHTML=False, **attribs):
+            # type: (List[Union[Description.Label,str]], bool, Dict[str,str]) -> None
             if content is None:
                 self.content = []
             else:
@@ -194,8 +195,8 @@ class Description:
         self.tags[element.name].append(element)
 
     def get_elements(self, element_or_element_name):
-        """Returns a list of elements that match element_name"""
-        if isinstance(element_or_element_name, Description.Label):
+        """Returns a list of elements that match element or element_name"""
+        if hasattr(element_or_element_name, 'name'):
             element_name = element_or_element_name.name
         else:
             element_name = element_or_element_name
@@ -210,6 +211,10 @@ class Description:
     def get_fens(self):
         return self.fens
 
+    def __iter__(self):
+        # type: () -> Iterator[Union[Description.Label, str]]
+        return self.content.__iter__()
+
     def __contains__(self, element):
         return element in self.fens or element in self.specials
 
@@ -217,23 +222,24 @@ class Description:
         if escapeHTML or self.escapeHTML:
             return '&lt;def-root&gt;%s&lt;/def-root&gt;' % (''.join(map(str, self.content)))
         else:
-            return '<def-root>%s</def-root>' % (''.join(map(str, self.content)))  # TODO
+            return '<def-root>%s</def-root>' % (''.join(map(str, self.content)))
 
     def __repr__(self):
-        return str(self)  # TODO
+        return str(self)
 
 
 class Frame:
     class Element:
         def __init__(self, name='', abbrev='', definition='',
-                     fgColor='black', bgColor='white', isCore=True, semanticType='', id=None):
+                     fgColor='black', bgColor='white', isCore=True, semanticType='', idx=None):
             self.name = name
             self.abbrev = abbrev
-            self.definition = definition
+            self.definition = definition  # type: Union[str, Description]
             self.fgColor = fgColor
             self.bgColor = bgColor
             self.isCore = isCore
-            self.id = id
+            self.semanticType = semanticType
+            self.id = idx
 
         def __eq__(self, other):
             if type(other) == str:  # allow comparison with string
@@ -253,13 +259,18 @@ class Frame:
         def __repr__(self):
             return str(self)
 
-    class Relation:
+    class Relation(collections.Iterable):
         def __init__(self, name, frames=None):
+            # type: (str, List[Frame]) -> None
             self.name = name
             if frames is None:
                 self.frames = []
             else:
                 self.frames = frames
+
+        def __iter__(self):
+            # type: () -> Iterator[Union[Frame, str]]
+            return self.frames.__iter__()
 
         def __str__(self):
             # return '<Frame "%s" %s>' %(self.name, dir(self))
@@ -277,8 +288,8 @@ class Frame:
                 return self.name == other.name
 
     def __init__(self, name='', description='', core_fes=None,
-                 peripheral_fes=None, lus=None, id=None, **relations):
-        # TODO exceptions
+                 peripheral_fes=None, lus=None, idx=None, **relations):
+        # type: (str, str, List[Frame.Element], List[Frame.Element], List[LexicalUnit], Union[int, str], Dict[str, Relation]) -> None
         assert name is not None  # None type is not an acceptable name
         self.name = name
         self.description = description
@@ -298,7 +309,7 @@ class Frame:
         else:
             self.LUs = lus
 
-        self.id = id
+        self.id = idx
         self.relations = relations
 
     def hasFEinCore(self, fe):
@@ -337,15 +348,22 @@ class Frame:
         return self._in_transitive_closure(relation_name, other)
 
     def __hash__(self):
+        # The way that relation references works need this hash to point to the frame's name hash
         return self.name.__hash__()
 
     def __eq__(self, other):
+        # type: (Union[str, Frame]) -> bool
         """
         Two Frames are equal if they have the same name, the same Core Frame Elements,
         and the same Peripheral Frame elements.
+
+        Args:
+            other:
         """
         if other is None:
             return self is None
+        if isinstance(other, str):
+            return self.name == other
 
         eq_core = [fe in other.coreFEs for fe in self.coreFEs] + \
                   [fe in self.coreFEs for fe in other.coreFEs]
@@ -359,7 +377,7 @@ class Frame:
         return str(self)
 
 
-class Net:
+class Net(collections.Iterable):
     _word_distances = {'levenshtein': lambda x, y: _dist.levenshtein(x, y, normalized=True),
                        # 'hamming': distance.hamming #the two strings must have the same length
                        'jaccard': _dist.jaccard,
@@ -373,7 +391,7 @@ class Net:
             frames: A list of Frames or a dictionary where the names are the keys
         """
         if type(frames) != dict:  # if the user passes a list of frames instead of a dict then convert it
-            frames = dict(zip(map(lambda x: x.name, frames), frames))
+            frames = {frame.name: frame for frame in frames}
         self.frames = frames  # type: Dict[str, Frame]
         self.framesByID = dict([(frame.id, frame) for frame in frames.values()])  # type: Dict[int, Frame]
         for frame in frames.itervalues():
@@ -389,12 +407,12 @@ class Net:
     def _update_frame_references(self, frame):
         """Uses the self.frames dict to replace the strings representing Frames by actual Frames"""
 
-        def get_rel(x):
-            f = self.frames.get(x, None)
-            if f is not None:
-                return f
+        def get_rel(frame_name):
+            out_frame = self.frames.get(frame_name, None)
+            if out_frame is not None:
+                return out_frame
             else:
-                logger.warning('Relation pointing to not existent Frame "{}"'.format(x))
+                logger.warning('Relation pointing to not existent Frame "{}"'.format(frame_name))
 
         for relation in frame.relations.itervalues():
             relation.frames = [f for f in map(get_rel, relation.frames) if f is not None]
@@ -433,9 +451,6 @@ class Net:
 
             return frame
 
-    # def __getslice__(self, term, max_elems):
-    #     return None ##TODO
-
     def get_most_similar_frames(self, word, qtd=3, threshold=1, distance='levenshtein'):
         """
         Return an ordered list of the most similar Frames using the specified distance:
@@ -451,7 +466,10 @@ class Net:
         """
         top_values = []
         metric = self._word_distances[distance]
-        distance = lambda x: metric(x.name, word)
+
+        def distance(obj):
+            return metric(obj.name, word)
+
         for frame in self:
             score = min(map(distance, frame.LUs + [frame]))
             if score <= threshold:
@@ -473,29 +491,28 @@ class Net:
     @property
     def fe_names(self):
         """
-
         Returns: The list of all Frame Element names
-
         """
         return set(self._fes.keys())
 
     @property
     def frame_names(self):
         """
-
         Returns: The list of all Frame names
-
         """
         return set(self.frames.keys())
 
     def get_frame_element(self, name):
-        """Returns the Frame Elements in the FrameNet by name"""
+        """
+        Returns:
+            The Frame Elements in the FrameNet by name
+        """
         try:
             return self._fes[name]
-        except KeyError as e:
+        except KeyError:
             raise KeyError('\'{item}\' is not a valid Frame Element name in this FrameNet'.format(item=name))
 
-    def get_frame_element_frames(self, fe, coreFEs=True, peripheralFEs=True):
+    def get_frame_element_frames(self, fe, core_fes=True, peripheral_fes=True):
         """Get all frames where the given fe is a Frame Element
         
         coreFEs: boolean value, if set True then Frames where fe is a core element will be returned
@@ -506,14 +523,15 @@ class Net:
         if not isinstance(fe, Frame.Element):
             fe = self._fes[fe]
         frames = self._fes2frames[fe]
-        if (not coreFEs) or (not peripheralFEs):
-            if (not coreFEs) and (not peripheralFEs):
+        if (not core_fes) or (not peripheral_fes):
+            if (not core_fes) and (not peripheral_fes):
                 return []
-            elif coreFEs:
-                frame_filter = lambda frame: frame.hasFEinCore(fe)
+            elif core_fes:
+                return filter(lambda frame: frame.hasFEinCore(fe),
+                              frames)
             else:
-                frame_filter = lambda frame: frame.hasFEnotInCore(fe)
-            frames = filter(frame_filter, frames)
+                return filter(lambda frame: frame.hasFEnotInCore(fe),
+                              frames)
         return frames
 
     def __str__(self):
