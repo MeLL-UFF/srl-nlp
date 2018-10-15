@@ -10,6 +10,8 @@ This project aims to process structured representations of texts through SRL to 
 * Aleph
 * Prolog package sgml
 * The datasets used in the experimentation (only if you are goig to run the experiments)
+* spaCy
+  - en_core_web_sm model
 
 ## Installing Requirements
 * Problog, ProbFoil (I recommend pip for this task)
@@ -42,3 +44,9 @@ The testing with SemEval07 Task 19 demands FrameNet data and demands all frames 
         sudo pip install -U pytest
         pytest
     ```
+
+## Read Also:
+
+## Contact
+
+Besides the issue section in the github, directed for any question related to this repository, you can contact me through [my email](brenocarvalho@ic.uff.br).
