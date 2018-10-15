@@ -24,6 +24,8 @@ class Process(object):
     @abstractmethod
     def __init__(self, path_to_bin, disposable, time_out=None, *params):
         self.path_to_bin = path_to_bin
+        if not path.isfile(self.path_to_bin):
+            raise ValueError('There is no file located in "{}'.format(self.path_to_bin))
         self.params = params
         self._disposable = disposable
         self._time_out = time_out
