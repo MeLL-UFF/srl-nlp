@@ -155,7 +155,8 @@ class FNXMLAdapter(DocumentAdapter):
             elif child.tag == self._TAG_PREFIX + 'label':
                 annos.append(self._parse_annotation(child))
             if len(child) == 0:
-                err = IndexError('Empty layer id({id})'.format(id=xml_node.attrib.get('ID', '?')))
+                err = IndexError('Empty layer id({id}) : {other}'.format(id=xml_node.attrib.get('ID', '?'),
+                                                                         other=xml_node.attrib))
                 logger.warning(err)
         return Layer(rank=xml_node.attrib.get('rank', None),
                      name=xml_node.attrib['name'],
@@ -514,7 +515,7 @@ class JSONAdapter(DocumentAdapter):
         char_count = 0
         for token in tokens:  # TODO check this
             start = char_count
-            end = start + len(token) -1
+            end = start + len(token) - 1
             char_count = end + 2  # -1
             parts_of_speech.append((start, end))
 
