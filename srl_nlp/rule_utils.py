@@ -8,10 +8,17 @@ import spacy
 from copy import deepcopy as copy
 from regex import compile
 from tempfile import NamedTemporaryFile
+from typing import Dict, Set, Iterable, List
 
 from srl_nlp.framenet.framenet import Description
 from srl_nlp.logical_representation.fol import FOL
 from srl_nlp.logical_representation.logicalform import LF
+import sys
+
+if sys.version_info[0] > 2:
+    from configparser import ConfigParser
+else:
+    from ConfigParser import ConfigParser
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +46,7 @@ def replace_all(lf, old_term, new_term):
     Returns:
         Nothing. This method changes the lf in-place
     """
-    frontier = [lf.info]
+    frontier = [lf.info]  # type: List
     while len(frontier):
         curr = frontier.pop()
         pred = curr[0]
@@ -52,8 +59,9 @@ def replace_all(lf, old_term, new_term):
 def remove_eq(lf, eq_term):
     """
     Remove the equality predicates and traverses the lf to bind all the constants that should be equal.
-    The eq_term predicate must be binary, and the second term of it will be replaced by the first one in every predicate in the lf.
-    When there are multiple eq_term predicates the final result might not be easy to predict but it is going to be correct.
+    The eq_term predicate must be binary, and the second term of it will be replaced by the first one in every
+    predicate in the lf. When there are multiple eq_term predicates the final result might not be easy to predict but
+    it is going to be correct.
 
     Args:
         lf: LF to have its eq predicates removed and the constants matched
@@ -62,7 +70,7 @@ def remove_eq(lf, eq_term):
     Returns:
         Nothing. This method changes the lf in-place
     """
-    frontier = [lf.info]
+    frontier = [lf.info]  # type: List
     while len(frontier):
         curr = frontier.pop()
         terms = curr[1:]
@@ -186,7 +194,7 @@ def get_annotations(example, lf, abbrev2fe=None, get_lemma=None):
         example:
         lf:  a lf representation of the example
         abbrev2fe: dict of abbreviations to frame element names
-        get_lemma: function that retorns the lemma of given token
+        get_lemma: function that returns the lemma of a given token
 
     Returns:
         A tuple (fes_dict, taget_list), where
@@ -196,13 +204,13 @@ def get_annotations(example, lf, abbrev2fe=None, get_lemma=None):
     # TODO check if it works okay when we have the same instance of predicates (conjunctions)
     if abbrev2fe is None:
         abbrev2fe = dict()
-    fes = dict()
+    fes = dict()  # type: Dict
     target = []
     if get_lemma is None:
         nlp = spacy.load('en_core_web_sm')
 
         def get_lemma(token_str):
-            return nlp(token_str.decode('utf-8'))[0].lemma_
+            return nlp(token_str.decode('utf-8'))[0].lemma_.encode('utf-8')
 
     for term in example.content:
         pred_stack = []
@@ -210,8 +218,12 @@ def get_annotations(example, lf, abbrev2fe=None, get_lemma=None):
         while isinstance(term, Description.FEeXample) or \
                 isinstance(term, Description.Target) or \
                 isinstance(term, Description.T):
-            pred_stack.append(term.attribs.get('name', term.name))
-            term = term.content[0]
+            if len(term.content) == 0:
+                logger.warning("Term {} is empty in example {}".format(str(term), str(example)))
+                break
+            else:
+                pred_stack.append(term.attribs.get('name', term.name))
+                term = term.content[0]
         logger.debug("TERM stack %s" % pred_stack)
         if len(pred_stack) > 0:
             for token in term.strip().split(' '):
@@ -254,12 +266,13 @@ def get_factors(lf, out=None):
 
 
 def get_paths(pred_l, pred_r, factors, breadth=True):
+    # type: (object, object, Dict[str,Set[LF]], bool) -> Iterable[List[LF]]
     """
     Given two predicates in LF, and a mapping of their literals given
     by 'get_factors' this function yields the paths that can link
     those predicates.
     """
-    frontier = [(pred_r, [])]
+    frontier = [(pred_r, [])]  # type: List
     visited = []
     while len(frontier):
         if breadth:
@@ -293,7 +306,7 @@ def str_preds(preds, pattern=compile('^c(\d+)$'), x=('frame_element', 'frame_rel
     Converts a LF or a list of LFs into a string in a convenient way to be rendered in a rule
         LF -> str
         [LF] -> str
-    """  # TODO improve description
+    """
     if not count:
         count = [0]
 

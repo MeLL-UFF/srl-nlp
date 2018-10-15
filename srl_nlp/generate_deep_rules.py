@@ -6,8 +6,7 @@ This script creates a simple theory from FrameNet that can be further revised.
 __author__ = "Breno W. Carvalho"
 __copyright__ = "Copyright 2018"
 __credits__ = ["Breno W. Carvalho", "Bernardo Goncalves", "Aline Marins Paes"]
-__license__ = "GPL"
-__email__ = "brenocarvalho@id.uff.br"
+__email__ = "brenocarvalho@ic.uff.br"
 __status__ = "Prototype"
 
 # Utils

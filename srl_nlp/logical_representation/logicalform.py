@@ -1,3 +1,4 @@
+from __future__ import print_function
 import math
 from sys import stderr
 
@@ -35,14 +36,14 @@ class LF:
                 fol = FOL(fol)
             if header and fol.info[0] == header:
                 fol.info = fol.info[-1]
-            #    print "*"
-            # print ">", header, fol
+            #    print("*")
+            # print(">", header, fol)
             try:
-                # print '\n-', fol
+                # print('\n-', fol)
                 logger.debug('FOL: %s', fol)
                 fol.convert2PrenexForm()
                 logger.debug('PRENEX FOL: %s', fol)
-                # print '*', fol
+                # print('*', fol)
                 if skolemize_ignore is not None:
                     fol.skolemize(constant_prefix=constant_prefix, add_quotm=add_quotm, ignore=skolemize_ignore,
                                   removeForAlls=remove_for_alls)
@@ -67,7 +68,7 @@ class LF:
             while FOL.is_quantifier(root[0]):
                 assert len(root) > 1, 'Invalid FOL'
                 root = root[-1]
-            # print '##' if root[0] == FOL.AND else ('xx'+str(root[0]))
+            # print('##' if root[0] == FOL.AND else ('xx'+str(root[0])))
             if root[0] == FOL.AND:
                 frontier.extend(root[1:])
             else:
@@ -91,6 +92,8 @@ class LF:
         it is going to be an 'AND'
         """
         if len(self.info) > 0:
+            if self.info[0][0] == self.info[0][-1] == "'" or self.info[0][0] == self.info[0][-1] == '"':
+                return self.info[0][1:-1]
             return self.info[0]
         return None
 
@@ -144,7 +147,7 @@ class LF:
                 if len(term) > 1:
                     out += '(%s)' % ','.join(map(parser, term[1:]))
         except Exception as e:
-            print >> stderr, e
+            print(e, file=stderr)
             raise Exception('Ill-formed FOL:%s' % term)
         return out
 
