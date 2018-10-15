@@ -1,7 +1,8 @@
 import collections
 import distance as _dist
 import logging
-from typing import Dict, Union, List, Iterable, Iterator
+import re
+from typing import Dict, Union, List, Iterator
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +70,7 @@ class Description(collections.Iterable):
             self.escapeHTML = escapeHTML
 
         def __str__(self, escapeHTML=False):
-            attr = ''.join(['%s="%s"' % item for item in self.attribs.iteritems()])
+            attr = ''.join(['%s="%s"' % item for item in self.attribs.items()])
             if len(attr) > 0:
                 attr = ' ' + attr
             if escapeHTML or self.escapeHTML:
@@ -102,7 +103,7 @@ class Description(collections.Iterable):
             return self.content.__iter__()
 
         def __repr__(self):
-            attr = ''.join(['%s = "%s"' % item for item in self.attribs.iteritems()])
+            attr = ''.join(['%s = "%s"' % item for item in self.attribs.items()])
             if len(attr) > 0:
                 attr = ' ' + attr
             return '{name}(\'{desc}\'{attr})'.format(name=self.shortname,
@@ -110,7 +111,15 @@ class Description(collections.Iterable):
                                                      desc=''.join(map(str, self.content)))
 
         def __hash__(self):
-            return (self.name, tuple(self.content), tuple(self.attribs.items())).__hash__()
+            # return (self.name, tuple(self.content), tuple(self.attribs.items())).__hash__()
+            return (self.name, tuple(self.attribs.items())).__hash__()
+
+        def __eq__(self, other):
+            if hasattr(other, 'content'):
+                return all((self.name == other.name,
+                            self.content == other.content,
+                            self.attribs.items() == other.attribs.items()))
+            return False
 
         def add_text(self, text):
             if len(self.content) and type(self.content[-1]) == str:
@@ -136,7 +145,7 @@ class Description(collections.Iterable):
             except TypeError as e:
                 logger.error(str(self))
                 raise e
-            return out
+            return re.sub(r'\s', ' ', out)
 
     class FEName(Label):
         name = 'fen'
@@ -199,6 +208,7 @@ class Description(collections.Iterable):
         self.tags[element.name].append(element)
 
     def get_elements(self, element_or_element_name):
+        # type: (Union[Label,str]) -> List[Union[str,Label]]
         """Returns a list of elements that match element or element_name"""
         if hasattr(element_or_element_name, 'name'):
             element_name = element_or_element_name.name
@@ -379,7 +389,8 @@ class Frame:
                         [fe in self.peripheralFEs for fe in other.peripheralFEs]
 
         criteria = [self.name == other.name, ] + eq_core + eq_peripheral
-        return reduce(lambda x, y: x and y, criteria)
+
+        return all(criteria)
 
     def __repr__(self):
         return str(self)
@@ -402,7 +413,7 @@ class Net(collections.Iterable):
             frames = {frame.name: frame for frame in frames}
         self.frames = frames  # type: Dict[str, Frame]
         self.framesByID = dict([(frame.id, frame) for frame in frames.values()])  # type: Dict[int, Frame]
-        for frame in frames.itervalues():
+        for frame in frames.values():
             self._update_frame_references(frame)
         self._fes = dict()
         self._fes2frames = dict()
@@ -422,11 +433,11 @@ class Net(collections.Iterable):
             else:
                 logger.warning('Relation pointing to not existent Frame "{}"'.format(frame_name))
 
-        for relation in frame.relations.itervalues():
+        for relation in frame.relations.values():
             relation.frames = [f for f in map(get_rel, relation.frames) if f is not None]
 
     def __iter__(self):
-        return self.frames.itervalues()
+        return iter(self.frames.values())
 
     def __getitem__(self, item):
         """Returns the Frames in the FrameNet by name or id, if item is a name or integer
@@ -458,6 +469,12 @@ class Net(collections.Iterable):
                         '\'{item}\' is not a valid Frame name or id in this FrameNet version'.format(item=item))
 
             return frame
+
+    def __contains__(self, key):
+        if hasattr(key, 'name'):
+            return key.name in self.frames
+        else:
+            return key in self.frames
 
     def get_most_similar_frames(self, word, qtd=3, threshold=1, distance='levenshtein'):
         """
