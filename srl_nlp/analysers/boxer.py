@@ -1,7 +1,8 @@
+from __future__ import print_function
 from sys import stderr
 
 import logging
-from ConfigParser import ConfigParser
+from srl_nlp.rule_utils import ConfigParser
 from abc import abstractmethod
 from os import path
 from regex import match, compile
@@ -32,7 +33,7 @@ class TokenizerLocalAPI(Process):
     def tokenize(self, text):
         out, err = self._process(text.strip())
         if err:
-            print >> stderr, 'Tokenizer error: {0}'.format(err)
+            print('Tokenizer error: {0}'.format(err), file=stderr)
         tokenized = out
         sentences = tokenized.split('\n')
         return [sentence.split(" ") for sentence in sentences]
@@ -44,7 +45,7 @@ class CandCLocalAPI(Process):
             params = ('--models', config.get('semantic_local', 'c&c_models'), '--candc-printer', 'boxer')
         self._min_timeout = min_timeout
         self._header_pattern = compile(r"""(.*\s)*:- discontiguous.*""")
-        Process.__init__(self, path_to_bin=path_to_bin, disposable=False, time_out=TIME_OUT, *params)
+        Process.__init__(self, path_to_bin, False, TIME_OUT, *params)
 
     def _init_popen(self):
         self._time_out = TIME_OUT
@@ -78,7 +79,7 @@ class CandCLocalAPI(Process):
                     if err:
                         # C&C writes info on the stderr, we want to ignore it
                         if not err.startswith('#'):
-                            print >> stderr, 'Parser error: {0}'.format(err)
+                            print('Parser error: {0}'.format(err), file=stderr)
                 except AssertionError:
                     logger.warning("{proc} failed at sentence {sent}"
                                    .format(proc=self._proc_name, sent=tokenized_sentence))
@@ -153,7 +154,7 @@ class BoxerAbstract:
 
         special_char_pattern = compile('C(\d+)')
         for fol in fols:
-            frontier = [fol.info]
+            frontier = [fol.info]  # type: List
             while len(frontier):
                 term = frontier.pop()
                 term[0] = special_char_pattern.sub(lambda x: 'c{}'.format(x.group(1)), term[0])
@@ -194,7 +195,7 @@ class BoxerAbstract:
     def _expandFOLpredicates(fol, concatenator=FOL.AND):
         if fol is None:
             return None
-        frontier = [fol.info]
+        frontier = [fol.info]  # type: List
         while len(frontier) > 0:
             term = frontier.pop()
             predicate = term[0]
@@ -255,7 +256,7 @@ class BoxerLocalAPI(Process, BoxerAbstract):
         if err:
             # Boxer throws a silly error every time (a bug), we want to ignore it
             if "No source location" not in err:
-                print >> stderr, 'Boxer error: {0}'.format(err)
+                print('Boxer error: {0}'.format(err), file=stderr)
         return out
 
     def _parse_sentence(self, sentence):
