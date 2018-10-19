@@ -1,4 +1,5 @@
 #!/bin/env python2
+from __future__ import print_function
 from functools import partial
 from itertools import chain
 
@@ -105,13 +106,11 @@ class FNXMLAdapter(DocumentAdapter):
                 text = field.text.encode(encoding)
             elif field.tag == self._TAG_PREFIX + 'annotationSet':
                 anno_set = self._parse_annoset(field)
-                if anno_set.is_frame():
-                    annotation_sets.append(anno_set)
-                else:
-                    for layer in anno_set:
-                        if layer.name == "PENN":
-                            for label in layer:
-                                words.append((label.start, label.end))
+                annotation_sets.append(anno_set)
+                for layer in anno_set:
+                    if layer.name == "PENN":
+                        for label in layer:
+                            words.append((label.start, label.end))
         sentence = Sentence(sent_id=idx, text=text, annotation_sets=annotation_sets, parts_of_speech=words)
         return sentence
 
@@ -725,8 +724,8 @@ if __name__ == '__main__':  # TODO Move this to proper script
             for doc in docs:
                 for sentence in doc:
                     converted = sentence.get_fn_example().str_no_annotation()
-                    print converted
-                    print sentence.get_fn_example()
+                    print(converted)
+                    print(sentence.get_fn_example())
                     # raw_input()
                     if converted != sentence.text:
                         logger.critical("{sent} was not properly processed".format(sent=sentence))
@@ -744,7 +743,7 @@ if __name__ == '__main__':  # TODO Move this to proper script
         else:
             logger.info('Printing {} data'.format(adapter_out.file_format.upper()))
             for doc in docs:
-                print adapter_out.doc_to_string(doc)
+                print(adapter_out.doc_to_string(doc))
 
 
     try:

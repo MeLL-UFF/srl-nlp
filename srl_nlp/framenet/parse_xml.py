@@ -7,7 +7,8 @@ import xml.etree.ElementTree as XMLTree
 from os import path, listdir as ls
 from re import compile, DOTALL
 
-from srl_nlp.framenet.framenet import Lexeme, LexicalUnit, Frame, Net, Description
+from srl_nlp.framenet import description
+from srl_nlp.framenet.framenet import Lexeme, LexicalUnit, Frame, FrameNet, FrameElement, FrameRelation
 
 logger = logging.getLogger(__name__)
 
@@ -17,53 +18,53 @@ class FrameXMLParser:
     Parses a XML file describing a Frame into an actual Frame
     """
 
-    _tag2label = {'ex': Description.EXample,
-                  'fex': Description.FEeXample,
-                  'fen': Description.FEName,
-                  't': Description.T,
-                  'm': Description.M,
-                  'ment': Description.Ment,
-                  'gov': Description.Gov,
-                  'em': Description.EM,
-                  'supp': Description.Supp,
-                  'target': Description.Target}
+    _tag2label = {'ex': description.EXample,
+                  'fex': description.FEeXample,
+                  'fen': description.FEName,
+                  't': description.T,
+                  'm': description.M,
+                  'ment': description.Ment,
+                  'gov': description.Gov,
+                  'em': description.EM,
+                  'supp': description.Supp,
+                  'target': description.Target}
 
     def __init__(self, **args):
         pass
 
-    def _parse_fe(self, xmlNode):
-        attrib = xmlNode.attrib
+    def _parse_fe(self, xml_node):
+        attrib = xml_node.attrib
         for key in attrib:
             attrib[key] = attrib[key].encode('utf-8')
         definition = None
-        for grandchild in xmlNode:
+        for grandchild in xml_node:
             if grandchild.tag.endswith('definition'):
                 definition = self._parse_description(grandchild)
-        fe = Frame.Element(name=attrib['name'],
-                           abbrev=attrib['abbrev'],
-                           definition=definition,
-                           fgColor=attrib['fgColor'],
-                           bgColor=attrib['bgColor'],
-                           isCore=attrib.get('coreType') == 'Core',
-                           semanticType=attrib.get('semanticType', ''),
-                           idx=int(attrib.get('ID', 'None')))
+        fe = FrameElement(name=attrib['name'],
+                          abbrev=attrib['abbrev'],
+                          definition=definition,
+                          fg_color=attrib['fgColor'],
+                          bg_color=attrib['bgColor'],
+                          is_core=attrib.get('coreType') == 'Core',
+                          semantic_type=attrib.get('semanticType', ''),
+                          idx=int(attrib.get('ID', 'None')))
         return fe
 
-    def _parse_description(self, xmlNode, open_tag='<', close_tag='>', end_tag_marker='/', escapeHTML=False):
+    def _parse_description(self, xml_node, open_tag='<', close_tag='>', end_tag_marker='/', escape_html=False):
         comment_pattern = compile('{open}!--.*?--{close}'.format(open=open_tag, close=close_tag), DOTALL)
         tag_pattern = compile('(?:{open}(.*?){close})|(.+?(?=(?:{open})|^))'.format(open=open_tag, close=close_tag),
                               DOTALL)
         in_tag_pattern = compile('\s*((?:\w|-|_)+)\s*(?:name="(\w*)")?\s*', DOTALL)
 
-        text = comment_pattern.sub('', xmlNode.text)  # if xmlNode.text != None else ''
+        text = comment_pattern.sub('', xml_node.text)  # if xmlNode.text != None else ''
         tokens = tag_pattern.findall(text)
         tag_stack = []
 
-        description = Description(escapeHTML=escapeHTML)
-        label_stack = [description]
+        desc = description.Description(escape_html=escape_html)
+        label_stack = [desc]
         content = None
 
-        logger.debug('SENTENCE:%s', xmlNode.text)
+        logger.debug('SENTENCE:%s', xml_node.text)
         logger.debug('TOKENS:%s', tokens)
 
         for tag, text in tokens:
@@ -82,23 +83,23 @@ class FrameXMLParser:
                     logger.debug('Last_tag \'%s\', attrib \'%s\', tag \'%s\'', curr_name, attrib, name)
                     if name == curr_name:
                         logger.debug('name is matching!!')
-                        if self._tag2label.has_key(name):
+                        if name in self._tag2label:
                             label_stack.pop()
                     else:
                         raise Exception(
                             'Tag is not properly closed: {text}\n{name} != {cname}'.format(name=name, cname=curr_name,
-                                                                                           text=xmlNode.text))
+                                                                                           text=xml_node.text))
                 else:
                     tag_stack.append((tag, text))
                     try:
                         Label = self._tag2label[name]
                         if len(attrib.strip()) > 0:
-                            label_stack.append(Label(escapeHTML=escapeHTML, name=attrib))
+                            label_stack.append(Label(escape_html=escape_html, name=attrib))
                         else:
-                            label_stack.append(Label(escapeHTML=escapeHTML))
+                            label_stack.append(Label(escape_html=escape_html))
                         label_buffer.add_element(label_stack[-1])
-                    except KeyError as e:
-                        if not name in ['x', 'b', 'def-root']:
+                    except KeyError:
+                        if name not in ['x', 'b', 'def-root']:
                             logger.warning('Unknown tag "{tag}"'.format(tag=name))
                             # raise Exception('{text}\nWeird tag "{tag}"'.format(tag = name, text= xmlNode.text))
                     if tag.endswith(end_tag_marker):
@@ -107,27 +108,28 @@ class FrameXMLParser:
                 content = text.encode('utf-8')
         if len(tag_stack) > 0:
             logger.warning('Not all tags closed!{stack}'.format(stack=tokens))
-        return description
+        return desc
 
-    def _parse_lexeme(self, xmlNode):
-        attrib = xmlNode.attrib
+    @staticmethod
+    def _parse_lexeme(xml_node):
+        attrib = xml_node.attrib
         for key in attrib:
             attrib[key] = attrib[key].encode('utf-8')
-        text = xmlNode.text if xmlNode.text is not None else ''
+        text = xml_node.text if xml_node.text is not None else ''
         le = Lexeme(name=attrib['name'],
                     pos=attrib['POS'],
-                    breakBefore=attrib['breakBefore'],
-                    headWord=attrib['headword'],
+                    break_before=attrib['breakBefore'],
+                    head_word=attrib['headword'],
                     text=text)
         return le
 
-    def _parse_lu(self, xmlNode):
-        attrib = xmlNode.attrib
+    def _parse_lu(self, xml_node):
+        attrib = xml_node.attrib
         for key in attrib:
             attrib[key] = attrib[key].encode('utf-8')
         definition = ''
         lexeme = None
-        for grandchild in xmlNode:
+        for grandchild in xml_node:
             if grandchild.tag.endswith('definition'):
                 definition = grandchild.text
             elif grandchild.tag.endswith('sentenceCount'):
@@ -149,10 +151,10 @@ class FrameXMLParser:
         tree = XMLTree.parse(file_str).getroot()
         # print tree.attrib, file_str
         name = tree.attrib['name']
-        id = int(tree.attrib['ID'])
-        coreFEs = []
-        peripheralFEs = []
-        LUs = []
+        idx = int(tree.attrib['ID'])
+        core_fes = []
+        peripheral_fes = []
+        lus = []
         definition = None
         relations = dict()
 
@@ -160,9 +162,9 @@ class FrameXMLParser:
             if child.tag.endswith('FE'):
                 fe = self._parse_fe(child)
                 if fe.isCore:
-                    coreFEs.append(fe)
+                    core_fes.append(fe)
                 else:
-                    peripheralFEs.append(fe)
+                    peripheral_fes.append(fe)
 
             elif child.tag.endswith('frameRelation'):
                 rel_type = child.attrib['type']
@@ -170,22 +172,22 @@ class FrameXMLParser:
                 for rel_node in child:
                     if rel_node.tag.endswith('relatedFrame'):
                         frame_list.append(rel_node.text)
-                relations[rel_type] = Frame.Relation(rel_type, frame_list)
+                relations[rel_type] = FrameRelation(rel_type, frame_list)
 
             elif child.tag.endswith('lexUnit'):
-                LUs.append(self._parse_lu(child))
+                lus.append(self._parse_lu(child))
 
             elif child.tag.endswith('definition'):
                 definition = self._parse_description(child)
                 # print 'TEXT:', definition#child.text
 
-        return Frame(name=name, description=definition, core_fes=coreFEs,
-                     peripheral_fes=peripheralFEs, lus=LUs, idx=id, **relations)
+        return Frame(name=name, description=definition, core_fes=core_fes,
+                     peripheral_fes=peripheral_fes, lus=lus, idx=idx, **relations)
 
 
 class NetXMLParser:
-    def __init__(self, frameParser=FrameXMLParser()):
-        self._fparser = frameParser
+    def __init__(self, frame_parser=FrameXMLParser()):
+        self._fparser = frame_parser
 
     def parse(self, str_dir):
         frames_path = path.join(str_dir, 'frame')
@@ -200,4 +202,4 @@ class NetXMLParser:
                 frame = self._fparser.parse(file_path)
                 frames[frame.name] = frame
 
-        return Net(frames)
+        return FrameNet(frames)

@@ -10,7 +10,7 @@ from regex import compile
 from tempfile import NamedTemporaryFile
 from typing import Dict, Set, Iterable, List
 
-from srl_nlp.framenet.framenet import Description
+from srl_nlp.framenet.description import Description
 from srl_nlp.logical_representation.fol import FOL
 from srl_nlp.logical_representation.logicalform import LF
 import sys

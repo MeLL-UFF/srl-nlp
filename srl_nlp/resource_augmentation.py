@@ -1,18 +1,27 @@
-from builtins import zip
+from __future__ import division
+
+import sys
+
 import logging
+import numpy as np
+from builtins import zip
 from copy import deepcopy as copy
+from multiprocessing import Pool
 from typing import Tuple, List, Union, Dict, Iterable
 
 from srl_nlp.analysers.boxer import BoxerAbstract
 from srl_nlp.analysers.dependencytree import DependencyTreeLocalAPI
-from srl_nlp.framenet import framenet
 from srl_nlp.framenet.corpus import Document, Paragraph, Sentence, AnnotationSet
-from srl_nlp.framenet.framenet import Description
+from srl_nlp.framenet.description import EXample, FEeXample, Label
+from srl_nlp.framenet.framenet import Frame, FrameElement, FrameNet
 from srl_nlp.logical_representation.logicalform import LF
 from srl_nlp.rule_utils import get_paths, get_annotations, get_factors, list_doc_files
 
-FE = framenet.Frame.Element
+FE = FrameElement
 logger = logging.getLogger(__name__)
+
+sys.setrecursionlimit(3000)  # TODO this is a work around to allow pickle to work on the FN data object,
+# I could not find a better way :/
 
 
 class StandardAugmentation(object):
@@ -26,7 +35,7 @@ class StandardAugmentation(object):
         self.total_sentences = 0
 
     def augment_framenet(self, fn, ignored_relations=None):
-        # type: (framenet.Net, Iterable[str]) -> framenet.Net
+        # type: (FrameNet, Iterable[str]) -> FrameNet
         self.ex_count = 0
         self.doc_ex_count = 0
         self.total_sentences = 0
@@ -34,12 +43,12 @@ class StandardAugmentation(object):
             new_frames = [self.augment_frame(frame, fn) for frame in fn]
         else:
             new_frames = [self.augment_frame(frame, fn, ignored_relations=ignored_relations) for frame in fn]
-        fn_augmented = framenet.Net(new_frames)
+        fn_augmented = FrameNet(new_frames)
         logger.info('There were added {} fn examples'.format(self.ex_count))
         return fn_augmented
 
     def augment_frame(self, frame_or_frame_name, fn, ignored_relations=('See also',), sentence=None):
-        # type: (Union[framenet.Frame, str], framenet.Net, Iterable[str], Sentence) -> object
+        # type: (Union[Frame, str], FrameNet, Iterable[str], Sentence) -> object
         if isinstance(frame_or_frame_name, str):
             frame = fn[frame_or_frame_name]
         else:
@@ -49,19 +58,19 @@ class StandardAugmentation(object):
         core_fes, peripheral_fes = self._augment_frame_aux(frame.coreFEs, frame.peripheralFEs, neighbour_frames,
                                                            sentence)
 
-        return framenet.Frame(name=frame.name, description=frame.description, idx=frame.id, lus=frame.LUs,
-                              core_fes=core_fes, peripheral_fes=peripheral_fes, **frame.relations)
+        return Frame(name=frame.name, description=frame.description, idx=frame.id, lus=frame.LUs,
+                     core_fes=core_fes, peripheral_fes=peripheral_fes, **frame.relations)
 
     @staticmethod
     def get_neighbours(frame, ignored_relations):
-        # type: (framenet.Frame, Iterable[str]) -> List[framenet.Frame]
+        # type: (Frame, Iterable[str]) -> List[Frame]
         neighbour_frames = [neighbour_frame for name, relation in frame.relations.items()
                             for neighbour_frame in relation
                             if name not in ignored_relations]
         return neighbour_frames
 
     def _augment_frame_aux(self, core_fes, peripheral_fes, neighbour_frames, sentence=None):
-        # type: (List[FE], List[FE], List[framenet.Frame], Sentence) -> Tuple[List[FE], List[FE]]
+        # type: (List[FE], List[FE], List[Frame], Sentence) -> Tuple[List[FE], List[FE]]
 
         core_fes = copy(core_fes)
         peripheral_fes = copy(peripheral_fes)
@@ -70,7 +79,7 @@ class StandardAugmentation(object):
             dict_fes = self._get_fe_dict(core_fes + peripheral_fes, neighbour_frame.fes, sentence=sentence)
             for fe in core_fes:
                 if fe in dict_fes:
-                    for new_example in dict_fes[fe].definition.get_elements(Description.EXample):
+                    for new_example in dict_fes[fe].definition.get_elements(EXample):
                         try:
                             converted_example = self._convert_fn_example(new_example, dict_fes, invert_dict=True)
                             fe.definition.add_element(converted_example)
@@ -116,7 +125,7 @@ class StandardAugmentation(object):
 
     @staticmethod
     def _convert_fn_example(example, dict_fes, invert_dict=False):
-        # type: (Description.EXample, Dict[FE,FE], bool) -> Description.EXample
+        # type: (Label, Dict[FE,FE], bool) -> Label
         if invert_dict:
             dict_fes = {v: k for k, v in dict_fes.items()}  # type: Dict[FE,FE]
         name_abbrev2fe = {fe_from.name: fe_to for fe_from, fe_to in dict_fes.items()}  # type: Dict[str,FE]
@@ -124,13 +133,13 @@ class StandardAugmentation(object):
 
         new_example = copy(example)
         for element in iter(new_example):
-            if isinstance(element, Description.FEeXample):
-                fex = element  # type: Description.FEeXample
+            if isinstance(element, FEeXample):
+                fex = element  # type: FEeXample
                 fex.attribs['name'] = name_abbrev2fe[fex.attribs['name']].abbrev
         return new_example
 
     def augment_documents(self, docs, fn, ignored_relations=None):
-        # type: (List[Document], framenet.Net, Iterable[str]) -> List[Document]
+        # type: (List[Document], FrameNet, Iterable[str]) -> List[Document]
         self.doc_ex_count = 0
         self.total_sentences = 0
         # if docs is not None:
@@ -183,11 +192,13 @@ class StandardAugmentation(object):
         return new_doc
 
     def augment_doc_sentence_inplace(self, sentence, fn, ignored_relations=('See also',)):
-        # type: (Sentence, framenet.Net, Tuple[str]) -> None
+        # type: (Sentence, FrameNet, Tuple[str]) -> None
         new_anno_sets = []
         self.total_sentences = self.total_sentences + 1
         for i, annotation_set in enumerate(sentence):
             # If the frame in the annotation is not present in the FrameNet then skip this annotation
+            if not annotation_set.is_frame():
+                continue
             if annotation_set.frameName not in fn:
                 logger.warning("Frame '{}' not found in FN".format(annotation_set.frameName))
             else:
@@ -196,7 +207,7 @@ class StandardAugmentation(object):
                 fes = [fn.get_frame_element(layer.name)
                        for layer in annotation_set.get_fes()
                        if fn.has_frame_element(layer.name)]
-                # TODO decide if I drop the augmentation if there are fes not in the framenet
+
                 logger.info('\t\t\t Processing {:2d} of {} '
                             'annotation sets in sentence'.format(i + 1, len(sentence.annotation_sets)))
                 for neighbour_frame in neighbour_frames:
@@ -254,9 +265,9 @@ class AnalyserAugmentation(StandardAugmentation):
         if sentence != self._curr_sentence:
             self._curr_sentence = sentence
             self._fe_to_path = dict()
-        for fe_example in l_fe.definition.get_elements(Description.EXample):
+        for fe_example in l_fe.definition.get_elements(EXample):
             fe_paths = self._get_path(fe_example, abbrev2fe_name={l_fe.abbrev: l_fe.name})
-            for other_fe_example in r_fe.definition.get_elements(Description.EXample):
+            for other_fe_example in r_fe.definition.get_elements(EXample):
                 other_fe_paths = self._get_path(other_fe_example, abbrev2fe_name={r_fe.abbrev: r_fe.name})
                 for fe_path in fe_paths:
                     for other_fe_path in other_fe_paths:
@@ -274,7 +285,7 @@ class AnalyserAugmentation(StandardAugmentation):
         return self._fe_to_path[fe_example]
 
     def list_all_paths(self, fe_example, abbrev2fe_name=None):
-        # type: (Description.EXample, Dict[str,str]) -> List[List[LF]]
+        # type: (EXample, Dict[str,str]) -> List[List[LF]]
         """
         Lists all paths found between a predicate and the target
         Args:
@@ -319,6 +330,7 @@ class AnalyserAugmentation(StandardAugmentation):
 class AugmentationQueue(StandardAugmentation):
 
     def __init__(self, *augmentations):
+        # type: (List[Union[StandardAugmentation, str]]) -> None
         super(AugmentationQueue, self).__init__()
         self.augmentations = augmentations  # type: List[StandardAugmentation]
 
@@ -331,7 +343,75 @@ class AugmentationQueue(StandardAugmentation):
         return False
 
 
-if __name__ == '__main__':  # TODO do proper testing later
+def _augment_aux(params):
+    # type: (Tuple[str, List[Document], FrameNet, List[str]]) -> List[Document]
+    aug_name, doc_list, fnet, ignored = params
+    aug_method = getattr(AugmentationFactory(), aug_name)  # type: StandardAugmentation
+    if ignored is None:
+        return list(aug_method.augment_documents(doc_list, fnet))
+    else:
+        return list(aug_method.augment_documents(doc_list, fnet, ignored_relations=ignored))
+
+
+class AugmentationFactory:
+
+    def __init__(self):
+        pass
+
+    @property
+    def lexical(self):
+        return StandardAugmentation()
+
+    @property
+    def syntactic(self):
+        return AnalyserAugmentation(DependencyTreeLocalAPI())
+
+    @property
+    def semantic(self):
+        return AnalyserAugmentation(BoxerLocalAPI())
+
+    @property
+    def full(self):
+        return AugmentationQueue(AnalyserAugmentation(DependencyTreeLocalAPI()),
+                                 AnalyserAugmentation(BoxerLocalAPI()))
+
+    def get_augmentation(self, aug_name):
+        if isinstance(getattr(AugmentationFactory, aug_name), property):
+            return getattr(self, aug_name)
+
+
+class ParallelAugmentation(StandardAugmentation):
+
+    def __init__(self, num_cpus, aug_name):
+        # type: (int, str) -> None
+        super(ParallelAugmentation, self).__init__()
+        self._aug_name = aug_name
+        self._num_cpus = num_cpus
+
+    @staticmethod
+    def _get_chunks(elems, num_chunks):
+        size = len(elems)
+        step = int(np.ceil(size / num_chunks))
+        for i in range(num_chunks):
+            yield elems[i * step: (i + 1) * step]
+
+    def augment_documents(self, docs, fn, ignored_relations=None):
+        # type: (List[Document], FrameNet, Iterable[str]) -> List[Document]
+        self.doc_ex_count = 0
+        self.total_sentences = 0
+
+        logger.info('Augmenting documents using {} cpus'.format(self._num_cpus))
+        pool = Pool(self._num_cpus)
+
+        jobs = [(self._aug_name, doc_list, fn, ignored_relations)
+                for doc_list in self._get_chunks(docs, self._num_cpus)]
+
+        for i, doc in enumerate(pool.map(_augment_aux, jobs)):
+            logger.info('Augmenting {}-th doc'.format(i))
+            yield doc
+
+
+if __name__ == '__main__':
     from srl_nlp.framenet.adapter import PARSERS_AVAILABLE, DocumentAdapter
     from srl_nlp.logger_config import add_logger_args, config_logger, timeit
     from srl_nlp.framenet.parse_xml import NetXMLParser
@@ -342,19 +422,13 @@ if __name__ == '__main__':  # TODO do proper testing later
     from os import path
     import argparse
 
-    augmentation_map = {'lexical': StandardAugmentation(),
-                        'syntactic': AnalyserAugmentation(DependencyTreeLocalAPI()),
-                        'semantic': AnalyserAugmentation(BoxerLocalAPI()),
-                        'full': AugmentationQueue(AnalyserAugmentation(DependencyTreeLocalAPI()),
-                                                  AnalyserAugmentation(BoxerLocalAPI()))
-                        }
-    augmentations_available = list(augmentation_map.keys())
+    augmentations_available = [aug for aug in dir(AugmentationFactory)
+                               if isinstance(getattr(AugmentationFactory, aug), property)]
 
     relations_map = {'strong': StandardAugmentation.STRONG_RELATIONS + ('See also',),
                      'weak': StandardAugmentation.WEAK_RELATIONS,
                      'see_also': ('See also',),
                      'none': None}
-    relations_available = {}
 
 
     def get_docs_and_names(adapter, file_folder_path):
@@ -388,9 +462,12 @@ if __name__ == '__main__':  # TODO do proper testing later
                             help='Place to store the new FrameNet frame data')
         parser.add_argument('--ignored_relations', default=None,
                             help='Place to store the new FrameNet frame data')
+        parser.add_argument('--num_cpus', default=1, type=int,
+                            help='Place to store the new FrameNet frame data')
 
         add_logger_args(parser)
         args = parser.parse_args(argv[1:])
+        assert args.num_cpus > 0, "--num_cpus must be a positive integer"
         config_logger(args)
         if args.save_framenet_path is None and len(args.doc_paths) == 0:
             logger.info("Nothing to be done.")
@@ -409,16 +486,27 @@ if __name__ == '__main__':  # TODO do proper testing later
 
         doc_adapter = PARSERS_AVAILABLE[args.document_adapter]()
         ignored_relations = relations_map[args.ignored_relations]
+        aug_builder = AugmentationFactory()
         aug_names = list(chain(args.augmentation_types))
-        augmentations = [augmentation_map[aug_name] for aug_name in aug_names]
+        num_cpus = args.num_cpus
+
+        if args.save_framenet_path is not None:
+            raise NotImplementedError()
+            # for augmentation, aug_name in zip(augmentations, aug_names):
+            #     net_aug = augmentation.augment_framenet(net, ignored_relations=ignored_relations)
+            #     logger.info(net_aug)
+            #     # TODO store the new data
 
         if len(args.doc_paths) > 0:
             in_path, out_path = args.doc_paths
             doc_list, doc_names = get_docs_and_names(adapter=doc_adapter,
                                                      # file_folder_path=path.join(DEFAULT_DOCS_ROOT_PATH, 'dev'))
                                                      file_folder_path=in_path)
-            if len(augmentations) == 1:
-                augmentation = augmentations[0]
+            if len(aug_names) == 1:
+                if num_cpus > 1:
+                    augmentation = ParallelAugmentation(num_cpus, aug_names[0])
+                else:
+                    augmentation = aug_builder.get_augmentation(aug_names[0])
                 docs_aug = augmentation.augment_documents(docs=doc_list, fn=net,
                                                           ignored_relations=ignored_relations)
                 for doc, name in zip(docs_aug, doc_names):
@@ -426,20 +514,18 @@ if __name__ == '__main__':  # TODO do proper testing later
                     logger.info("Writing '{}'".format(name))
                     doc_adapter.write_doc(doc, path.join(out_path, name))
                 # write the file or file list
-            if len(augmentations) > 1:
-                for augmentation, aug_name in zip(augmentations, aug_names):
+            if len(aug_names) > 1:
+                for aug_name in aug_names:
+                    if num_cpus > 1:
+                        augmentation = ParallelAugmentation(num_cpus, aug_name)
+                    else:
+                        augmentation = aug_builder.get_augmentation(aug_name)
                     augmentation_folder = path.join(out_path, "augmentation_{}".format(aug_name))
                     docs_aug = augmentation.augment_documents(docs=doc_list, fn=net,
                                                               ignored_relations=ignored_relations)
                     for doc, name in zip(docs_aug, doc_names):
                         ensure_dir(augmentation_folder)
                         doc_adapter.write_doc(doc, path.join(augmentation_folder, name))
-
-        if args.save_framenet_path is not None:
-            for augmentation, aug_name in zip(augmentations, aug_names):
-                net_aug = augmentation.augment_framenet(net, ignored_relations=ignored_relations)
-                logger.info(net_aug)
-                # TODO store the new data
         logger.info("Done")
 
 

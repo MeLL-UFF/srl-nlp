@@ -1,18 +1,19 @@
 import collections
 import distance as _dist
 import logging
-import re
 from typing import Dict, Union, List, Iterator
+
+from srl_nlp.framenet.description import Description
 
 logger = logging.getLogger(__name__)
 
 
 class Lexeme:
-    def __init__(self, name='', pos='', breakBefore=True, headWord=True, text=''):
+    def __init__(self, name='', pos='', break_before=True, head_word=True, text=''):
         self.name = name
         self.pos = pos
-        self.breakBefore = breakBefore
-        self.headWord = headWord
+        self.breakBefore = break_before
+        self.headWord = head_word
         self.text = text
 
     def __repr__(self):
@@ -55,255 +56,11 @@ class LexicalUnit:
         return (self.name, self.pos).__hash__()
 
 
-class Description(collections.Iterable):
-    class Label(collections.Iterable):
-        name = 'l'
-        shortname = 'Label'
-
-        def __init__(self, content=None, escapeHTML=False, **attribs):
-            # type: (List[Union[Description.Label,str]], bool, Dict[str,str]) -> None
-            if content is None:
-                self.content = []
-            else:
-                self.content = content
-            self.attribs = attribs
-            self.escapeHTML = escapeHTML
-
-        def __str__(self, escapeHTML=False):
-            attr = ''.join(['%s="%s"' % item for item in self.attribs.items()])
-            if len(attr) > 0:
-                attr = ' ' + attr
-            if escapeHTML or self.escapeHTML:
-                return '&lt;{name}{attr}&gt;{content}&lt;/{name}&gt;' \
-                    .format(name=self.name,
-                            attr=attr,
-                            content=''.join(map(str, self.content)))
-            else:
-                return '<{name}{attr}>{content}</{name}>' \
-                    .format(name=self.name,
-                            attr=attr,
-                            content=''.join(map(str, self.content)))
-
-        def __len__(self):
-            return sum(map(len, self.content))
-
-        def __getitem__(self, item):
-            return self.content[item]
-
-        def __setitem__(self, item, val):
-            logger.debug('Val %s' % val)
-            logger.debug('Content "%s"' % self.content)
-            if isinstance(item, slice):
-                self.content = self.content[:item.start] + val + self.content[item.stop:]
-            else:
-                self[item:item] = val
-
-        def __iter__(self):
-            # type: () -> Iterator[Description.Label]
-            return self.content.__iter__()
-
-        def __repr__(self):
-            attr = ''.join(['%s = "%s"' % item for item in self.attribs.items()])
-            if len(attr) > 0:
-                attr = ' ' + attr
-            return '{name}(\'{desc}\'{attr})'.format(name=self.shortname,
-                                                     attr=attr,
-                                                     desc=''.join(map(str, self.content)))
-
-        def __hash__(self):
-            # return (self.name, tuple(self.content), tuple(self.attribs.items())).__hash__()
-            return (self.name, tuple(self.attribs.items())).__hash__()
-
-        def __eq__(self, other):
-            if hasattr(other, 'content'):
-                return all((self.name == other.name,
-                            self.content == other.content,
-                            self.attribs.items() == other.attribs.items()))
-            return False
-
-        def add_text(self, text):
-            if len(self.content) and type(self.content[-1]) == str:
-                self.content[-1] = self.content[-1] + text
-            else:
-                self.content.append(text)
-
-        def add_element(self, element):
-            self.content.append(element)
-
-        def set_attribs(self, **attribs):
-            self.attribs = attribs
-
-        def str_no_annotation(self):
-            out = ''
-            try:
-                for elem in self.content:
-                    if isinstance(elem, Description.Label):
-                        text = elem.str_no_annotation()
-                    else:
-                        text = elem
-                    out = out + text
-            except TypeError as e:
-                logger.error(str(self))
-                raise e
-            return re.sub(r'\s', ' ', out)
-
-    class FEName(Label):
-        name = 'fen'
-        shortname = 'FEName'
-
-    class FEeXample(Label):
-        name = 'fex'
-        shortname = 'FEeXample'
-
-    class EXample(Label):
-        name = 'ex'
-        shortname = 'EXample'
-
-    class Special(Label):
-        name = 'special'
-        shortname = 'Special'
-
-    class T(Special):
-        name = 't'
-        shortname = 'Target'
-
-    class M(Special):
-        name = 'm'
-
-    class Ment(Special):
-        name = 'ment'
-
-    class Gov(Special):
-        name = 'gov'
-
-    class EM(Special):
-        name = 'em'
-
-    class Supp(Special):
-        name = 'supp'
-
-    class Target(Special):
-        name = 'target'
-
-    def __init__(self, escapeHTML=False):
-        self.fens = set()
-        self.specials = set()
-        self.content = []
-        self.escapeHTML = escapeHTML
-        self.tags = dict()
-
-    def add_text(self, text):
-        if len(self.content) and type(self.content[-1]) == str:
-            self.content[-1] = self.content[-1] + text
-        else:
-            self.content.append(text)
-
-    def add_element(self, element):
-        self.content.append(element)
-        if isinstance(element, Description.FEName):
-            self.fens.add(element)
-        elif isinstance(element, Description.Special):
-            self.specials.add(element)
-        self.tags[element.name] = self.tags.get(element.name, [])
-        self.tags[element.name].append(element)
-
-    def get_elements(self, element_or_element_name):
-        # type: (Union[Label,str]) -> List[Union[str,Label]]
-        """Returns a list of elements that match element or element_name"""
-        if hasattr(element_or_element_name, 'name'):
-            element_name = element_or_element_name.name
-        else:
-            element_name = element_or_element_name
-        return self.tags.get(element_name, [])
-
-    def has_special_annotation(self):
-        return len(self.specials) > 0
-
-    def has_fe_annotation(self):
-        return len(self.fens) > 0
-
-    def get_fens(self):
-        return self.fens
-
-    def __iter__(self):
-        # type: () -> Iterator[Union[Description.Label, str]]
-        return self.content.__iter__()
-
-    def __contains__(self, element):
-        return element in self.fens or element in self.specials
-
-    def __str__(self, escapeHTML=False):
-        if escapeHTML or self.escapeHTML:
-            return '&lt;def-root&gt;%s&lt;/def-root&gt;' % (''.join(map(str, self.content)))
-        else:
-            return '<def-root>%s</def-root>' % (''.join(map(str, self.content)))
-
-    def __repr__(self):
-        return str(self)
-
-
 class Frame:
-    class Element:
-        def __init__(self, name='', abbrev='', definition='',
-                     fgColor='black', bgColor='white', isCore=True, semanticType='', idx=None):
-            self.name = name
-            self.abbrev = abbrev
-            self.definition = definition  # type: Union[str, Description]
-            self.fgColor = fgColor
-            self.bgColor = bgColor
-            self.isCore = isCore
-            self.semanticType = semanticType
-            self.id = idx
-
-        def __eq__(self, other):
-            if type(other) == str:  # allow comparison with string
-                other_name = other
-            else:
-                other_name = other.name
-            return self.name == other_name  # and self.abbrev == other.abbrev
-
-        def __hash__(self):
-            return self.name.__hash__()
-            # return (self.name, self.abbrev).__hash__()
-
-        def __str__(self):
-            # return '<Frame "%s" %s>' %(self.name, dir(self))
-            return '<Frame Element "%s"[%s]>' % (self.name, self.abbrev)
-
-        def __repr__(self):
-            return str(self)
-
-    class Relation(collections.Iterable):
-        def __init__(self, name, frames=None):
-            # type: (str, List[Frame]) -> None
-            self.name = name
-            if frames is None:
-                self.frames = []
-            else:
-                self.frames = frames
-
-        def __iter__(self):
-            # type: () -> Iterator[Union[Frame, str]]
-            return self.frames.__iter__()
-
-        def __str__(self):
-            # return '<Frame "%s" %s>' %(self.name, dir(self))
-            frame_names = map(lambda x: x.name, self.frames)
-            return '%s: %s' % (self.name, str(frame_names)[1:-1])
-
-        def __repr__(self):
-            frame_names = map(lambda x: x.name, self.frames)
-            return '{%s}' % str(frame_names)[1:-1]
-
-        def __eq__(self, other):
-            if type(other) == str:
-                return self.name == other
-            else:
-                return self.name == other.name
 
     def __init__(self, name='', description='', core_fes=None,
                  peripheral_fes=None, lus=None, idx=None, **relations):
-        # type: (str, str, List[Frame.Element], List[Frame.Element], List[LexicalUnit], Union[int, str], Dict[str, Relation]) -> None
+        # type: (str, Union[str,Description], List[FrameElement], List[FrameElement], List[LexicalUnit], Union[int, str], Dict[str, FrameRelation]) -> None
         assert name is not None  # None type is not an acceptable name
         self.name = name
         self.description = description
@@ -330,11 +87,11 @@ class Frame:
     def fes(self):
         return self.coreFEs + self.peripheralFEs
 
-    def hasFEinCore(self, fe):
+    def is_core_fe(self, fe):
         """Check if fe is in the frame as a core Frame Element"""
         return fe in self.coreFEs
 
-    def hasFEnotInCore(self, fe):
+    def is_peripheral_fe(self, fe):
         """Check if fe is in the frame as a peripheral Frame Element"""
         return fe in self.peripheralFEs
 
@@ -396,7 +153,67 @@ class Frame:
         return str(self)
 
 
-class Net(collections.Iterable):
+class FrameElement:
+    def __init__(self, name='', abbrev='', definition='',
+                 fg_color='black', bg_color='white', is_core=True, semantic_type='', idx=None):
+        self.name = name
+        self.abbrev = abbrev
+        self.definition = definition  # type: Union[str, Description]
+        self.fgColor = fg_color
+        self.bgColor = bg_color
+        self.isCore = is_core
+        self.semanticType = semantic_type
+        self.id = idx
+
+    def __eq__(self, other):
+        if type(other) == str:  # allow comparison with string
+            other_name = other
+        else:
+            other_name = other.name
+        return self.name == other_name  # and self.abbrev == other.abbrev
+
+    def __hash__(self):
+        return self.name.__hash__()
+        # return (self.name, self.abbrev).__hash__()
+
+    def __str__(self):
+        # return '<Frame "%s" %s>' %(self.name, dir(self))
+        return '<Frame Element "%s"[%s]>' % (self.name, self.abbrev)
+
+    def __repr__(self):
+        return str(self)
+
+
+class FrameRelation(collections.Iterable):
+    def __init__(self, name, frames=None):
+        # type: (str, List[Frame]) -> None
+        self.name = name
+        if frames is None:
+            self.frames = []
+        else:
+            self.frames = frames
+
+    def __iter__(self):
+        # type: () -> Iterator[Union[Frame, str]]
+        return self.frames.__iter__()
+
+    def __str__(self):
+        # return '<Frame "%s" %s>' %(self.name, dir(self))
+        frame_names = map(lambda x: x.name, self.frames)
+        return '%s: %s' % (self.name, str(frame_names)[1:-1])
+
+    def __repr__(self):
+        frame_names = map(lambda x: x.name, self.frames)
+        return '{%s}' % str(frame_names)[1:-1]
+
+    def __eq__(self, other):
+        if type(other) == str:
+            return self.name == other
+        else:
+            return self.name == other.name
+
+
+class FrameNet(collections.Iterable):
     _word_distances = {'levenshtein': lambda x, y: _dist.levenshtein(x, y, normalized=True),
                        # 'hamming': distance.hamming #the two strings must have the same length
                        'jaccard': _dist.jaccard,
@@ -552,17 +369,17 @@ class Net(collections.Iterable):
         
         Returns a list of frames
         """
-        if not isinstance(fe, Frame.Element):
+        if not isinstance(fe, FrameElement):
             fe = self._fes[fe]
         frames = self._fes2frames[fe]
         if (not core_fes) or (not peripheral_fes):
             if (not core_fes) and (not peripheral_fes):
                 return []
             elif core_fes:
-                return filter(lambda frame: frame.hasFEinCore(fe),
+                return filter(lambda frame: frame.is_core_fe(fe),
                               frames)
             else:
-                return filter(lambda frame: frame.hasFEnotInCore(fe),
+                return filter(lambda frame: frame.is_peripheral_fe(fe),
                               frames)
         return frames
 

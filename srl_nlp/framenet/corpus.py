@@ -4,7 +4,7 @@ from collections import Iterator, Iterable
 from copy import copy
 from typing import List, Tuple
 
-from srl_nlp.framenet.framenet import Description
+from srl_nlp.framenet import description
 
 logger = logging.getLogger(__name__)
 
@@ -143,7 +143,8 @@ class Sentence:
             text:
             annotation_sets:
             parts_of_speech: a list of pairs. Each pair is the position of one token in the sentence.
-                            If the text is viewed as a python string, the position of a token text[start,end] would be the pair (start, end+1)
+                            If the text is viewed as a python string, the position of a token text[start,end]
+                            would be the pair (start, end+1)
             **params:
         """
         self.id = sent_id
@@ -193,7 +194,6 @@ class Sentence:
                 for layer in anno_set:
                     old_len = len(layer.annotations)
                     layer.annotations = [anno for anno in layer if (anno.start, anno.end) in self.parts_of_speech]
-                    # layer.annotations = [anno for anno in layer if anno.start in starts and anno.end in ends and anno.start <= anno.end]
                     if old_len != len(layer.annotations):
                         logger.warning('There are invalid annotations in this sentence ({s_id})'.format(s_id=self.id))
 
@@ -268,10 +268,10 @@ class Sentence:
         if len(anno_list) > 0:
             for anno in anno_list:
                 logger.debug('Fex "{fex}"'.format(fex=anno))
-                content = self._handle_annotation(content, anno, escape_html=escape_html, label=Description.FEeXample)
+                content = self._handle_annotation(content, anno, escape_html=escape_html, label=description.FEeXample)
                 logger.debug('Content:{}'.format(content))
                 logger.debug('Anno slice: \'{}\''.format(self[anno]))
-        example = Description.EXample(content=content,
+        example = description.EXample(content=content,
                                       escapeHTML=False, **attribs)
         return example
 
