@@ -10,7 +10,7 @@ from regex import compile
 from tempfile import NamedTemporaryFile
 from typing import Dict, Set, Iterable, List
 
-from srl_nlp.framenet.description import Description
+from srl_nlp.framenet import description
 from srl_nlp.logical_representation.fol import FOL
 from srl_nlp.logical_representation.logicalform import LF
 import sys
@@ -215,9 +215,9 @@ def get_annotations(example, lf, abbrev2fe=None, get_lemma=None):
     for term in example.content:
         pred_stack = []
         logger.debug("Example %s" % example)
-        while isinstance(term, Description.FEeXample) or \
-                isinstance(term, Description.Target) or \
-                isinstance(term, Description.T):
+        while isinstance(term, description.FEeXample) or \
+                isinstance(term, description.Target) or \
+                isinstance(term, description.T):
             if len(term.content) == 0:
                 logger.warning("Term {} is empty in example {}".format(str(term), str(example)))
                 break
