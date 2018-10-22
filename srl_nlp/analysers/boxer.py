@@ -42,7 +42,7 @@ class TokenizerLocalAPI(Process):
 class CandCLocalAPI(Process):
     def __init__(self, path_to_bin=config.get('semantic_local', 'c&c'), min_timeout=3, *params):
         if len(params) == 0:
-            params = ('--models', config.get('semantic_local', 'c&c_models'), '--candc-printer', 'boxer')
+            params = ('--models', path.expandvars(config.get('semantic_local', 'c&c_models')), '--candc-printer', 'boxer')
         self._min_timeout = min_timeout
         self._header_pattern = compile(r"""(.*\s)*:- discontiguous.*""")
         Process.__init__(self, path_to_bin, False, TIME_OUT, *params)

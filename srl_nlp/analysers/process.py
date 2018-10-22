@@ -49,6 +49,8 @@ class Process(object):
                     out.append(self._proc.stdout.readline())
                     logger.debug('{proc} line: {out}'.format(proc=self._proc_name,
                                                              out=repr(out[-1])))
+                    if len(out[-1]) == 0:
+                        raise IOError("Not expected empty line")
                 except IOError:
                     time.sleep(0.1)
                     count = count + 1
