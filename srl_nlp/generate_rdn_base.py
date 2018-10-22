@@ -1,23 +1,24 @@
 #!/bin/env python2
 
 """
-
+Generate the rdn Knowledge bases in the appropriate format
 """
-
-from sys import argv as _argv
+from __future__ import division
 
 import logging
 import pickle
 import random
 import re
-from ConfigParser import ConfigParser
-from os import path, makedirs
+from os import path, makedirs, listdir
+from sys import argv as _argv
+
 from typing import List, Iterator, Dict, Tuple
 
 from srl_nlp.analysers.boxer import BoxerLocalAPI
 from srl_nlp.framenet.adapter import PARSERS_AVAILABLE
-from srl_nlp.framenet.corpus import Document, Sentence
+from srl_nlp.framenet.corpus import Document, Sentence, AnnotationSet
 from srl_nlp.logical_representation.logicalform import LF
+from srl_nlp.rule_utils import ConfigParser
 
 logger = logging.getLogger(__name__)
 
@@ -59,20 +60,21 @@ def get_annotations(sentence, s_id, var2pos):
     fe = []
     inv_mapping = {v: k for (k, v_list) in var2pos.items() for v in v_list}
     for anno_set in sentence:
-        for layer in anno_set:
-            for anno in layer:
-                var_list = [inv_mapping[(start, end)] for (start, end) in inv_mapping if
-                            start >= anno.start and end <= anno.end]
-                frame_name = anno_set.frameName.lower()
-                if layer.name == 'Target':
-                    for var in var_list:
-                        fr.append(LF('frame_token({S}, {X}, {F}).'.format(S=s_id, X=var, F=frame_name)))
-                elif layer.name == 'FE':
-                    for var in var_list:
-                        name = anno.name.lower()
-                        fe.append(LF(
-                            'frame_element_token({S}, {X}, {FE}, {F}).'.format(S=s_id, X=var, FE=name,
-                                                                               F=frame_name)))
+        if anno_set.is_frame():
+            for layer in anno_set:
+                for anno in layer:
+                    var_list = [inv_mapping[(start, end)] for (start, end) in inv_mapping if
+                                start >= anno.start and end <= anno.end]
+                    frame_name = anno_set.frameName.lower()
+                    if layer.name == 'Target':
+                        for var in var_list:
+                            fr.append(LF('frame_token({S}, {X}, {F}).'.format(S=s_id, X=var, F=frame_name)))
+                    elif layer.name == 'FE':
+                        for var in var_list:
+                            name = anno.name.lower()
+                            fe.append(LF(
+                                'frame_element_token({S}, {X}, {FE}, {F}).'.format(S=s_id, X=var, FE=name,
+                                                                                   F=frame_name)))
     return fr, fe
 
 
@@ -193,15 +195,28 @@ def write_to_file(root_folder, dataset, dataset_name):
 
 
 def get_examples(data_base_path, input_parser):
-    with open(data_base_path) as db_file:
-        docs = input_parser.parse_file(db_file)
+    if path.isfile(data_base_path):
+        with open(data_base_path) as db_file:
+            docs = list(input_parser.parse_file(db_file))
+    else:
+        docs = []
+        for f_basename in listdir(data_base_path):
+            f_name = path.join(data_base_path, f_basename)
+            if path.isfile(f_name):
+                with open(f_name) as db_file:
+                    docs.extend(input_parser.parse_file(db_file))
     logger.info('Done parsing')
     logger.info('Creating base')
     examples = []
     for d_id, doc in enumerate(docs):
+        logger.info("Initializing boxer")
         boxer = BoxerLocalAPI()
+        logger.info("Processing document {idx}/{total}: '{name}' \n"
+                    "From corpus {c_idx}: '{corpus}'".format(idx=d_id, name=doc.name, total=len(docs),
+                                                             c_idx=doc.corpusID, corpus=doc.corpus))
         for example in examples_from_doc(boxer, d_id=d_id, doc=doc):
             examples.append(example)
+    logger.info('Base done')
     return examples
 
 
@@ -211,14 +226,14 @@ if __name__ == '__main__':
 
 
     def parse_args(argv, add_logger_args=lambda x: None):
-        parser = argparse.ArgumentParser(description='')
+        parser = argparse.ArgumentParser(description='Generates RDN Knowledge base')
         parser.add_argument('data_base_path',
                             help='path to the semeval dataset folder')
         parser.add_argument('-i', '--input_format',
                             choices=PARSERS_AVAILABLE.keys(),
-                            default=PARSERS_AVAILABLE.keys()[-1],
+                            default='framenet',
                             help='input annotation file format')
-        parser.add_argument('-R', '--root',
+        parser.add_argument('-R', '--root', default=".",
                             help='relative path to path to store the bases')
         parser.add_argument('-p', '--pickle_file',
                             help='store intermediate results or read from it if file exists')
@@ -242,23 +257,26 @@ if __name__ == '__main__':
 
         # Select the appropriate document parsers for the input and output
         input_parser = PARSERS_AVAILABLE[args.input_format]()
+        data_path = path.expandvars(args.data_base_path)
+        root_path = path.expandvars(args.root)
         logger.info('Parsing {file}'.format(file=args.data_base_path))
 
         if args.pickle_file:
-            if path.exists(args.pickle_file):
+            pickle_path = path.expandvars(args.pickle_file)
+            if path.exists(pickle_path):
                 # Load examples from pickle file
-                logger.info('Loading examples from {file}'.format(file=args.pickle_file))
-                with open(args.pickle_file, 'r') as f:
+                logger.info('Loading examples from {file}'.format(file=pickle_path))
+                with open(pickle_path, 'r') as f:
                     examples = pickle.load(f)
             else:
                 # Parse corpus
-                examples = get_examples(args.data_base_path, input_parser)
+                examples = get_examples(data_path, input_parser)
                 # Save pickle file
-                with open(args.pickle_file, 'w') as f:
+                with open(pickle_path, 'w') as f:
                     pickle.dump(examples, f)
         else:
             # Parse corpus
-            examples = get_examples(args.data_base_path, input_parser)
+            examples = get_examples(data_path, input_parser)
 
         # Split dataset in training and test if train_ratio is given
         if args.train_ratio:
@@ -267,11 +285,10 @@ if __name__ == '__main__':
 
             len_train = (args.train_ratio * len(examples) / (args.train_ratio + 1))
             train, test = examples[:len_train], examples[len_train:]
-
-            write_to_file(args.root, train, 'train')
-            write_to_file(args.root, test, 'test')
+            write_to_file(root_path, train, 'train')
+            write_to_file(root_path, test, 'test')
         else:
-            write_to_file(args.root, examples, 'train')
+            write_to_file(root_path, examples, 'train')
         logger.info('Done')
 
 
