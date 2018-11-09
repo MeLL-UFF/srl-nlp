@@ -7,10 +7,10 @@ FN_VERSION="1.5"
 FN_DATA="${HOME}/Code/MD/srl_nlp/srl_nlp/framenet/fndata-${FN_VERSION}"
 
 DOCS_FOLDER_PATH="${HOME}/DataSets/framenet_docs/paper"
-CONFIG_FOLDER='' #TODO its for the RDN configs
 
-CPUS=8
+CPUS=2
 MEM=64
+# QUEUE=x86_24h
 QUEUE=x86_7d
 
 BUILD_BLACKBOX=1
@@ -33,8 +33,7 @@ set -e # Fail fast: exits if a simple command exits with a nonzero exit value.
 
 
 SESAME_FOLDER="${HOME}/Code/MD/open-sesame"
-REL_SET_NAMES=(strong weak all)
-IGNORED_RELS=(weak strong see_also)
+REL_SET_NAMES=(STRONG WEAK ALL subframe inheritance causative perspective precedence use)
 #AUGMENTATIONS=(lexical syntactic semantic full)
 
 if [ "$#" -lt 1 ]
@@ -89,162 +88,121 @@ sesame_setup(){
 }                                                                               # END OF SESAME FOLDER STRUCTURE SETTING
 # ----------------------------------------------------------------------------------------------------------------------
 
-if [ ${BUILD_BLACKBOX} -gt 0 ]
-then
-    echo "Building black-box model environment"
 
-    BK_PATH="${ROOT_PATH}/fn${FN_VERSION}/blackbox"
-    mkdir -p "${BK_PATH}/test"
+rdn_setup(){
+#$1 is the aug_folder folder to where to store sesame
+    local rdn_exps="${1}/methods/rdn"
+    rm -r -f ${rdn_exps}                                                          # OPEN SESAME FOLDER STRUCTURE SETTING
+    mkdir -p ${rdn_exps}
+    echo -e "\t\t\t Setting up RDNBoost"
+    for f in $( ls -1 ${RDN_FOLDER}/*.jar )
+    do
+        ln -s "${RDN_FOLDER}/${f}" "${rdn_exps}/${f}"
+    done
+    mkdir -p ${rdn_exps}/configs
+    cp ${RDN_FOLDER}/config/*.txt ${rdn_exps}/configs
 
-    echo -e "\t Copying test files"
-    cp ${DOCS_FOLDER_PATH}/test/*.xml "${BK_PATH}/test"
-
-    if ! [ -d "${BK_PATH}/current/" ]
-    then
-        echo -e "\t Creating 'current' folder with training and dev files"
+    for f in $( ls -1 ${rdn_exps}/*.jar )
+    do
+        local dataset_name=${f%.*}
+        local config_name=${dataset_name#"config"}
+        dataset_name=dataset_${config_name}
+        local dataset_path=${rdn_exps}/dataset_${config_name}
+        mkdir -p ${dataset_path}
+        for f in $( ls -1 ${rdn_exps}/*.jar )
+        do
+            ln -s "${rdn_exps}/${f}" "${dataset_path}/${f}"
+        done
+        ln -s "${rdn_exps}/config/${f}" "${dataset_path}/background.txt"
+        ln -s "${rdn_exps}/framenet_facts.txt" ${dataset_path}
+        ln -s "${rdn_exps}/lex_facts.txt" ${dataset_path}
+        mkdir -p "${dataset_path}/train_original/"
         for mode in train dev
         do
-            echo -e "\t\t Copying current ${mode} files"
-            mkdir -p "${BK_PATH}/current/${mode}"
-            cp ${DOCS_FOLDER_PATH}/${mode}/*.xml "${BK_PATH}/current/${mode}"
+            for f in $( ls -1 ${1}/${mode} )
+            do
+                ln -s "${1}/${mode}/${f}" "${dataset_path}/train_original/${f}"
+            done
         done
-        echo -e  "\t\t Creating black-box model folders'"
-        echo -e  "\t\t\t Sesame on current FrameNet data"
-        mkdir -p "${BK_PATH}/current/methods/sesame"
-        sesame_setup "${BK_PATH}/current"
-        mkdir -p "${BK_PATH}/current/methods/semafor"
-    else
-        echo -e "\t Skipping 'current' folder creation"
-    fi
-    echo -e "\t Running aumentations"
-
-    for idx in "${!REL_SET_NAMES[@]}"
-    do
-        rel_set_name=${REL_SET_NAMES[${idx}]}
-        ignored_rel=${IGNORED_RELS[${idx}]}
-        echo -e  "\t\t Augmentation '${rel_set_name}'"
-        for augmentation in ${AUGMENTATIONS}
-        do
-            echo -e  "\t\t\t kind '${augmentation}'"
-            aug_folder="${BK_PATH}/aug_${rel_set_name}_${augmentation}"
-            trap 'kill $(jobs -p)' SIGINT           # GUARANTEES THAT ALL PARALLEL CALLS WILL BE KILLED TOGETHER IF EXIT
-#            for mode in train dev
-#            do
-#                echo -e "\t\t\t\t Mode: '${mode}'"
-#                mkdir -p ${aug_folder}/${mode}
-#                JOBHEADER="jbsub -cores ${CPUS} -mem ${MEM}g -q ${QUEUE} -name gen_${augmentation}_${ignored_rel}_${mode} -proj srl"
-##                JOBHEADER=""
-#                ${JOBHEADER} python -W ignore srl_nlp/resource_augmentation.py ${FN_DATA} \
-#                    ${augmentation} --doc_paths ${DOCS_FOLDER_PATH}/${mode} ${aug_folder}/${mode} \
-#                    --ignored_relations ${ignored_rel}  --num_cpus ${CPUS} \
-#                    --log ${rel_set_name}_${augmentation}_${mode}.log -v&
-#            done
-#            wait                                                                # WAITS FOR ALL PARALLEL CALLS TO FINISH
-            echo -e "\t\t\t Done with modes"
-
-            echo -e  "\t\t\t\t Creating black-box model folders"
-            sesame_setup "${aug_folder}"
-            rm -r -f "${aug_folder}/methods/semafor"                             # OPEN SEMAFOR FOLDER STRUCTURE SETTING
-            mkdir -p "${aug_folder}/methods/semafor"
-                                                                                # END OF SESAME FOLDER STRUCTURE SETTING
-        done
+        local aug_name=$(basename ${1})
+        JOBHEADER="jbsub -cores ${CPUS} -mem ${MEM}g -q ${QUEUE} -name rdn_${aug_name}_${config_name} -proj srl"
+#        JOBHEADER=""
+        ${JOBHEADER} python ${dataset_path}/train_original/ \
+            --root  ${dataset_path} \
+            --num_cpus CPUS \
+            --log rdn_${aug_name}_${config_name}.log -v
     done
-fi
-echo
 
+    rm -f -d "${1}/methods/sesame/configurations"
+    cp -r    "${SESAME_FOLDER}/configurations" "${1}/methods/sesame/configurations"
+    sed -e   's/"version.*/"version": '${FN_VERSION}',/' -i \
+             ${1}/methods/sesame/configurations/global_config.json
+    rm -f -d "${1}/methods/sesame/logs"
+    mkdir -p "${1}/methods/sesame/logs"
+}
 
 ########################################################################################################################
-# SRL methods
+# Black Box methods
 
-if [ ${BUILD_SRL} -gt 0 ]
+echo "Building black-box model environment"
+
+BK_PATH="${ROOT_PATH}/fn${FN_VERSION}"
+mkdir -p "${BK_PATH}/test"
+
+echo -e "\t Copying test files"
+cp ${DOCS_FOLDER_PATH}/test/*.xml "${BK_PATH}/test"
+
+if ! [ -d "${BK_PATH}/current/" ]
 then
-    echo "Building srl models environment"
-
-    BK_PATH="${ROOT_PATH}/fn${FN_VERSION}/srl"
-    CONFIG_FOLDER=""
-    mkdir -p ${BK_PATH}
-    mkdir -p "${BK_PATH}/test"                                                                      # COPY OF TEST FILES
-
-    echo -e "\t Copying test files"
-    cp ${DOCS_FOLDER_PATH}/test/*.xml "${BK_PATH}/test"
-
-    echo -e "\t Copying train and dev files"
+    echo -e "\t Creating 'current' folder with training and dev files"
     for mode in train dev
     do
         echo -e "\t\t Copying current ${mode} files"
         mkdir -p "${BK_PATH}/current/${mode}"
         cp ${DOCS_FOLDER_PATH}/${mode}/*.xml "${BK_PATH}/current/${mode}"
     done
-
-    echo -e "\t Running augmentations"                                                                   # AUGMENTATIONS
-    REL_SET_NAMES=(strong weak all)
-    IGNORED_RELS=(weak strong see_also)
-    for idx in "${!REL_SET_NAMES[@]}"                                     # ITERATING OVER RELATION SETS AND THEIR NAMES
-    do
-        rel_set_name=${REL_SET_NAMES[${idx}]}
-        ignored_rel=${IGNORED_RELS[${idx}]}
-        echo -e  "\t\t Augmentation '${rel_set_name}'"
-        for augmentation in lexical syntactic semantic full                      # ITERATING OVER TYPES OF AUGMENTATIONS
-        do
-            echo -e  "\t\t\t kind '${augmentation}'"
-            aug_folder="${BK_PATH}/aug_${rel_set_name}_${augmentation}"
-            mkdir -p ${aug_folder}
-            for mode in train dev
-            do
-                echo -e "\t\t\t\t Mode: '${mode}'"
-                mkdir -p ${aug_folder}/${mode}
-#                python -W ignore srl_nlp/resource_augmentation.py ${FN_DATA} \
-#                    ${augmentation} --doc_paths ${DOCS_FOLDER_PATH}/${mode} ${aug_folder}/${mode} \
-#                    --ignored_relations ${ignored_rel}
-            done
-            for config in config0 config1 config2 #$(ls ${CONFIG_FOLDER})                                      # CONFIGS
-            do
-                echo -e "\t\t\t\t Config: '${config}'"
-                mkdir -p ${aug_folder}/${config}
-                echo -e  "\t\t\t\t\t Creating srl model folders'"                                          # SRL METHODS
-                mkdir -p "${aug_folder}/${config}/methods/rdn_once"
-                mkdir -p "${aug_folder}/${config}/methods/rdn_split"
-#                mkdir -p "${aug_folder}/${config}/methods/amie_plus"
-#                mkdir -p "${aug_folder}/${config}/methods/pra"
-#                mkdir -p "${aug_folder}/${config}/methods/aleph"
-#                mkdir -p "${aug_folder}/${config}/methods/propositionalization_aleph"
-            done
-        done
-    done
+    echo -e  "\t\t Creating black-box model folders'"
+    echo -e  "\t\t\t Sesame on current FrameNet data"
+    mkdir -p "${BK_PATH}/current/methods/sesame"
+    sesame_setup "${BK_PATH}/current"
+    mkdir -p "${BK_PATH}/current/methods/semafor"
+else
+    echo -e "\t Skipping 'current' folder creation"
 fi
+echo -e "\t Running aumentations"
 
+for idx in "${!REL_SET_NAMES[@]}"
+do
+    rel_set_name=${REL_SET_NAMES[${idx}]}
+    echo -e  "\t\t Augmentation '${rel_set_name}'"
+    for augmentation in ${AUGMENTATIONS}
+    do
+        echo -e  "\t\t\t kind '${augmentation}'"
+        aug_folder="${BK_PATH}/aug_${rel_set_name}_${augmentation}"
+#        trap 'kill $(jobs -p)' SIGINT           # GUARANTEES THAT ALL PARALLEL CALLS WILL BE KILLED TOGETHER IF EXIT
+#        for mode in train dev
+#        do
+#            echo -e "\t\t\t\t Mode: '${mode}'"
+#            mkdir -p ${aug_folder}/${mode}
+#            JOBHEADER="jbsub -cores ${CPUS} -mem ${MEM}g -q ${QUEUE} -name gen_${augmentation}_${rel_set_name}_${mode} -proj srl"
+##            JOBHEADER=""
+#            ${JOBHEADER} python -W ignore srl_nlp/resource_augmentation.py ${FN_DATA} \
+#                ${augmentation} --doc_paths ${DOCS_FOLDER_PATH}/${mode} ${aug_folder}/${mode} \
+#                --relations ${rel_set_name}  \
+#                --num_cpus ${CPUS} \
+#                --single_sentences \
+#                --log ${aug_folder}/${rel_set_name}_${mode}.log -v&
+#        done
+#        wait                                                                # WAITS FOR ALL PARALLEL CALLS TO FINISH
+#        echo -e "\t\t\t Done with modes"
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        if [ -d "${aug_folder}/train" ]
+        then
+            echo -e  "\t\t\t\t Creating model folders"
+            sesame_setup "${aug_folder}"
+            # rdn_setup "${aug_folder}"
+        else
+            echo -e  "\t\t\t\t ${aug_folder}/[train, dev] not created. Skiping model folders"
+        fi
+    done
+done
