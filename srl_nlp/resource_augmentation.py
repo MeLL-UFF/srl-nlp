@@ -3,7 +3,6 @@ from __future__ import division
 import sys
 
 import logging
-import numpy as np
 from builtins import zip
 from copy import deepcopy as copy
 from multiprocessing import Pool
@@ -15,33 +14,34 @@ from srl_nlp.framenet.corpus import Document, Paragraph, Sentence, AnnotationSet
 from srl_nlp.framenet.description import EXample, FEeXample, Label
 from srl_nlp.framenet.framenet import Frame, FrameElement, FrameNet
 from srl_nlp.logical_representation.logicalform import LF
-from srl_nlp.rule_utils import get_paths, get_annotations, get_factors, list_doc_files
+from srl_nlp.rule_utils import get_paths, get_annotations, get_factors, list_doc_files, get_chunks, ensure_dir
 
 FE = FrameElement
 logger = logging.getLogger(__name__)
 
-sys.setrecursionlimit(3000)  # TODO this is a work around to allow pickle to work on the FN data object,
-
-
-# I could not find a better way :/
+sys.setrecursionlimit(3000)  # TODO this is a work around to allow pickle to work on the FN data object
 
 
 class StandardAugmentation(object):
-    STRONG_RELATIONS = ('Has Subframe(s)', 'Inherits from', 'Is Inherited by', 'Subframe of')
-    WEAK_RELATIONS = ('See also', 'Is Causative of', 'Is Inchoative of', 'Is Perspectivized in', 'Is Preceded by',
-                      'Is Used by', 'Perspective on', 'Precedes''Uses')
+    STRONG_RELATIONS = ('Is Inherited by', 'Subframe of')
+    WEAK_RELATIONS = ('Is Causative of', 'Is Inchoative of', 'Is Perspectivized in', 'Is Preceded by',
+                      'Is Used by', 'Perspective on', 'Precedes', 'Uses')
+
+    ALL_RELATIONS = ('Has Subframe(s)', 'Inherits from', 'Is Inherited by', 'Subframe of', 'See also',
+                     'Is Causative of', 'Is Inchoative of', 'Is Perspectivized in', 'Is Preceded by', 'Is Used by',
+                     'Perspective on', 'Precedes', 'Uses')
 
     def __init__(self):
         self.ex_count = 0
         self.doc_ex_count = 0
         self.total_sentences = 0
 
-    def augment_framenet(self, fn, ignored_relations=None):
-        # type: (FrameNet, Iterable[str]) -> FrameNet
+    def augment_framenet(self, fn, ignored_relations=tuple()):
+        # type: (FrameNet, Tuple[str]) -> FrameNet
         self.ex_count = 0
         self.doc_ex_count = 0
         self.total_sentences = 0
-        if ignored_relations is None:
+        if len(ignored_relations) == 0:
             new_frames = [self.augment_frame(frame, fn) for frame in fn]
         else:
             new_frames = [self.augment_frame(frame, fn, ignored_relations=ignored_relations) for frame in fn]
@@ -93,7 +93,8 @@ class StandardAugmentation(object):
     def _get_fe_dict(self, fe_list_old, fe_list_new, sentence=None):
         # type: (List[FE], List[FE], Sentence) -> Dict[FE,FE]
         """
-
+            Returns a Dictionary that matches the frame elements in fe_list_old to the frame elements in fe_list_new
+            based on the frame elements name equality or based on the similarity function _fes_are_similiar
         Args:
             fe_list_old: list of frame elements to use as key of the dictionary
             fe_list_new: list of frame elements to use as value of the dictionary
@@ -141,7 +142,7 @@ class StandardAugmentation(object):
         return new_example
 
     def augment_documents(self, docs, fn, ignored_relations=None, split_in_sentences=True):
-        # type: (List[Document], FrameNet, Iterable[str],bool) -> List[Document]
+        # type: (List[Document], FrameNet, Tuple[str],bool) -> List[Document]
         """
         Returns a list of augmented documents
         Args:
@@ -156,22 +157,11 @@ class StandardAugmentation(object):
         """
         self.doc_ex_count = 0
         self.total_sentences = 0
-        # if docs is not None:
-        #     logger.info('Augmenting documents')
-        #     if ignored_relations is None:
-        #         docs = [self.augment_document(doc, fn) for doc in docs]
-        #     else:
-        #         docs = [self.augment_document(doc, fn, ignored_relations=ignored_relations) for doc in docs]
-        #     logger.info('There were added {} doc sentence examples'.format(self.doc_ex_count))
-        #     logger.info('There were {} doc sentence examples'.format(self.total_sentences))
-        # else:
-        #     docs = []
-        # return docs
         if docs is not None:
             logger.info('Augmenting documents')
             for i, doc in enumerate(docs):
                 logger.info('Augmenting {}-th doc'.format(i))
-                if ignored_relations is None:
+                if len(ignored_relations) == 0:
                     yield self.augment_document(doc, fn, split_in_sentences=split_in_sentences)
                 else:
                     yield self.augment_document(doc, fn,
@@ -239,6 +229,14 @@ class StandardAugmentation(object):
         # type: (Sentence, FrameNet, Iterable[str]) -> None
         new_anno_sets = []
         self.total_sentences = self.total_sentences + 1
+
+        sentence_frames = set()
+
+        for annotation_set in sentence:
+            # If the frame in the annotation is not present in the FrameNet then skip this annotation
+            if annotation_set.is_frame() and annotation_set.frameName in fn:
+                sentence_frames.add(annotation_set.frameName)
+
         for i, annotation_set in enumerate(sentence):
             # If the frame in the annotation is not present in the FrameNet then skip this annotation
             if not annotation_set.is_frame():
@@ -255,14 +253,17 @@ class StandardAugmentation(object):
                 logger.info('\t\t\t Processing {:2d} of {} '
                             'annotation sets in sentence'.format(i + 1, len(sentence.annotation_sets)))
                 for neighbour_frame in neighbour_frames:
-                    fes_dict = self._get_fe_dict(fes, neighbour_frame.fes, sentence=sentence)
-                    if len(fes_dict) > 0 and len(fes_dict) == len(fes):
-                        # if this condition is met, then we can make the transference:
-                        self.doc_ex_count = self.doc_ex_count + 1
-                        new_anno_sets.append(self.augment_doc_anno_set(annotation_set,
-                                                                       neighbour_frame.name,
-                                                                       neighbour_frame.id,
-                                                                       fes_dict))
+                    if neighbour_frame.name not in sentence_frames:
+                        fes_dict = self._get_fe_dict(fes, neighbour_frame.fes, sentence=sentence)
+                        if len(fes_dict) > 0 and len(fes_dict) == len(fes):
+                            # if this condition is met, then we can make the transference:
+                            self.doc_ex_count = self.doc_ex_count + 1
+                            new_anno_sets.append(self.augment_doc_anno_set(annotation_set,
+                                                                           neighbour_frame.name,
+                                                                           neighbour_frame.id,
+                                                                           fes_dict))
+                            sentence_frames.add(neighbour_frame.name)  # store that this frame was added to the sentence
+
         sentence.annotation_sets.extend(new_anno_sets)
         return None
 
@@ -277,12 +278,20 @@ class StandardAugmentation(object):
             ignored_relations: Frame relations to be ignored during augmentation
 
         Returns:
-            A list of new sentences where each sentence is a copy of the geven sentence with augmentad frame element
+            A list of new sentences where each sentence is a copy of the given sentence with augmented frame element
             annotations from a related frame
 
         """
         self.total_sentences = self.total_sentences + 1
         new_sentences = []
+
+        sentence_frames = set()
+
+        for annotation_set in sentence:
+            # If the frame in the annotation is not present in the FrameNet then skip this annotation
+            if annotation_set.is_frame() and annotation_set.frameName in fn:
+                sentence_frames.add(annotation_set.frameName)
+
         for i, annotation_set in enumerate(sentence):
             # If the frame in the annotation is not present in the FrameNet then skip this annotation
             if not annotation_set.is_frame():
@@ -299,17 +308,19 @@ class StandardAugmentation(object):
                 logger.info('\t\t\t Processing {:2d} of {} '
                             'annotation sets in sentence'.format(i + 1, len(sentence.annotation_sets)))
                 for neighbour_frame in neighbour_frames:
-                    fes_dict = self._get_fe_dict(fes, neighbour_frame.fes, sentence=sentence)
-                    if len(fes_dict) > 0 and len(fes_dict) == len(fes):
-                        # if this condition is met, then we can make the transference:
-                        self.doc_ex_count = self.doc_ex_count + 1
-                        new_sentence = copy(sentence)
-                        new_sentence.annotation_sets[i] = self.augment_doc_anno_set(annotation_set,
-                                                                                    neighbour_frame.name,
-                                                                                    neighbour_frame.id,
-                                                                                    fes_dict)
-                        new_sentence.id = "{}{}".format(len(new_sentences) + 1, sentence.id)
-                        new_sentences.append(new_sentence)
+                    if neighbour_frame.name not in sentence_frames:
+                        fes_dict = self._get_fe_dict(fes, neighbour_frame.fes, sentence=sentence)
+                        if len(fes_dict) > 0 and len(fes_dict) == len(fes):
+                            # if this condition is met, then we can make the transference:
+                            self.doc_ex_count = self.doc_ex_count + 1
+                            new_sentence = copy(sentence)
+                            new_sentence.annotation_sets[i] = self.augment_doc_anno_set(annotation_set,
+                                                                                        neighbour_frame.name,
+                                                                                        neighbour_frame.id,
+                                                                                        fes_dict)
+                            new_sentence.id = "{}{}".format(len(new_sentences) + 1, sentence.id)
+                            new_sentences.append(new_sentence)
+                            sentence_frames.add(neighbour_frame.name)  # store that this frame was added to the sentence
         return new_sentences
 
     @staticmethod
@@ -437,18 +448,6 @@ class AugmentationQueue(StandardAugmentation):
         return False
 
 
-def _augment_aux(params):
-    # type: (Tuple[str, List[Document], FrameNet, List[str], bool]) -> List[Document]
-    aug_name, doc_list, fnet, ignored, split_in_sentences = params
-    aug_method = getattr(AugmentationFactory(), aug_name)  # type: StandardAugmentation
-    if ignored is None:
-        return list(aug_method.augment_documents(doc_list, fnet, split_in_sentences=split_in_sentences))
-    else:
-        return list(aug_method.augment_documents(doc_list, fnet,
-                                                 ignored_relations=ignored,
-                                                 split_in_sentences=split_in_sentences))
-
-
 class AugmentationFactory:
 
     def __init__(self):
@@ -476,6 +475,18 @@ class AugmentationFactory:
             return getattr(self, aug_name)
 
 
+def _augment_aux(params):
+    # type: (Tuple[str, List[Document], FrameNet, Tuple[str], bool]) -> List[Document]
+    aug_name, doc_list, fnet, ignored, split_in_sentences = params
+    aug_method = getattr(AugmentationFactory(), aug_name)  # type: StandardAugmentation
+    if ignored is None:
+        return list(aug_method.augment_documents(doc_list, fnet, split_in_sentences=split_in_sentences))
+    else:
+        return list(aug_method.augment_documents(doc_list, fnet,
+                                                 ignored_relations=ignored,
+                                                 split_in_sentences=split_in_sentences))
+
+
 class ParallelAugmentation(StandardAugmentation):
 
     def __init__(self, num_cpus, aug_name):
@@ -484,18 +495,7 @@ class ParallelAugmentation(StandardAugmentation):
         self._aug_name = aug_name
         self._num_cpus = num_cpus
 
-    @staticmethod
-    def _get_chunks(elems, num_chunks):
-        size = len(elems)
-        step = int(np.floor(size / num_chunks))
-        extra = size % num_chunks
-        # Evenly distribute the number of elements in the chunks and keep ordering
-        chunk_lens = [step + 1 if i < extra else step for i in range(num_chunks)]
-        elems_iterator = elems.__iter__()
-        for chunk_len in chunk_lens:
-            yield [elems_iterator.next() for _ in range(chunk_len)]
-
-    def augment_documents(self, docs, fn, ignored_relations=None, split_in_sentences=True):
+    def augment_documents(self, docs, fn, ignored_relations=tuple(), split_in_sentences=True):
         # type: (List[Document], FrameNet, Iterable[str],bool) -> List[Document]
         self.doc_ex_count = 0
         self.total_sentences = 0
@@ -504,7 +504,7 @@ class ParallelAugmentation(StandardAugmentation):
         pool = Pool(self._num_cpus)
 
         jobs = [(self._aug_name, doc_list, fn, ignored_relations, split_in_sentences)
-                for doc_list in self._get_chunks(docs, self._num_cpus)]
+                for doc_list in get_chunks(docs, self._num_cpus)]
 
         for i, docs in enumerate(pool.map(_augment_aux, jobs)):
             logger.info('Augmenting {}-th doc'.format(i))
@@ -517,7 +517,6 @@ if __name__ == '__main__':
     from srl_nlp.logger_config import add_logger_args, config_logger, timeit
     from srl_nlp.framenet.parse_xml import NetXMLParser
     from srl_nlp.analysers.boxer import BoxerLocalAPI
-    from srl_nlp.write_experiments import ensure_dir
     from itertools import chain
     from sys import argv as _argv
     from os import path
@@ -526,10 +525,19 @@ if __name__ == '__main__':
     augmentations_available = [aug for aug in dir(AugmentationFactory)
                                if isinstance(getattr(AugmentationFactory, aug), property)]
 
-    relations_map = {'strong': StandardAugmentation.STRONG_RELATIONS + ('See also',),
-                     'weak': StandardAugmentation.WEAK_RELATIONS,
-                     'see_also': ('See also',),
-                     'none': None}
+    relations_map = {'STRONG': StandardAugmentation.STRONG_RELATIONS,
+                     'WEAK': StandardAugmentation.WEAK_RELATIONS,
+                     'ALL': StandardAugmentation.ALL_RELATIONS,
+                     'NONE': tuple(),
+
+                     'subframe': ('Subframe of',),
+                     'inheritance': ('Is Inherited by',),
+
+                     'causative': ('Is Causative of',),
+                     'perspective': ('Perspective on',),
+                     'precedence': ('Precedes',),
+                     'use': ('Uses', 'Is Used by'),
+                     'see_also': ('See also',)}
 
 
     def get_docs_and_names(adapter, file_folder_path):
@@ -554,14 +562,14 @@ if __name__ == '__main__':
                             help='The kind of augmentations used, if multiple augmentations, a folder for each '
                                  'augmentation will be generated in the specified doc_paths.')
         parser.add_argument('--doc_paths', default=list(), nargs=2,
-                            help='Two paths, the first on is the folder or document from where we will retrieve the '
+                            help='Two paths, the first one is the folder or document from where we will retrieve the '
                                  'document information. '
                                  'The second one is the path to where store the augmented information')
         parser.add_argument('--document_adapter', default='framenet', choices=PARSERS_AVAILABLE,
                             help='')
         parser.add_argument('--save_framenet_path', default=None,
                             help='Place to store the new FrameNet frame data')
-        parser.add_argument('--ignored_relations', default='none',
+        parser.add_argument('--relations', default=['ALL'], nargs='+', choices=list(relations_map.keys()),
                             help='Place to store the new FrameNet frame data')
         parser.add_argument('--single_sentences', default=False, action='store_true',
                             help='Forces annotation augmentations to overwrite the '
@@ -588,7 +596,9 @@ if __name__ == '__main__':
         net = parser.parse(args.framenet_path)
 
         doc_adapter = PARSERS_AVAILABLE[args.document_adapter]()
-        ignored_relations = relations_map[args.ignored_relations]
+        relations = tuple(chain(*[relations_map[rel_name] for rel_name in args.relations]))
+        ignored_relations = tuple([rel_name for rel_name in StandardAugmentation.ALL_RELATIONS
+                                   if rel_name not in relations])
         aug_builder = AugmentationFactory()
         aug_names = list(chain(args.augmentation_types))
         num_cpus = args.num_cpus

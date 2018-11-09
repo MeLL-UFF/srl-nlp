@@ -1,9 +1,11 @@
 """
 This file holds classes that facilitate rule manipulation
 """
-from os import listdir
+from os import listdir, path, makedirs
 
 import logging
+
+import numpy as np
 import spacy
 from copy import deepcopy as copy
 from regex import compile
@@ -353,3 +355,26 @@ def list_doc_files(folder_path):
     """
     return [f for f in listdir(folder_path)
             if f.lower().endswith('.xml') or f.lower().endswith('.json')]
+
+
+def get_chunks(elems, num_chunks):
+    size = len(elems)
+    step = int(np.floor(size / num_chunks))
+    extra = size % num_chunks
+    # Evenly distribute the number of elements in the chunks and keep ordering
+    chunk_lens = [step + 1 if i < extra else step for i in range(num_chunks)]
+    elems_iterator = elems.__iter__()
+    for chunk_len in chunk_lens:
+        yield [elems_iterator.next() for _ in range(chunk_len)]
+
+
+def ensure_dir(dir_name):
+    """
+    Makes dir if there is no dir
+
+        Returns if dir existed before this command
+    """
+    if not path.exists(dir_name):
+        makedirs(dir_name)
+        return False
+    return True

@@ -14,6 +14,8 @@ from sys import argv as _argv
 from logger_config import config_logger, add_logger_args
 from regex import compile
 
+from srl_nlp.rule_utils import ensure_dir
+
 logger = logging.getLogger(__name__)
 
 
@@ -217,18 +219,6 @@ class ProbLog:
             with open(source_file_path, 'r') as source:
                 for line in source:
                     self.lines.append(line.strip())
-
-
-def ensure_dir(dir_name):
-    """
-    Makes dir if there is no dir
-    
-        Returns if dir existed before this command
-    """
-    if not path.exists(dir_name):
-        makedirs(dir_name)
-        return False
-    return True
 
 
 def write_exp(conf, kb, base, targets, negatives, folder_path, engine, copy_kb=False, prefix='exp', dic=None):

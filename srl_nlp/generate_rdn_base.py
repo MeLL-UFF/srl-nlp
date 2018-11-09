@@ -9,6 +9,7 @@ import logging
 import pickle
 import random
 import re
+from multiprocessing.pool import Pool
 from os import path, makedirs, listdir
 from sys import argv as _argv
 
@@ -18,7 +19,7 @@ from srl_nlp.analysers.boxer import BoxerLocalAPI
 from srl_nlp.framenet.adapter import PARSERS_AVAILABLE
 from srl_nlp.framenet.corpus import Document, Sentence, AnnotationSet
 from srl_nlp.logical_representation.logicalform import LF
-from srl_nlp.rule_utils import ConfigParser
+from srl_nlp.rule_utils import ConfigParser, get_chunks
 
 logger = logging.getLogger(__name__)
 
@@ -65,26 +66,26 @@ def get_annotations(sentence, s_id, var2pos):
                 for anno in layer:
                     var_list = [inv_mapping[(start, end)] for (start, end) in inv_mapping if
                                 start >= anno.start and end <= anno.end]
-                    frame_name = anno_set.frameName.lower()
+                    frame_name = anno_set.frameName.encode('string-escape')
                     if layer.name == 'Target':
                         for var in var_list:
-                            fr.append(LF('frame_token({S}, {X}, {F}).'.format(S=s_id, X=var, F=frame_name)))
+                            fr.append(LF("frame_token({S}, '{X}', '{F}').".format(S=s_id, X=var, F=frame_name)))
                     elif layer.name == 'FE':
                         for var in var_list:
-                            name = anno.name.lower()
+                            name = anno.name.encode('string-escape')
                             fe.append(LF(
-                                'frame_element_token({S}, {X}, {FE}, {F}).'.format(S=s_id, X=var, FE=name,
-                                                                                   F=frame_name)))
+                                "frame_element_token({S}, {X}, '{FE}', '{F}').".format(S=s_id, X=var, FE=name,
+                                                                                       F=frame_name)))
     return fr, fe
 
 
 # TODO adapted from fsparsing.py
-def get_matching_variables(analyser, sentence, sentence_lfs=None, matching=None):
+def get_matching_variables(analyser, sentence_str, sentence_lfs=None, matching=None):
     # type: (BoxerLocalAPI, str, List[LF],Dict[any,any]) -> Dict[LF,List[any]]
     if not sentence_lfs:
-        sentence_lfs = analyser.sentence2LF(sentence)
+        sentence_lfs = analyser.sentence2LF(sentence_str)
     if not matching:
-        matching = analyser.get_matching_tokens(sentence, output="pos")
+        matching = analyser.get_matching_tokens(sentence_str, output="pos")
     matching1 = dict()
     for lf in sentence_lfs:
         for pred in lf.split():
@@ -113,10 +114,10 @@ def examples_from_doc(boxer, d_id, doc):
     logger.info("Reading docs")
 
     for paragraph in doc.elements:
-        logger.info("Reading paragraph id({par_id})".format(par_id=paragraph.id))
+        logger.info("\t Reading paragraph id({par_id})".format(par_id=paragraph.id))
 
         for sentence in paragraph.sentences:
-            logger.info("Reading sentence id({par_id}:{sent_id})"
+            logger.info("\t\t Reading sentence id({par_id}:{sent_id})"
                         .format(par_id=paragraph.id, sent_id=sentence.id))
             var2pos = get_matching_variables(boxer, sentence.text)
 
@@ -130,7 +131,7 @@ def examples_from_doc(boxer, d_id, doc):
                     for pred in lf.split():
                         pred.info.insert(1, [s_id])
                         preds.append(pred)
-                logger.info("Sentence({par_id}:{sent_id}): len(frs)={frs}, len(fes)={fes}, len(preds)={preds}"
+                logger.info("\t\t Sentence({par_id}:{sent_id}): len(frs)={frs}, len(fes)={fes}, len(preds)={preds}"
                             .format(par_id=paragraph.id, sent_id=sentence.id, frs=len(frs), fes=len(fes),
                                     preds=len(preds)))
                 yield DataObject(s_id, frs, fes, preds)
@@ -194,7 +195,20 @@ def write_to_file(root_folder, dataset, dataset_name):
                         pos_f.write("\n")
 
 
-def get_examples(data_base_path, input_parser):
+def _get_examples_from_doc_worker(docs):
+    examples = []
+    for d_id, doc in enumerate(docs):
+        logger.info("Initializing boxer")
+        boxer = BoxerLocalAPI()
+        logger.info("Processing document {idx}/{total}: '{name}' \n"
+                    "From corpus {c_idx}: '{corpus}'".format(idx=d_id + 1, name=doc.name, total=len(docs),
+                                                             c_idx=doc.corpusID, corpus=doc.corpus))
+        for example in examples_from_doc(boxer, d_id=d_id, doc=doc):
+            examples.append(example)
+    return examples
+
+
+def get_examples(data_base_path, input_parser, num_cpus=1):
     if path.isfile(data_base_path):
         with open(data_base_path) as db_file:
             docs = list(input_parser.parse_file(db_file))
@@ -206,16 +220,11 @@ def get_examples(data_base_path, input_parser):
                 with open(f_name) as db_file:
                     docs.extend(input_parser.parse_file(db_file))
     logger.info('Done parsing')
-    logger.info('Creating base')
+    logger.info('Creating base with {} cpus'.format(num_cpus))
+    pool = Pool(num_cpus)
     examples = []
-    for d_id, doc in enumerate(docs):
-        logger.info("Initializing boxer")
-        boxer = BoxerLocalAPI()
-        logger.info("Processing document {idx}/{total}: '{name}' \n"
-                    "From corpus {c_idx}: '{corpus}'".format(idx=d_id, name=doc.name, total=len(docs),
-                                                             c_idx=doc.corpusID, corpus=doc.corpus))
-        for example in examples_from_doc(boxer, d_id=d_id, doc=doc):
-            examples.append(example)
+    for example_list in pool.map(_get_examples_from_doc_worker, get_chunks(docs, num_cpus)):
+        examples.extend(example_list)
     logger.info('Base done')
     return examples
 
@@ -242,8 +251,14 @@ if __name__ == '__main__':
                             help='optional train/test ratio')
         parser.add_argument('-s', '--seed', default=None, type=int,
                             help='optional random seed')
+        parser.add_argument('--set_name', default='train', type=str,
+                            help='train dataset name')
+        parser.add_argument('--num_cpus', default=1, type=int,
+                            help='optional number of cpus')
         add_logger_args(parser)
         args = parser.parse_args(argv[1:])
+        if args.num_cpus < 1:
+            raise ValueError("Number of cpus used should be bigger than zero")
         return args
 
 
@@ -259,6 +274,7 @@ if __name__ == '__main__':
         input_parser = PARSERS_AVAILABLE[args.input_format]()
         data_path = path.expandvars(args.data_base_path)
         root_path = path.expandvars(args.root)
+
         logger.info('Parsing {file}'.format(file=args.data_base_path))
 
         if args.pickle_file:
@@ -270,13 +286,13 @@ if __name__ == '__main__':
                     examples = pickle.load(f)
             else:
                 # Parse corpus
-                examples = get_examples(data_path, input_parser)
+                examples = get_examples(data_path, input_parser, num_cpus=args.num_cpus)
                 # Save pickle file
                 with open(pickle_path, 'w') as f:
                     pickle.dump(examples, f)
         else:
             # Parse corpus
-            examples = get_examples(data_path, input_parser)
+            examples = get_examples(data_path, input_parser, num_cpus=args.num_cpus)
 
         # Split dataset in training and test if train_ratio is given
         if args.train_ratio:
@@ -288,7 +304,7 @@ if __name__ == '__main__':
             write_to_file(root_path, train, 'train')
             write_to_file(root_path, test, 'test')
         else:
-            write_to_file(root_path, examples, 'train')
+            write_to_file(root_path, examples, args.set_name)
         logger.info('Done')
 
 
@@ -296,6 +312,7 @@ if __name__ == '__main__':
         main(_argv)
     except KeyboardInterrupt:
         logger.info('Halted by the user')
+        exit(1)
     except OSError as e:
         logger.critical('Problem reading/writing files')
         logger.critical(e)
