@@ -77,8 +77,8 @@ class FNXMLAdapter(DocumentAdapter):
                     logger.error(ex)
             elif self._TAG_PREFIX + 'sentence' == xml_child.tag:
                 xml_sent = xml_child
-                par_no = int(xml_sent.attrib['paragNo'])
-                a_pos = int(xml_sent.attrib['aPos'])
+                par_no = int(xml_sent.attrib.get('paragNo', 0))  # TODO save file with paragraph number
+                a_pos = int(xml_sent.attrib.get('aPos', 0))
                 par = paragraphs.get((par_no, a_pos), [])
                 par.append(self._parse_sentence(xml_sent))
                 paragraphs[(par_no, a_pos)] = par
@@ -556,9 +556,10 @@ class JSONAdapter(DocumentAdapter):
             annotations = []
             for json_annotation in json_anno_set['frameElements']:
                 name = json_annotation['name']
+                idx = json_annotation.get('feID', None)
                 for span in json_annotation['spans']:
                     start, end = get_start_end(span)
-                    annotation = Annotation(name=name, start=start, end=end)
+                    annotation = Annotation(name=name, start=start, end=end, idx=idx)
                     annotations.append(annotation)
             layers.append(Layer(name='FE', rank=str(rank), annotations=annotations))
             anno_set = AnnotationSet(anno_set_id='0',  # TODO use at least a count

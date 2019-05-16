@@ -14,7 +14,7 @@ This project aims to process structured representations of texts through SRL to 
   - en_core_web_sm model
 
 ## Installing Requirements
-* Problog, ProbFoil (I recommend pip for this task)
+* Problog, ProbFoil Distance config parser...(I recommend pip for this task)
     ```shell
         sudo pip install -r requirements.txt
     ```
@@ -38,10 +38,10 @@ This project aims to process structured representations of texts through SRL to 
 ### Experiments dependency
 The testing with SemEval07 Task 19 demands FrameNet data and demands all frames to be in a single xml file it can be done by running the script `XXX`, run `path/XX --help` for help on how to use it.
 
-## Testing
-* If you want to run all the **test units**, install Pytest and then run it:
+## Code Testing
+* If you want to run all the **test units**, install Nose and then run it:
     ```shell
-        sudo pip install -U pytest
+        sudo pip install -U nose
         pytest
     ```
 

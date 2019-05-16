@@ -1,9 +1,20 @@
+#!/bin/env python
+
 """
 Parses sesame analysis
 """
+import logging
 import pandas as pd
 import re
+from functools import reduce
+from matplotlib import pyplot as plt
+from matplotlib.axes import Axes
 from os import path, listdir
+
+from srl_nlp.framenet.description import EXample
+from srl_nlp.framenet.parse_xml import NetXMLParser
+
+logger = logging.getLogger(__name__)
 
 # text = """Sent#1 :
 # tokens and depparse:
@@ -61,6 +72,7 @@ from os import path, listdir
 # 									Total: 4.0 / 9.0 / 9.0
 # """
 
+
 sent_pattern = re.compile(r"""Sent#(\d+) :
 tokens and depparse:
 .*
@@ -90,12 +102,12 @@ def parse_analysis(text, suffix=''):
         scores = f_pattern.findall(sentence[1])
         for score in scores:
             frame, tp, fn, fp = map(lambda x: score[x], [0, 3, 4, 5])
-            print(",".join([sid, frame, tp, fn, fp]))
+            logger.debug(",".join([sid, frame, tp, fn, fp]))
             sids.append(int(sid))
             frames.append(frame)
-            tps.append(tp)
-            fns.append(fn)
-            fps.append(fp)
+            tps.append(float(tp))
+            fns.append(float(fn))
+            fps.append(float(fp))
     df = pd.DataFrame({
         'sid': sids,
         'frame': frames,
@@ -106,23 +118,68 @@ def parse_analysis(text, suffix=''):
     return df
 
 
+def frame_example_count(fn, foo=lambda x: x):
+    def count_ex(frame):
+        count = sum([len(fe.definition.get_elements(EXample)) for fe in frame.coreFEs + frame.peripheralFEs])
+        # count = count + len(frame.get_elements(EXample))
+        return count
+
+    return {foo(frame.name): count_ex(frame) for frame in fn}
+
+
+def plot_frame_example_hist(df, title="Histogram of examples per frame", bins=30, save_fig=None, show_plot=True):
+    frame_count = df[["frame", "frame_example_count"]]  # type: pd.DataFrame
+    frame_count.drop_duplicates(inplace=True)
+    axis = frame_count.iloc[:, 1].hist(grid=False, bins=bins)  # type: Axes
+    axis.set_title(title)
+    axis.set_ylabel("Frequency")
+    axis.set_xlabel("Examples per Frame")
+    fig = axis.figure
+    if save_fig is not None:
+        fig.savefig(save_fig)
+    if show_plot:
+        plt.show()
+    plt.close(fig)
+
+
+def plot_fn_frame_example_hist(fn_dict, title="Histogram of examples per frame", bins=30, save_fig=None,
+                               show_plot=True):
+    frame_count = list(fn_dict.values())
+    fig, axis = plt.subplots()
+    axis.hist(frame_count, bins=bins)
+    axis.set_title(title)
+    axis.set_ylabel("Frequency")
+    axis.set_xlabel("Examples per Frame")
+    if save_fig is not None:
+        fig.savefig(save_fig)
+    if show_plot:
+        plt.show()
+    plt.close(fig)
+
+
 if __name__ == '__main__':
     import argparse
     from sys import argv
+    from srl_nlp.logger_config import add_logger_args, config_logger
 
 
-    def parse_args(argv):
+    def parse_args():
         parser = argparse.ArgumentParser(description='Processes sesame output')
-        parser.add_argument('root_path',
-                            help='path where to write the reports')
+        parser.add_argument('root_path', help='path where to write the reports')
+        parser.add_argument('--framenet_path', default='srl_nlp/framenet/fndata-1.5', help='Path to FrameNet Folder')
+        parser.add_argument('--out_df', default=None, help='Path to store the generated df')
+
+        add_logger_args(parser)
         args = parser.parse_args(argv[1:])
         return args
 
 
     def main():
-        args = parse_args(argv)
+        args = parse_args()
+        config_logger(args)
         exp_path = args.root_path
         dfs = []
+        logger.info("Reading from '{}'".format(exp_path))
         for d_id, au_name in enumerate(sorted(listdir(exp_path))):
             au_path = path.join(exp_path, au_name)
             if path.isdir(au_path) and au_name != 'test':
@@ -135,15 +192,24 @@ if __name__ == '__main__':
                             .sum() \
                             .sort_values(['sid', 'frame'])
                         dfs.append(df)
-        df = reduce(lambda x, y: pd.merge(x, y, on=['frame', 'sid']), dfs)
+        df = reduce(lambda x, y: pd.merge(x, y, on=['frame', 'sid']), dfs)  # type: pd.DataFrame
+        logger.info("Parsing framenet from '{}'".format(args.framenet_path))
+        parser = NetXMLParser()
+        fn = parser.parse(args.framenet_path)
+        frame_ex_count = frame_example_count(fn, str.upper)
+        df['frame_example_count'] = df['frame'].map(frame_ex_count)
+
+        if args.out_df is not None:
+            logger.info("Storing df as '{}'".format(args.out_df))
+            df.to_pickle(args.out_df)
 
 
     try:
         main()
     except KeyboardInterrupt:
-        print('Halted by the user')
+        logger.error('Halted by the user')
         exit(1)
     except OSError as e:
-        print('Problem reading/writing files')
-        print(e)
+        logger.error('Problem reading/writing files')
+        logger.error(e)
         raise e

@@ -179,22 +179,22 @@ do
     do
         echo -e  "\t\t\t kind '${augmentation}'"
         aug_folder="${BK_PATH}/aug_${rel_set_name}_${augmentation}"
-#        trap 'kill $(jobs -p)' SIGINT           # GUARANTEES THAT ALL PARALLEL CALLS WILL BE KILLED TOGETHER IF EXIT
-#        for mode in train dev
-#        do
-#            echo -e "\t\t\t\t Mode: '${mode}'"
-#            mkdir -p ${aug_folder}/${mode}
-#            JOBHEADER="jbsub -cores ${CPUS} -mem ${MEM}g -q ${QUEUE} -name gen_${augmentation}_${rel_set_name}_${mode} -proj srl"
-##            JOBHEADER=""
-#            ${JOBHEADER} python -W ignore srl_nlp/resource_augmentation.py ${FN_DATA} \
-#                ${augmentation} --doc_paths ${DOCS_FOLDER_PATH}/${mode} ${aug_folder}/${mode} \
-#                --relations ${rel_set_name}  \
-#                --num_cpus ${CPUS} \
-#                --single_sentences \
-#                --log ${aug_folder}/${rel_set_name}_${mode}.log -v&
-#        done
-#        wait                                                                # WAITS FOR ALL PARALLEL CALLS TO FINISH
-#        echo -e "\t\t\t Done with modes"
+        trap 'kill $(jobs -p)' SIGINT           # GUARANTEES THAT ALL PARALLEL CALLS WILL BE KILLED TOGETHER IF EXIT
+        for mode in train dev
+        do
+            echo -e "\t\t\t\t Mode: '${mode}'"
+            mkdir -p ${aug_folder}/${mode}
+            JOBHEADER="jbsub -cores ${CPUS} -mem ${MEM}g -q ${QUEUE} -name gen_${augmentation}_${rel_set_name}_${mode} -proj srl"
+#            JOBHEADER=""
+            ${JOBHEADER} python -W ignore srl_nlp/resource_augmentation.py ${FN_DATA} \
+                ${augmentation} --doc_paths ${DOCS_FOLDER_PATH}/${mode} ${aug_folder}/${mode} \
+                --relations ${rel_set_name}  \
+                --num_cpus ${CPUS} \
+                --single_sentences \
+                --log ${aug_folder}/${rel_set_name}_${mode}.log -v&
+        done
+        wait                                                                # WAITS FOR ALL PARALLEL CALLS TO FINISH
+        echo -e "\t\t\t Done with modes"
 
         if [ -d "${aug_folder}/train" ]
         then

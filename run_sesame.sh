@@ -25,7 +25,7 @@ echo
 CPUS=1
 #GPUS=4
 MEM=64
-QUEUE=x86_7d
+QUEUE=x86_12h
 
 ########################################################################################################################
 ### for model in targetid frameid argid
@@ -36,8 +36,10 @@ if [ "$#" -lt 1 ]
     else
     FOLDER_CONSTRAINS=("${*: 1}")
 fi
+
 echo "Folder constrains: '$FOLDER_CONSTRAINS'"
 trap 'kill $(jobs -p)' SIGINT                   # GUARANTEES THAT ALL PARALLEL CALLS WILL BE KILLED TOGETHER IF EXIT
+
 for exp in $(find ${ROOT_PATH}/fn${FN_VERSION} -name sesame -type d | grep ${FOLDER_CONSTRAINS})
     do
     (
@@ -52,7 +54,7 @@ for exp in $(find ${ROOT_PATH}/fn${FN_VERSION} -name sesame -type d | grep ${FOL
         echo -e "\t Data already prepared"
     fi
 
-    for model in targetid argid
+    for model in frameid targetid argid
         do
         JOBHEADER="jbsub -cores ${CPUS} -mem ${MEM}g -q ${QUEUE} -name train_${aug_name}_${model} -proj sesame"
 #        JOBHEADER=""

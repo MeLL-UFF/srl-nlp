@@ -9,23 +9,23 @@ __credits__ = ["Breno W. Carvalho", "Bernardo Goncalves", "Aline Marins Paes"]
 __email__ = "brenocarvalho@ic.uff.br"
 __status__ = "Prototype"
 
+from sys import argv as _argv
+from sys import stdout
+
 # Utils
 import argparse
 # Logger
 import logging
 import pickle
-from ConfigParser import ConfigParser
 from functools import partial
 from os import path
-from sys import argv as _argv
-from sys import stdout
 
 from logger_config import config_logger, add_logger_args as _add_logger_args
 # Analysers
 from srl_nlp.analysers.boxer import BoxerLocalAPI
 from srl_nlp.framenet.parse_xml import NetXMLParser
-from srl_nlp.rule_utils import spacy, get_annotations, get_factors, make_pred
-from srl_nlp.rule_utils import str_preds, get_paths, get_abbrev, get_examples
+from srl_nlp.rule_utils import ConfigParser, spacy, get_annotations, get_factors, make_pred, str_preds, get_paths, \
+    get_abbrev, get_examples
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +61,7 @@ class RuleGenerator(object):
                             factors = get_factors(lf)
                             logger.debug('Done Factors:%s' % str(factors))
                             for target in targets:
-                                for label, preds in elements.iteritems():
+                                for label, preds in elements.items():
                                     for pred in preds:
                                         for term_path in get_paths(pred, target, factors):
                                             if label[:1].islower():

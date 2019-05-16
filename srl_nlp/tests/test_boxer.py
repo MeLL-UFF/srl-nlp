@@ -16,33 +16,33 @@ class TestBoxerLocalAPI(TestCase):
         boxer = BoxerLocalAPI()
         fol = boxer.sentence2FOL(sentence)
         assert str(fol) == '[some(A,some(B,some(C,and(and(n1time(B),and(a1around(A),and(r1Theme(A,B),' + \
-                           'pernamjohn(C)))),some(D,some(E,and(r1Time(E,B),and(r1even(E),and(a1faster(D),' + \
-                           'and(r1Manner(E,D),and(r1Actor(E,C),v1run(E)))))))))))).]'
+               'pernamjohn(C)))),some(D,some(E,and(r1Time(E,B),and(r1even(E),and(a1faster(D),' + \
+               'and(r1Manner(E,D),and(r1Actor(E,C),v1run(E)))))))))))).]'
 
     def test_parse_sentence(self):
         sentence = 'John is running even faster this time around.'
         boxer = BoxerLocalAPI()
         parsed = boxer._parse_sentence(sentence).strip()
-        expected = ("ccg(1,"
-                    "\n rp(s:dcl,"
-                    "\n  ba(s:dcl,"
-                    "\n   lx(np, n,"
-                    "\n    t(n, 'John', 'John', 'NNP', 'I-NP', 'I-PER')),"
-                    "\n   fa(s:dcl\\np,"
-                    "\n    t((s:dcl\\np)/(s:ng\\np), 'is', 'be', 'VBZ', 'I-VP', 'O'),"
-                    "\n    ba(s:ng\\np,"
-                    "\n     ba(s:ng\\np,"
-                    "\n      t(s:ng\\np, 'running', 'run', 'VBG', 'I-VP', 'O'),"
-                    "\n      fa((s:ng\\np)\\(s:ng\\np),"
-                    "\n       t(((s:ng\\np)\\(s:ng\\np))/((s:ng\\np)\\(s:ng\\np)), 'even', 'even', 'RB', 'I-ADVP', 'O'),"
-                    "\n       t((s:ng\\np)\\(s:ng\\np), 'faster', 'faster', 'RBR', 'I-ADVP', 'O'))),"
-                    "\n     fa((s:ng\\np)\\(s:ng\\np),"
-                    "\n      t(((s:ng\\np)\\(s:ng\\np))/n, 'this', 'this', 'DT', 'I-NP', 'O'),"
-                    "\n      ba(n,"
-                    "\n       t(n, 'time', 'time', 'NN', 'I-NP', 'O'),"
-                    "\n       t(n\\n, 'around', 'around', 'RB', 'I-ADVP', 'O')))))),"
-                    "\n  t(period, '.', '.', '.', 'O', 'O'))).")
-        assert parsed == expected
+        expect = ("ccg(1,"
+                  "\n rp(s:dcl,"
+                  "\n  ba(s:dcl,"
+                  "\n   lx(np, n,"
+                  "\n    t(n, 'John', 'John', 'NNP', 'I-NP', 'I-PER')),"
+                  "\n   fa(s:dcl\\np,"
+                  "\n    t((s:dcl\\np)/(s:ng\\np), 'is', 'be', 'VBZ', 'I-VP', 'O'),"
+                  "\n    ba(s:ng\\np,"
+                  "\n     ba(s:ng\\np,"
+                  "\n      t(s:ng\\np, 'running', 'run', 'VBG', 'I-VP', 'O'),"
+                  "\n      fa((s:ng\\np)\\(s:ng\\np),"
+                  "\n       t(((s:ng\\np)\\(s:ng\\np))/((s:ng\\np)\\(s:ng\\np)), 'even', 'even', 'RB', 'I-ADVP', 'O'),"
+                  "\n       t((s:ng\\np)\\(s:ng\\np), 'faster', 'faster', 'RBR', 'I-ADVP', 'O'))),"
+                  "\n     fa((s:ng\\np)\\(s:ng\\np),"
+                  "\n      t(((s:ng\\np)\\(s:ng\\np))/n, 'this', 'this', 'DT', 'I-NP', 'O'),"
+                  "\n      ba(n,"
+                  "\n       t(n, 'time', 'time', 'NN', 'I-NP', 'O'),"
+                  "\n       t(n\\n, 'around', 'around', 'RB', 'I-ADVP', 'O')))))),"
+                  "\n  t(period, '.', '.', '.', 'O', 'O'))).")
+        assert parsed == expect
 
     def test_get_matching_tokens(self):
         in_list = ['Bob was arrested by the police']

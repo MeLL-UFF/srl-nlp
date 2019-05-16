@@ -1,6 +1,7 @@
 import logging
 import pickle
-from collections import Iterator, Iterable
+from collections import Iterable
+from typing import Iterator
 from copy import copy
 from typing import List, Tuple
 
@@ -272,7 +273,7 @@ class Sentence:
                 logger.debug('Content:{}'.format(content))
                 logger.debug('Anno slice: \'{}\''.format(self[anno]))
         example = description.EXample(content=content,
-                                      escapeHTML=False, **attribs)
+                                      escape_html=False, **attribs)
         return example
 
     def __eq__(self, other):
@@ -393,11 +394,12 @@ class Layer(Iterable):
 
 
 class Annotation:
-    def __init__(self, start="0", end="0", itype='', name='', **params):
-        self.start = int(start)
-        self.end = int(end)
+    def __init__(self, start=None, end=None, itype='', name='', idx=None, **params):
+        self.start = int(start) if start is not None else None
+        self.end = int(end) if end is not None else None
         self.itype = itype
         self.name = name
+        self.idx = idx
         self.params = params
         pass
 
@@ -451,7 +453,8 @@ class Annotation:
 
     def __str__(self):
         if self.is_fe():
-            return '<fe \'{fe}\'>({start},{end})</fe>'.format(fe=self.name, start=self.start, end=self.end)
+            return '<fe \'{fe}\' feID=\'{idx}\'>({start},{end})</fe>'.format(fe=self.name, start=self.start,
+                                                                             end=self.end, idx=self.idx)
         else:
             return '<label>({start},{end})</label>'.format(fe=self.name, start=self.start, end=self.end)
 
