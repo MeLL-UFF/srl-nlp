@@ -10,7 +10,7 @@ from functools import partial
 from networkx.drawing.nx_pydot import write_dot
 from os import path
 
-from fol import FOL
+from srl_nlp.data_augmentation.logical_representation.fol import FOL
 
 logger = logging.getLogger(__name__)
 

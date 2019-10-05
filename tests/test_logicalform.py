@@ -4,8 +4,7 @@ Test unit for the logicalform.py module
 from unittest import TestCase
 
 from nose.tools import assert_equals
-from srl_nlp.logical_representation.fol import FOL
-from srl_nlp.logical_representation.logicalform import LF
+from srl_nlp.data_augmentation.logical_representation import FOL, LF
 
 
 class TestLF(TestCase):

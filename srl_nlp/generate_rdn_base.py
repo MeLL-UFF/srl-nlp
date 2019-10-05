@@ -1,4 +1,4 @@
-#!/bin/env python2
+#!/bin/env python
 
 """
 Generate the rdn Knowledge bases in the appropriate format
@@ -12,14 +12,15 @@ import re
 from multiprocessing.pool import Pool
 from os import path, makedirs, listdir
 from sys import argv as _argv
+from configparser import ConfigParser
 
 from typing import List, Iterator, Dict, Tuple
 
-from srl_nlp.analysers.boxer import BoxerLocalAPI
+from srl_nlp.data_augmentation.analysers.boxer import BoxerLocalAPI
 from srl_nlp.framenet.adapter import PARSERS_AVAILABLE
-from srl_nlp.framenet.corpus import Document, Sentence, AnnotationSet
-from srl_nlp.logical_representation.logicalform import LF
-from srl_nlp.rule_utils import ConfigParser, get_chunks
+from srl_nlp.framenet.corpus import Document, Sentence
+from srl_nlp.data_augmentation.logical_representation import LF
+from srl_nlp.rule_utils import get_chunks
 
 logger = logging.getLogger(__name__)
 
@@ -231,7 +232,7 @@ def get_examples(data_base_path, input_parser, num_cpus=1):
 
 if __name__ == '__main__':
     import argparse
-    from logger_config import add_logger_args as _add_logger_args, config_logger, timeit
+    from srl_nlp.logger_config import add_logger_args as _add_logger_args, config_logger, timeit
 
 
     def parse_args(argv, add_logger_args=lambda x: None):

@@ -26,6 +26,7 @@ def silence_logger():
     level = logging.CRITICAL
     logging.basicConfig(level=level, format=log_format)
 
+
 def _timeit(foo, level):
     def timer(*args, **kwargs):
         start_time = time()

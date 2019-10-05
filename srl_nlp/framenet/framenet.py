@@ -199,12 +199,12 @@ class FrameRelation(collections.Iterable):
 
     def __str__(self):
         # return '<Frame "%s" %s>' %(self.name, dir(self))
-        frame_names = map(lambda x: x.name, self.frames)
-        return '%s: %s' % (self.name, str(frame_names)[1:-1])
+        frame_names = str([frame.name for frame in self.frames])
+        return '%s: %s' % (self.name, frame_names[1:-1])
 
     def __repr__(self):
-        frame_names = map(lambda x: x.name, self.frames)
-        return '{%s}' % str(frame_names)[1:-1]
+        frame_names = str([frame.name for frame in self.frames])
+        return '{%s}' % frame_names[1:-1]
 
     def __eq__(self, other):
         if type(other) == str:

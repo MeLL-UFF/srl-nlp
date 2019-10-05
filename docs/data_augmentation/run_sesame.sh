@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 
-#ROOT_PATH="${HOME}/Code/MD/srl_nlp/experiments"
+# ROOT_PATH="${HOME}/Code/MD/srl_nlp/experiments"
 ROOT_PATH="/dccstor/sallesd1/breno_tmp/experiments"
 FN_VERSION="1.5"
 
-#TRAIN_MODE='--mode refresh'
+# TRAIN_MODE='--mode refresh'
 TRAIN_MODE=''
 
 set -e # Fail fast: exits if a simple command exits with a nonzero exit value.
@@ -23,14 +23,14 @@ echo
 #CCC
 
 CPUS=1
-#GPUS=4
+# GPUS=4
 MEM=64
 QUEUE=x86_12h
 
 ########################################################################################################################
-### for model in targetid frameid argid
 
-if [ "$#" -lt 1 ]
+
+if [[ "$#" -lt 1 ]]
     then
     FOLDER_CONSTRAINS=''
     else
@@ -38,7 +38,7 @@ if [ "$#" -lt 1 ]
 fi
 
 echo "Folder constrains: '$FOLDER_CONSTRAINS'"
-trap 'kill $(jobs -p)' SIGINT                   # GUARANTEES THAT ALL PARALLEL CALLS WILL BE KILLED TOGETHER IF EXIT
+trap 'kill $(jobs -p)' SIGINT                       # GUARANTEES THAT ALL PARALLEL CALLS WILL BE KILLED TOGETHER IF EXIT
 
 for exp in $(find ${ROOT_PATH}/fn${FN_VERSION} -name sesame -type d | grep ${FOLDER_CONSTRAINS})
     do
@@ -46,7 +46,8 @@ for exp in $(find ${ROOT_PATH}/fn${FN_VERSION} -name sesame -type d | grep ${FOL
     echo "Running Sesame on ${exp}"
     cd ${exp}
     aug_name=$( echo ${exp} | sed -E "s|^.*/([^/]*)/methods/sesame|\1|")
-    if [ "$(ls -1 logs | wc -l)" -le 1 ]
+
+    if [[ "$(ls -1 logs | wc -l)" -le 1 ]]                    # IF THERE IS NOTHING IN THE LOGS FOLDER, PREPARE THE DATA
     then
         echo -e "\t Preparing data"
         python -m sesame.preprocess;

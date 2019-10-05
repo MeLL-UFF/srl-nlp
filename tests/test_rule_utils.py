@@ -1,5 +1,6 @@
-from srl_nlp.logical_representation.logicalform import LF
-from srl_nlp.rule_utils import _additive_dict_update, make_pred, replace_all
+from srl_nlp.data_augmentation.logical_representation.logicalform import LF
+from srl_nlp.rule_utils import _additive_dict_update, replace_all
+from srl_nlp.annotation_utils import make_pred
 
 
 # parser = NetXMLParser()

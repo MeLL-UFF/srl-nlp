@@ -1,6 +1,6 @@
 import logging
 import time
-from ConfigParser import ConfigParser
+from configparser import ConfigParser
 from abc import abstractmethod
 from fcntl import fcntl, F_GETFL, F_SETFL
 from os import path, O_NONBLOCK
@@ -46,7 +46,7 @@ class Process(object):
         if not stop_condition(out):
             while self._time_out is None or count < self._time_out:
                 try:
-                    out.append(self._proc.stdout.readline())
+                    out.append(self._proc.stdout.readline().decode('utf-8'))
                     logger.debug('{proc} line: {out}'.format(proc=self._proc_name,
                                                              out=repr(out[-1])))
                     if len(out[-1]) == 0:
@@ -95,6 +95,7 @@ class Process(object):
         logger.debug('StdError:"%s"' % err)
 
     def _process(self, input_text, tries=3):
+        input_stream = input_text.encode('utf-8')
         logger.debug(
             '{proc} input_text: "{input}" tries: {tries}'.format(proc=self._proc_name, input=input_text, tries=tries))
         if self._proc is None or self._proc.stdin.closed:
@@ -103,26 +104,30 @@ class Process(object):
 
         if self._disposable:
             logger.debug('{proc}: process is disposable'.format(proc=self._proc_name))
-            out, err = self._proc.communicate(input_text)
+            out, err = self._proc.communicate(input_stream)
+            out = out.decode('utf-8')
+            err = err.decode('utf-8')
         else:
             err = []
-            try:
-                self._proc.stdin.write(input_text)
-                self._proc.stdin.flush()
-                logger.debug('{proc}:  input: {input}'.format(proc=self._proc_name,
-                                                              input=repr(input_text)))
-                out = self._read_line(stop_condition=self._process_completed)
-            except (AssertionError, IOError) as e:
-                if tries > 0:
-                    logger.debug('Another try:')
-                    self._init_popen()
-                    out, err = self._process(input_text, tries=tries - 1)
-                else:
-                    logger.error('{proc}: failed at input "{input}"'.format(proc=self._proc_name,
-                                                                            input=input_text))
-                    raise e
+            while tries > 0:
+                try:
+                    self._proc.stdin.write(input_stream)
+                    self._proc.stdin.flush()
+                    logger.debug('{proc}:  input: {input}'.format(proc=self._proc_name,
+                                                                  input=repr(input_text)))
+                    out = self._read_line(stop_condition=self._process_completed)
+                    break
+                except (AssertionError, IOError) as e:
+                    if tries > 0:
+                        logger.debug('Another try:')
+                        self._init_popen()
+                        tries = tries - 1
+                    else:
+                        logger.error('{proc}: failed at input "{input}"'.format(proc=self._proc_name,
+                                                                                input=input_text))
+                        raise e
         self._err_handler(err)
-        logger.debug('{proc} out: {out}'.format(proc=self._proc_name,
+        logger.info('{proc} out: {out}'.format(proc=self._proc_name,
                                                 out=repr(out)))
         out = self._process_output(''.join(out))
         logger.debug('{proc}: finished'.format(proc=self._proc_name))

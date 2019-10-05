@@ -1,18 +1,19 @@
-#!/bin/env python2
+#!/bin/env python
 
 """
-This module is designed to generate or update all the experiments based on the current state of the 'process_docs.py' module.
+This module is designed to generate or update all the experiments based on the current state of the 'process_docs.py'
+script.
 """
 import argparse
 import json
 import logging
-from os import path, makedirs, symlink
+from os import path, symlink
 from random import shuffle
 from shutil import copyfile
 from sys import argv as _argv
 
-from logger_config import config_logger, add_logger_args
-from regex import compile
+from srl_nlp.logger_config import config_logger, add_logger_args
+from re import compile
 
 from srl_nlp.rule_utils import ensure_dir
 
@@ -43,7 +44,7 @@ class Aleph:
             """
             super(Aleph.ProcessNegatives, self).__init__(source_file_path, *args, **kwargs)
             target = kwargs.get('target', 'answer')
-            pat = compile(kwargs.get('pattern', '%s\s*\(\s*(\d+)\s*,\s*[^\)]+\s*\)\s*.\s*' % target))
+            pat = compile(kwargs.get('pattern', r'%s\s*\(\s*(\d+)\s*,\s*[^\)]+\s*\)\s*.\s*' % target))
             logger.info('Reading from "%s"', source_file_path)
             with open(source_file_path, 'r') as source:
                 dic = {}
@@ -79,7 +80,7 @@ class Aleph:
 
             logger.info('Reading from "%s"', source_file_path)
             sources = kargs.get('sources', [])
-            sources = map(lambda x: x.lower(), sources)
+            sources = [source.lower() for source in sources]
             with open(source_file_path, 'r') as source:
                 boxer_mode_lines = []
                 boxer_det_lines = []
@@ -91,10 +92,10 @@ class Aleph:
                 boxer_flag = False
                 deptree_flag = False
                 header_flag = True
-                find_boxer = compile(r'%\s*((?:b|B)oxer)\s*.*')
-                find_dtree = compile(r'%\s*((?:d|D)ep(?:t|T)ree)\s*.*')
-                find_pred = compile('^\s*:-\s*([^\(]+)\s*\(.*')
-                find_set = compile('^\s*:-\s*set\s*\((\w+)\s*,\s*(\w*)\s*\)\s*\.\s*')
+                find_boxer = compile(r'%\s*((?:[bB])oxer)\s*.*')
+                find_dtree = compile(r'%\s*((?:[dD])ep(?:[tT])ree)\s*.*')
+                find_pred = compile(r'^\s*:-\s*([^\(]+)\s*\(.*')
+                find_set = compile(r'^\s*:-\s*set\s*\((\w+)\s*,\s*(\w*)\s*\)\s*\.\s*')
                 for line in source:
                     pred_match = find_pred.match(line)
                     if find_boxer.match(line):
@@ -131,7 +132,7 @@ class Aleph:
                                 footer_lines.append(line.strip())
                 setting_dict.update(kargs.get('set', {}))
                 logger.debug('Settings: %s', setting_dict)
-                settings = map(lambda x: ':- set(%s,%s).' % x, setting_dict.iteritems())
+                settings = [':- set(%s,%s).' % setting for setting in setting_dict.items()]
                 self.lines.append('%Header\n')
                 self.lines.extend(header_lines)
                 if 'boxer' in sources:
@@ -192,9 +193,10 @@ class ProbLog:
                 patttern: regex pattern to parse a line
                 target:   target predicate to look
             """
-            if not kwargs.has_key('pattern'):
+            super().__init__(source_file_path, *args, **kwargs)
+            if 'pattern' not in kwargs:
                 target = kwargs.get('target', 'answer')
-                kwargs['pattern'] = '\d*\.?\d*\s*::\s*%s\s*\(\s*(\d+)\s*,\s*[^\)]+\s*\)\s*.\s*' % target
+                kwargs['pattern'] = r'\d*\.?\d*\s*::\s*%s\s*\(\s*(\d+)\s*,\s*[^\)]+\s*\)\s*.\s*' % target
             super(Aleph.ProcessNegatives, self).__init__(source_file_path, *args, **kwargs)
 
     class ProcessBase(ProcessFile):
@@ -241,19 +243,21 @@ def write_exp(conf, kb, base, targets, negatives, folder_path, engine, copy_kb=F
         the experiment, plus a short settings.json file indicating the settings
         of this particular experiment.
     """
-    if dic == None:
+    if dic is None:
         dic = {}
     if len(conf) == 0:
-        file_path = lambda x, y: path.join(folder_path, '%s.%s' % (x, y))
-        pN = engine.ProcessNegatives(negatives, **dic.get('n', {}))
-        pB = engine.ProcessBase(base, kb='%s.pl' % prefix, **dic.get('b', {}))
-        pF = engine.ProcessFacts(targets, **dic.get('f', {}))
+        def file_path(base_name, extension):
+            return path.join(folder_path, '%s.%s' % (base_name, extension))
+
+        p_n = engine.ProcessNegatives(negatives, **dic.get('n', {}))
+        p_b = engine.ProcessBase(base, kb='%s.pl' % prefix, **dic.get('b', {}))
+        p_f = engine.ProcessFacts(targets, **dic.get('f', {}))
         with open(file_path(prefix, 'n'), 'w') as n_file:
-            pN.dump(n_file)
+            p_n.dump(n_file)
         with open(file_path(prefix, 'b'), 'w') as b_file:
-            pB.dump(b_file)  # ...
+            p_b.dump(b_file)  # ...
         with open(file_path(prefix, 'f'), 'w') as f_file:
-            pF.dump(f_file)
+            p_f.dump(f_file)
         with open(file_path('settings', 'json'), 'w') as f:
             json.dump(dic, f)
         if copy_kb:
@@ -276,7 +280,7 @@ def write_exp(conf, kb, base, targets, negatives, folder_path, engine, copy_kb=F
                       copy_kb, prefix, d)
 
 
-def parse_args(argv, add_logger_args=lambda x: None):
+def parse_args(argv, prepare_parser=lambda x: None):
     parser = argparse.ArgumentParser(
         description='Generates or updates all the experiments based on the current state of knowledge base')
     parser.add_argument('kb', help='the knowledge base file')
@@ -293,7 +297,7 @@ def parse_args(argv, add_logger_args=lambda x: None):
     # parser.add_argument('-probl', '--problog', help = 'Suppress default ProbLog location')
     parser.add_argument('-e', '--engine', choices=['aleph', 'problog'],
                         default='aleph', help='engine')
-    add_logger_args(parser)
+    prepare_parser(parser)
     args = parser.parse_args(argv[1:])
     return args
 

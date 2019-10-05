@@ -22,7 +22,7 @@ echo "Activating python environment"
 echo
 . activate srl_nlp
 
-if [ "$#" -lt 1 ]
+if [[ "$#" -lt 1 ]]
     then
     FOLDER_CONSTRAINS=''
     else
@@ -73,7 +73,7 @@ rdn_setup(){
 
 for exp in $(find ${ROOT_PATH}/fn${FN_VERSION} -name rdn -type d | grep ${FOLDER_CONSTRAINS})
     do
-    if [ "$(ls -1 ${exp}/train | wc -l)" -gt 1 ]
+    if [[ "$(ls -1 ${exp}/train | wc -l)" -gt 1 ]]
     then
         echo "Building rdn environment"
         rdn_setup "${exp}"

@@ -20,12 +20,14 @@ import pickle
 from functools import partial
 from os import path
 
-from logger_config import config_logger, add_logger_args as _add_logger_args
+from srl_nlp.logger_config import config_logger, add_logger_args as _add_logger_args
 # Analysers
-from srl_nlp.analysers.boxer import BoxerLocalAPI
+from srl_nlp.data_augmentation.analysers.boxer import BoxerLocalAPI
 from srl_nlp.framenet.parse_xml import NetXMLParser
-from srl_nlp.rule_utils import ConfigParser, spacy, get_annotations, get_factors, make_pred, str_preds, get_paths, \
-    get_abbrev, get_examples
+from srl_nlp.annotation_utils import get_annotations, get_examples, get_abbrev, get_factors, get_paths, make_pred, \
+    str_preds
+from configparser import ConfigParser
+import spacy
 
 logger = logging.getLogger(__name__)
 
@@ -205,7 +207,7 @@ def get_all_examples(fn, example_file_name=None):
     else:
         logger.info('Capturing examples')
         examples = []
-        for l in list(map(partial(get_examples, fn=fn), fn.fe_names)):
+        for l in [get_examples(name, fn=fn) for name in fn.fe_names]:
             examples.extend(l)
     return examples
 

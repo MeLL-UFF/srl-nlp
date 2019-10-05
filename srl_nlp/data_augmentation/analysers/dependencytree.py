@@ -5,22 +5,17 @@ import spacy
 from os import path
 from typing import List
 
-from srl_nlp.logical_representation.fol import FOL
-from srl_nlp.logical_representation.logicalform import LF
+from srl_nlp.data_augmentation.logical_representation import FOL, LF
 from srl_nlp.stanford_parser.parser import Parser as StanfordParser
-# import sys
-# if sys.version_info[0] > 2:
-#     from configparser import ConfigParser
-# else:
-#     from ConfigParser import ConfigParser
-from srl_nlp.rule_utils import ConfigParser
+
+from configparser import ConfigParser
 
 logger = logging.getLogger(__name__)
 
 config = ConfigParser()
 _package_directory = path.dirname(__file__)
 
-config.read(path.join(_package_directory, "../external.conf"))
+config.read(path.join(_package_directory, path.join('..', 'external.conf')))  # TODO fix config file reference
 
 
 class DependencyTreeLocalAPI:
@@ -37,7 +32,7 @@ class DependencyTreeLocalAPI:
         logger.debug('Parsing sentence "{}"'.format(sentence.strip()))
         if len(sentence.strip()) == 0:
             return []
-        tree = self.parser(sentence.strip().decode('utf-8'))
+        tree = self.parser(sentence.strip().decode('utf-8'))  # TODO
         out = []
         ids = dict([(w, 'depTree%d' % (self.count + i)) for i, w in enumerate(tree)])
 

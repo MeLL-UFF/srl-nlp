@@ -2,16 +2,15 @@ from __future__ import print_function
 from sys import stderr
 
 import logging
-from srl_nlp.rule_utils import ConfigParser
+from configparser import ConfigParser
 from abc import abstractmethod
 from os import path
-from regex import match, compile
+from re import match, compile
 from requests import post
-from typing import Dict, List
+from typing import Dict, List, Any
 
-from process import Process
-from srl_nlp.logical_representation.fol import FOL
-from srl_nlp.logical_representation.logicalform import LF
+from srl_nlp.data_augmentation.analysers.process import Process
+from srl_nlp.data_augmentation.logical_representation import FOL, LF
 from srl_nlp.rule_utils import remove_eq
 
 logger = logging.getLogger(__name__)
@@ -19,7 +18,7 @@ logger = logging.getLogger(__name__)
 config = ConfigParser()
 _package_directory = path.dirname(__file__)
 
-config.read(path.join(_package_directory, "../external.conf"))
+config.read(path.join(_package_directory, path.join('..', '..', 'external.conf')))
 
 TIME_OUT = 100
 
@@ -42,7 +41,8 @@ class TokenizerLocalAPI(Process):
 class CandCLocalAPI(Process):
     def __init__(self, path_to_bin=config.get('semantic_local', 'c&c'), min_timeout=3, *params):
         if len(params) == 0:
-            params = ('--models', path.expandvars(config.get('semantic_local', 'c&c_models')), '--candc-printer', 'boxer')
+            params = (
+                '--models', path.expandvars(config.get('semantic_local', 'c&c_models')), '--candc-printer', 'boxer')
         self._min_timeout = min_timeout
         self._header_pattern = compile(r"""(.*\s)*:- discontiguous.*""")
         Process.__init__(self, path_to_bin, False, TIME_OUT, *params)
@@ -148,11 +148,11 @@ class BoxerAbstract:
                 return not (x.startswith('id') or x.startswith('%%%')) and len(x) > 0
 
             raw_fols = filter(is_relevant, boxed.split("\n"))
-            fols = map(lambda x: FOL(x, *extra_args), raw_fols)
+            fols = list(map(lambda x: FOL(x, *extra_args), raw_fols))
         except AssertionError:
             fols = []
 
-        special_char_pattern = compile('C(\d+)')
+        special_char_pattern = compile(r'C(\d+)')
         for fol in fols:
             frontier = [fol.info]  # type: List
             while len(frontier):
@@ -166,6 +166,7 @@ class BoxerAbstract:
 
     @staticmethod
     def fol2lf(fol_list, expand_predicates, remove_for_alls=True, removeeq=True, **kwargs):
+        # type: (Any, Any, Any, Any, Any) -> List[LF]
         # raw_input()
         def to_lf(fol, rem_eq, expand_pred):
             lf = LF(fol, remove_for_alls=remove_for_alls, header='fol', **kwargs)
@@ -175,7 +176,7 @@ class BoxerAbstract:
                 remove_eq(lf, 'eq')
             return lf
 
-        out = map(lambda x: to_lf(x, removeeq, expand_predicates), fol_list)
+        out = [to_lf(fol, removeeq, expand_predicates) for fol in fol_list]
         return out
 
     @staticmethod
@@ -185,7 +186,7 @@ class BoxerAbstract:
         for pattern, parser in BoxerAbstract._expansion_patterns:
             matching = match(pattern, predicate)
             if matching:
-                pred_elems = map(lambda x: ["'{}'".format(x.lower())], matching.groups())
+                pred_elems = list(map(lambda x: ["'{}'".format(x.lower())], matching.groups()))
                 out = parser(pred_elems, list(args))
                 logger.debug(' {exp} :- {fol}'.format(exp=out, fol=fol))
                 return out

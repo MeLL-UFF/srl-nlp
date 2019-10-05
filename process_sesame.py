@@ -101,7 +101,7 @@ def parse_analysis(text, suffix=''):
         sid = sentence[0]
         scores = f_pattern.findall(sentence[1])
         for score in scores:
-            frame, tp, fn, fp = map(lambda x: score[x], [0, 3, 4, 5])
+            frame, tp, fn, fp = [score[x] for x in [0, 3, 4, 5]]
             logger.debug(",".join([sid, frame, tp, fn, fp]))
             sids.append(int(sid))
             frames.append(frame)

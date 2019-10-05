@@ -44,7 +44,7 @@ class ProcessorAbstract(object):
         info = doc.split(sep_section)
         if len(info) < 5:
             raise Exception('Error parsing document')
-        info[4] = dict(map(lambda x: x.split(sep_val, 1), info[4].split(sep_entity)))
+        info[4] = dict([x.split(sep_val, 1) for x in info[4].split(sep_entity)])
         return {
             'url': info[0],
             'doc': info[1],
@@ -150,16 +150,21 @@ class Processor2JSON(ProcessorAbstract):
 
     def process_doc(self, doc, id, *analysers, **args):
         info = self._split_doc(doc, **args)
+
         # given a doc, generate a dict {analyser_i: analyser_i.sentence2FOL(doc)}
-        join = lambda x: '\n'.join(map(repr, x))
-        analyse_doc = lambda x, src, id: (x.name, join(x.sentence2LF(doc, src, id)))
-        analyse = lambda doc, src, id: dict(map(lambda a: analyse_doc(a, src, id), analysers))
+        def analyse(doc, src, id, analysers):
+            out = dict()
+            for analyser in analysers:
+                text = '\n'.join([repr(string) for string in analyser.sentence2LF(doc, src, id)])
+                out[analyser.name] = text
+            return out
+
         for text_field in ['doc', 'question']:
             if args.get('replace', False):
                 text = self.replace_entities(info, info[text_field])
             else:
                 text = info[text_field]
-            info[text_field] = analyse(text, text_field[0], id)
+            info[text_field] = analyse(text, text_field[0], id, analysers)
             info[text_field]['text'] = text
         return info
 
@@ -183,7 +188,7 @@ class Processor2PL(ProcessorAbstract):
 
     def process_doc(self, doc, id, *analysers, **args):
         info = self._split_doc(doc, **args)
-        analyse = lambda doc, src, id: map(lambda a: a.sentence2LF(doc, src, id), analysers)
+        analyse = lambda doc, src, id: [a.sentence2LF(doc, src, id) for a in analysers]
         out = []
         for text_field in ['doc', 'question']:
             if args.get('replace', False):
@@ -202,10 +207,15 @@ class Processor2PL(ProcessorAbstract):
         return out
 
     def _str_base(self, *args):
-        ignored = lambda s: s.startswith('(') or s.startswith(FOL.NOT)
-        comment_filter = lambda x: ('% ' + x) if ignored(x) else x
-        handle_lf = lambda lf: comment_filter(str(lf))
-        return map(handle_lf, args)
+        out = []
+        for lf in args:
+            text = str(lf)
+            if text.startswith('(') or text.startswith(FOL.NOT):  # if ignored
+                text = '% ' + text
+            else:
+                text = text
+            out.append(text)
+        return out
 
     def _str_fact(self, pred, *args):
         return "%s(%s).\n" % (pred, ','.join(map(str, args)))
@@ -253,10 +263,15 @@ class Processor2ProbLog(Processor2PL):
     """
 
     def _str_base(self, *args):
-        ignored = lambda s: s.startswith('(') or s.startswith(FOL.NOT)
-        comment_filter = lambda x: ('% ' if ignored(x) else '') + '0.5:: ' + x
-        handle_lf = lambda lf: comment_filter(str(lf))
-        return map(handle_lf, args)
+        out = []
+        for lf in args:
+            text = str(lf)
+            if text.startswith('(') or text.startswith(FOL.NOT):  # if ignored
+                text = '% 0.5:: ' + text
+            else:
+                text = '0.5:: ' + text
+            out.append(text)
+        return out
 
     def _str_fact(self, pred, *args):
         return "1.0:: %s(%s).\n" % (pred, ','.join(map(str, args)))

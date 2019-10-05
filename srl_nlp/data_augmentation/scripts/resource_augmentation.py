@@ -8,13 +8,14 @@ from copy import deepcopy as copy
 from multiprocessing import Pool
 from typing import Tuple, List, Union, Dict, Iterable
 
-from srl_nlp.analysers.boxer import BoxerAbstract
-from srl_nlp.analysers.dependencytree import DependencyTreeLocalAPI
+from srl_nlp.data_augmentation.analysers.boxer import BoxerAbstract, BoxerLocalAPI
+from srl_nlp.data_augmentation.analysers.dependencytree import DependencyTreeLocalAPI
 from srl_nlp.framenet.corpus import Document, Paragraph, Sentence, AnnotationSet
 from srl_nlp.framenet.description import EXample, FEeXample, Label
 from srl_nlp.framenet.framenet import Frame, FrameElement, FrameNet
-from srl_nlp.logical_representation.logicalform import LF
-from srl_nlp.rule_utils import get_paths, get_annotations, get_factors, list_doc_files, get_chunks, ensure_dir
+from srl_nlp.data_augmentation.logical_representation import LF
+from srl_nlp.rule_utils import list_doc_files, get_chunks, ensure_dir
+from srl_nlp.annotation_utils import get_annotations, get_factors, get_paths
 
 FE = FrameElement
 logger = logging.getLogger(__name__)
@@ -516,7 +517,6 @@ if __name__ == '__main__':
     from srl_nlp.framenet.adapter import PARSERS_AVAILABLE, DocumentAdapter
     from srl_nlp.logger_config import add_logger_args, config_logger, timeit
     from srl_nlp.framenet.parse_xml import NetXMLParser
-    from srl_nlp.analysers.boxer import BoxerLocalAPI
     from itertools import chain
     from sys import argv as _argv
     from os import path
@@ -575,7 +575,7 @@ if __name__ == '__main__':
                             help='Forces annotation augmentations to overwrite the '
                                  'same sentence instead of creating new ones')
         parser.add_argument('--num_cpus', default=1, type=int,
-                            help='Place to store the new FrameNet frame data')
+                            help='Number of workers to be run in parallel')
         add_logger_args(parser)
         args = parser.parse_args(argv[1:])
         assert args.num_cpus > 0, "--num_cpus must be a positive integer"

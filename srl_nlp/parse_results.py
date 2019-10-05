@@ -9,8 +9,8 @@ from json import load, dump
 from os import path
 from sys import argv
 
-from learner import Aleph, ProbFoil, run_tree
-from logger_config import config_logger, add_logger_args
+from srl_nlp.learner import Aleph, ProbFoil, run_tree
+from srl_nlp.logger_config import config_logger, add_logger_args
 
 logger = logging.getLogger(__name__)
 
@@ -23,10 +23,10 @@ class ExpObj:
     def __init__(self, sep=path.sep, repl='_', **entries):
         new_entries = {}
         for key in entries.keys():
-            tokens = map(lambda x: self._normalize_token(x, repl), key.split(sep))
+            tokens = [self._normalize_token(token, repl) for token in key.split(sep)]
             if len(tokens) > 1:
                 new_entries[tokens[0]] = new_entries.get(tokens[0], ExpObj())
-                new_entries[tokens[0]]._update(self._unfold(tokens[1:], entries[key]))
+                new_entries[tokens[0]].update(self._unfold(tokens[1:], entries[key]))
             else:
                 new_entries[tokens[0]] = entries[key]
         self.__dict__.update(new_entries)
@@ -60,7 +60,7 @@ def json_to_object(json):
 
 
 def _runAleph_out_parser(dir, file_list, prefix=None, logger=logging.getLogger(__name__), d={}):
-    file_name = Aleph._find_file(prefix, None, file_list, logger)
+    file_name = Aleph.find_file(prefix, None, file_list, logger)
     if file_name:
         complete_file_name = path.join(dir, file_name)
         logger.info('File name: %s', complete_file_name)
@@ -68,38 +68,39 @@ def _runAleph_out_parser(dir, file_list, prefix=None, logger=logging.getLogger(_
 
 
 def _runProbLog_out_parser(dir, file_list, prefix=None, logger=logging.getLogger(__name__), d={}):
-    file_name = ProbFoil._find_file(prefix, None, file_list, logger)
+    file_name = ProbFoil.find_file(prefix, None, file_list, logger)
     if file_name:
         complete_file_name = path.join(dir, file_name)
         logger.info('File name: %s', complete_file_name)
         d.update({complete_file_name: ProbFoil.process_out(complete_file_name)})
 
 
-def parse_args(argv=argv, add_logger_args=lambda x: None):
-    parser = argparse.ArgumentParser(description='Parses the ourput of an experiment tree (Aleph only right now)')
-    parser.add_argument('dir_path', help='the path of the experiments')
-    parser.add_argument('-p', '--file_prefix', help='prefix of the experiment files')
-    parser.add_argument('-o', '--output_file', help='file to store results (if None: print to stdout)')
-    add_logger_args(parser)
-    args = parser.parse_args(argv[1:])
-    return args
-
-
-def main(argv):
-    args = parse_args(argv, add_logger_args)
-    config_logger(args)
-    out = {}
-    logger.info('Starting at %s', args.dir_path)
-    run_tree(args.dir_path, _runAleph_out_parser, args.file_prefix, logger, d=out)
-    if args.output_file:
-        with open(args.output_file, 'w') as out_stream:
-            dump(out, out_stream)
-    else:
-        print out
-    logger.info('Done')
-
-
 if __name__ == '__main__':
+
+    def parse_args(argv=argv, add_logger_args=lambda x: None):
+        parser = argparse.ArgumentParser(description='Parses the ourput of an experiment tree (Aleph only right now)')
+        parser.add_argument('dir_path', help='the path of the experiments')
+        parser.add_argument('-p', '--file_prefix', help='prefix of the experiment files')
+        parser.add_argument('-o', '--output_file', help='file to store results (if None: print to stdout)')
+        add_logger_args(parser)
+        args = parser.parse_args(argv[1:])
+        return args
+
+
+    def main(_argv):
+        args = parse_args(_argv, add_logger_args)
+        config_logger(args)
+        out = {}
+        logger.info('Starting at %s', args.dir_path)
+        run_tree(args.dir_path, _runAleph_out_parser, args.file_prefix, d=out)
+        if args.output_file:
+            with open(args.output_file, 'w') as out_stream:
+                dump(out, out_stream)
+        else:
+            print(out)
+        logger.info('Done')
+
+
     try:
         main(argv)
     except KeyboardInterrupt:

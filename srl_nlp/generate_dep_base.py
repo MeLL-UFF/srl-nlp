@@ -12,7 +12,7 @@ from collections import Iterable
 from os import path, makedirs
 from typing import List, Set, Dict, Tuple
 
-from analysers.boxer import BoxerLocalAPI
+from srl_nlp.data_augmentation.analysers.boxer import BoxerLocalAPI
 from srl_nlp.framenet.adapter import PARSERS_AVAILABLE
 
 logger = logging.getLogger(__name__)
@@ -193,7 +193,7 @@ def examples_from_doc(spacy_parser, d_id, doc, analyser=None, encoding='utf-8', 
                 yield DataObject(s_id, frs, fes, preds, len(sentence_tree), analyser_preds=a_preds)
             except (AssertionError, IOError) as ex:
                 logger.error(ex.message)
-                print ex
+                print(ex)
             # break
 
 
@@ -326,7 +326,7 @@ def write_to_file(root_folder, dataset, dataset_name, fact_header=None, min_neg=
                     if max_np_ratio:
                         neg_examples_tmp = list(neg_examples)
                         qtd = min(max(int(len(data_obj.fes) * max_np_ratio), min_neg), len(neg_examples_tmp))
-                        indexes = xrange(len(neg_examples_tmp))
+                        indexes = range(len(neg_examples_tmp))
                         neg_examples = [neg_examples_tmp[i]
                                         for i in random_gen.sample(indexes, qtd)]
                     for neg_exe in neg_examples:
@@ -354,7 +354,7 @@ def get_examples(data_base_path, input_parser, use_boxer=False):
 
 if __name__ == '__main__':
     import argparse
-    from logger_config import add_logger_args as _add_logger_args, config_logger, timeit
+    from srl_nlp.logger_config import add_logger_args as _add_logger_args, config_logger, timeit
 
 
     def parse_args(argv, add_logger_args=lambda x: None):

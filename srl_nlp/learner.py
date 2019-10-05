@@ -1,23 +1,23 @@
-#!/bin/env python2
+#!/bin/env python
 """
 Runs all the experiments in a given directory tree
 """
 
 import argparse
 import logging
-from ConfigParser import ConfigParser
+from configparser import ConfigParser
 from json import dump
 from os import path, walk as walkdir
 from subprocess import PIPE, Popen as popen
 from sys import argv as _argv
 
-from logger_config import config_logger, add_logger_args as _add_logger_args
+from srl_nlp.logger_config import config_logger, add_logger_args as _add_logger_args
 from probfoil import probfoil
 from probfoil.data import DataFile
 from probfoil.score import accuracy, precision, recall
 # from problog import get_evaluatable
 from problog.program import PrologFile
-from regex import compile
+from re import compile
 
 # import probfoil
 
@@ -40,7 +40,7 @@ class Learner(object):
         return self.name
 
     @staticmethod
-    def _find_file(prefix, extension, file_list, logger=logging.getLogger(__name__)):
+    def find_file(prefix, extension, file_list, logger=logging.getLogger(__name__)):
         """
         Returns the first file with the given prefix and extension.
 
@@ -51,7 +51,7 @@ class Learner(object):
             extension: the desired extension of the file
             file_list: the list of files to pick from
         """
-        candidates = map(lambda x: path.splitext(x), file_list)
+        candidates = list(map(lambda x: path.splitext(x), file_list))
         if len(candidates) < 1:
             logger.debug('No candidates')
         else:
@@ -98,9 +98,9 @@ class Aleph(Learner):
         self.prefix = kargs.get('prefix', None)
         logger.debug('Checking necessary files in %s', self.dir)
         # self.kb     = Aleph._find_file(self.prefix,'pl', files)
-        self.neg = Aleph._find_file(self.prefix, 'n', files)
-        self.fact = Aleph._find_file(self.prefix, 'f', files)
-        self.base = Aleph._find_file(self.prefix, 'b', files)
+        self.neg = Aleph.find_file(self.prefix, 'n', files)
+        self.fact = Aleph.find_file(self.prefix, 'f', files)
+        self.base = Aleph.find_file(self.prefix, 'b', files)
 
     def _has_necessary_files(self):
         """Returns if the learner has all the files it requires to function
@@ -111,7 +111,7 @@ class Aleph(Learner):
         """
         Returns a list of the relevant files for learning
         """
-        return (self.neg, self.fact, self.base)
+        return self.neg, self.fact, self.base
 
     def get_prefix(self):
         """
@@ -121,7 +121,7 @@ class Aleph(Learner):
             return self.prefix
         else:
             prefixes = map(lambda x: path.splitext(x)[0], self.get_files())
-            prefixes = filter(lambda x: x, prefixes)
+            prefixes = list(filter(lambda x: x, prefixes))
             if len(prefixes) > 1:
                 for f in prefixes[1:]:
                     if f != prefixes[0]:
@@ -161,7 +161,7 @@ class Aleph(Learner):
                 out_stream.close()
             else:
                 for line in process.stdout.readlines():
-                    print line,
+                    print(line, end='')
             err = process.stderr.read()
             if err:
                 logger.warning("%s STDERR:\n%s\n%s", self.name.upper(), self.dir, err)
@@ -170,10 +170,10 @@ class Aleph(Learner):
 
     @staticmethod
     def process_out(in_file_name):
-        catch_theory = compile('%\s*\[theory\].*')
-        catch_theory_end = compile('\s*/\*.*')
-        catch_accuracy = compile('\s*Accuracy\s*=\s*(\d*\.\d*)\s*')
-        catch_table = compile('\[Training set performance\].*')
+        catch_theory = compile(r'%\s*\[theory\].*')
+        catch_theory_end = compile(r'\s*/\*.*')
+        catch_accuracy = compile(r'\s*Accuracy\s*=\s*(\d*\.\d*)\s*')
+        catch_table = compile(r'\[Training set performance\].*')
         NEUTRAL_MODE, THEO_MODE, TABLE_MODE = range(3)
         mode = NEUTRAL_MODE
         theory = []
@@ -231,9 +231,9 @@ class ProbFoil(Learner):
         self.prefix = kargs.get('prefix', None)
         logger.debug('Checking necessary files in %s', self.dir)
         # self.kb       = ProbFoil._find_file(self.prefix,'pl', files)
-        self.neg = ProbFoil._find_file(self.prefix, 'n', files)
-        self.fact = ProbFoil._find_file(self.prefix, 'f', files)
-        self.base = ProbFoil._find_file(self.prefix, 'b', files)
+        self.neg = ProbFoil.find_file(self.prefix, 'n', files)
+        self.fact = ProbFoil.find_file(self.prefix, 'f', files)
+        self.base = ProbFoil.find_file(self.prefix, 'b', files)
 
     @staticmethod
     def process_out(in_file_name):
@@ -290,7 +290,8 @@ class ProbFoil(Learner):
                 with open(path.join(self.dir, out_file_name), 'w') as out_stream:
                     dump(results, out_stream)
             else:
-                print results
+                print
+                results
         else:
             logger.debug('Empty dir: %s', self.dir)
 

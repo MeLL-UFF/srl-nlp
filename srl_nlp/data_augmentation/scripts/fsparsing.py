@@ -8,20 +8,21 @@ import argparse
 import json
 import logging
 import spacy
-from ConfigParser import ConfigParser
+from configparser import ConfigParser
 from abc import abstractmethod
 from os import path, remove as remove_file
 from tempfile import NamedTemporaryFile
 from typing import List, Dict, Tuple
 
-from srl_nlp.analysers.process import Process
+from srl_nlp.data_augmentation.analysers.process import Process
 from srl_nlp.framenet.adapter import JSONAdapter
 from srl_nlp.framenet.corpus import Annotation, AnnotationSet, Layer, Sentence
 from srl_nlp.logger_config import timeit, config_logger, add_logger_args as _add_logger_args
 # from framenet.adapter import SemEval07XMLAdapter
-from srl_nlp.logical_representation.fol import FOL
-from srl_nlp.logical_representation.logicalform import LF
-from srl_nlp.rule_utils import get_factors, open_a_file
+from srl_nlp.data_augmentation.logical_representation.fol import FOL
+from srl_nlp.data_augmentation.logical_representation.logicalform import LF
+from srl_nlp.rule_utils import open_a_file
+from srl_nlp.annotation_utils import get_factors
 
 logger = logging.getLogger(__name__)
 
@@ -509,8 +510,8 @@ def main(argv):
 
     logging.basicConfig(level=logging.DEBUG, format="[%(levelname)s:%(name)s:%(filename)s:%(lineno)s] %(message)s")
     semafor = SemaforAnnotator()
-    print semafor.matching([Sentence(sent_id=0, text='this is my testing'),
-                            Sentence(sent_id=1, text='life is wonderful.')])
+    print(semafor.matching([Sentence(sent_id=0, text='this is my testing'),
+                            Sentence(sent_id=1, text='life is wonderful.')]))
 
     # from srl_nlp.analysers.boxer import BoxerLocalAPI
     # boxer = BoxerLocalAPI()

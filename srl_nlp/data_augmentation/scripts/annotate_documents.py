@@ -7,13 +7,13 @@ Script for running annotation on the document files.
 from sys import argv as _argv
 
 import logging
-from ConfigParser import ConfigParser
-from os import path, listdir
+from configparser import ConfigParser
+from os import path
 from typing import List
 
 from srl_nlp.framenet.adapter import PARSERS_AVAILABLE, DocumentAdapter
 from srl_nlp.framenet.corpus import Paragraph, Document
-from srl_nlp.fsparsing import Annotator, SemaforAnnotator
+from srl_nlp.data_augmentation.scripts.fsparsing import Annotator, SemaforAnnotator
 from srl_nlp.rule_utils import list_doc_files
 
 logger = logging.getLogger(__name__)
@@ -52,7 +52,7 @@ def annotate_corpus(annotator, docs):
 
 if __name__ == '__main__':
     import argparse
-    from logger_config import add_logger_args as _add_logger_args, config_logger, timeit
+    from srl_nlp.logger_config import add_logger_args as _add_logger_args, config_logger, timeit
 
 
     def parse_args(argv, add_logger_args=lambda x: None):
@@ -144,7 +144,7 @@ if __name__ == '__main__':
                     output_parser.write_doc(out_docs[0], f_out)
             else:
                 logger.info("Printing results to stdout")
-                print output_parser.doc_to_string(out_docs[0])
+                print(output_parser.doc_to_string(out_docs[0]))
         logger.info('Done')
 
 
