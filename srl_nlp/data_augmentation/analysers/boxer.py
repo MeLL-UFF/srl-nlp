@@ -1,30 +1,23 @@
 from __future__ import print_function
-from sys import stderr
 
-import logging
-from configparser import ConfigParser
 from abc import abstractmethod
 from os import path
 from re import match, compile
-from requests import post
+from sys import stderr
 from typing import Dict, List, Any
 
+from requests import post
+
+from srl_nlp.data_augmentation import config, logger
 from srl_nlp.data_augmentation.analysers.process import Process
 from srl_nlp.data_augmentation.logical_representation import FOL, LF
 from srl_nlp.rule_utils import remove_eq
-
-logger = logging.getLogger(__name__)
-
-config = ConfigParser()
-_package_directory = path.dirname(__file__)
-
-config.read(path.join(_package_directory, path.join('..', '..', 'external.conf')))
 
 TIME_OUT = 100
 
 
 class TokenizerLocalAPI(Process):
-    def __init__(self, path_to_bin=config.get('syntatic_local', 't'), *params):
+    def __init__(self, path_to_bin=config.get('syntactic_local', 't'), *params):
         if len(params) == 0:
             params = ('--stdin',)
         Process.__init__(self, path_to_bin, True, TIME_OUT, *params)

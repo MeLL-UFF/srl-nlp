@@ -60,6 +60,7 @@ def _additive_dict_update(d1, d2):
         val.extend(d2[key])
         d1[key] = val
 
+
 # FIXME
 def remove_eq(lf, eq_term):
     """
@@ -91,6 +92,7 @@ def remove_eq(lf, eq_term):
         curr[:] = [curr[0]] + [child for child in curr[1:] if child[0] != eq_term]
         frontier.extend(curr[1:])
 
+
 def open_a_file(name=None, mode='wr'):
     """Opens the file, if no name is given, opens a NamedTemporaryFile"""
     if name is not None:
@@ -119,7 +121,7 @@ def get_chunks(elems, num_chunks):
     chunk_lens = [step + 1 if i < extra else step for i in range(num_chunks)]
     elems_iterator = elems.__iter__()
     for chunk_len in chunk_lens:
-        yield [elems_iterator.next() for _ in range(chunk_len)]
+        yield [next(elems_iterator) for _ in range(chunk_len)]
 
 
 def ensure_dir(dir_name):

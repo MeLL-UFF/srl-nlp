@@ -126,7 +126,7 @@ class FrameXMLParser:
     def _parse_lu(self, xml_node):
         attrib = xml_node.attrib
         for key in attrib:
-            attrib[key] = attrib[key].encode('utf-8')
+            attrib[key] = attrib[key]
         definition = ''
         lexeme = None
         for grandchild in xml_node:
@@ -136,7 +136,7 @@ class FrameXMLParser:
                 pass
             elif grandchild.tag.endswith('lexeme'):
                 lexeme = self._parse_lexeme(grandchild)
-        name = '.'.join(attrib['name'].split('.')[:-1])
+        name = '.'.join(map(str, attrib['name'].split('.')[:-1]))
 
         lu = LexicalUnit(name=name,
                          pos=attrib['POS'],
@@ -196,9 +196,8 @@ class NetXMLParser:
         for count, file_name in enumerate(ls(frames_path)):
             if file_name.endswith('.xml'):
                 file_path = path.join(frames_path, file_name)
-                logger.info(
-                    '{percent:3d}% reading frame "{absolute}"'.format(percent=((count + 1) * 100) / len(files_names),
-                                                                      absolute=file_name))
+                percentual = ((count + 1) * 100) / len(files_names)
+                logger.info(f'{percentual:3f}% reading frame "{file_name}"')
                 frame = self._fparser.parse(file_path)
                 frames[frame.name] = frame
 

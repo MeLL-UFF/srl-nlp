@@ -1,4 +1,5 @@
 import logging
+import sys
 from time import time
 
 logger = logging.getLogger(__name__)
@@ -29,11 +30,12 @@ def silence_logger():
 
 def _timeit(foo, level):
     def timer(*args, **kwargs):
+        foo_name = sys._getframe().f_code.co_name
         start_time = time()
         foo(*args, **kwargs)
         elapsed_time = time() - start_time
 
-        logger.log(level, '{{{foo}}} Elapsed time: {time} seconds'.format(foo=foo.func_name, time=elapsed_time))
+        logger.log(level, '{{{foo}}} Elapsed time: {time} seconds'.format(foo=foo_name, time=elapsed_time))
 
     return timer
 

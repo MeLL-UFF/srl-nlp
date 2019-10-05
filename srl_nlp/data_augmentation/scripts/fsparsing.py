@@ -83,7 +83,7 @@ class PrologAnnotator(Process, Annotator):
         self.analyser = analyser
         self.fr_kb_file = fr_kb_file
         self.fe_kb_file = fe_kb_file
-        self._nlp = spacy.load(config.get('syntatic_local', 'spacy_model'))  # TODO make it an argument later
+        self._nlp = spacy.load(config.get('syntactic_local', 'spacy_model'))  # TODO make it an argument later
         self._get_lemma = lambda token: self._nlp(token.decode('utf-8'))[0].lemma_
         # Annotator.__init__(self)
         Process.__init__(self, path_to_prolog, True)
@@ -243,7 +243,7 @@ class PrologAnnotator(Process, Annotator):
 #         self.analyser = analyser
 #         self.fr_kb_file = fr_kb_file
 #         self.fe_kb_file = fe_kb_file
-#         self._nlp = spacy.load(config.get('syntatic_local', 'spacy_model'))  # TODO make it an argument later
+#         self._nlp = spacy.load(config.get('syntactic_local', 'spacy_model'))  # TODO make it an argument later
 #         self._get_lemma = lambda token: self._nlp(token.decode('utf-8'))[0].lemma_
 #         # Annotator.__init__(self)
 #         Process.__init__(self, path_to_prolog, True)
